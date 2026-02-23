@@ -17,10 +17,17 @@ interface ErrorPattern {
 
 const ERROR_PATTERNS: ErrorPattern[] = [
   {
-    pattern: /Has the environment been bootstrapped/i,
+    pattern: /Is account \d+ bootstrapped|Has the environment been bootstrapped|No bucket named 'cdk-hnb659fds-assets/i,
     title: "CDK Bootstrap Required",
     suggestion:
-      "Your AWS account/region has not been bootstrapped for CDK. Run the bootstrap command first.",
+      "Your AWS account/region has not been bootstrapped for CDK. The CDK needs a bootstrap stack to store assets. Run the bootstrap command with your account ID and region.",
+    command: "npx cdk bootstrap aws://ACCOUNT_ID/REGION",
+  },
+  {
+    pattern: /Bootstrap stack.*outdated|requires a newer version of the bootstrap/i,
+    title: "Bootstrap Stack Outdated",
+    suggestion:
+      "Your CDK bootstrap stack is outdated and needs to be updated. Re-run the bootstrap command to upgrade it.",
     command: "npx cdk bootstrap aws://ACCOUNT_ID/REGION",
   },
   {
@@ -82,7 +89,20 @@ function matchErrorPatterns(
 ): { title: string; suggestion: string; command?: string } | null {
   for (const { pattern, title, suggestion, command } of ERROR_PATTERNS) {
     if (pattern.test(text)) {
-      return { title, suggestion, command };
+      let resolvedCommand = command;
+      // Auto-substitute account ID and region if we can parse them from the error
+      if (resolvedCommand) {
+        const accountMatch = text.match(/account\s+(\d{12})/i) ||
+          text.match(/aws:\/\/(\d{12})/);
+        const regionMatch = text.match(/(eu|us|ap|sa|ca|me|af)-\w+-\d+/);
+        if (accountMatch) {
+          resolvedCommand = resolvedCommand.replace("ACCOUNT_ID", accountMatch[1]);
+        }
+        if (regionMatch) {
+          resolvedCommand = resolvedCommand.replace("REGION", regionMatch[0]);
+        }
+      }
+      return { title, suggestion, command: resolvedCommand };
     }
   }
   return null;

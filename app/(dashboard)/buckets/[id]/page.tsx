@@ -34,6 +34,7 @@ import { FilesTable } from "@/features/files/components/files-table";
 import { SetupTab } from "@/features/buckets/components/setup-tab";
 import { ComponentsPreviewTab } from "@/features/buckets/components/components-preview-tab";
 import { DeleteBucketDialog } from "@/features/buckets/components/delete-bucket-dialog";
+import { UploadDialog } from "@/features/files/components/upload-dialog";
 import { useFiles, useDeleteFile } from "@/features/files/hooks/use-files";
 import { useAnalytics } from "@/features/infrastructure/hooks/use-analytics";
 import type { Bucket } from "@/lib/types";
@@ -69,6 +70,7 @@ export default function BucketDetailPage({
   const [bucket, setBucket] = useState<Bucket | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const { files, refetch: refetchFiles } = useFiles(undefined, bucket?.s3BucketName);
   const { deleteFile } = useDeleteFile();
   const { bucketAnalytics } = useAnalytics();
@@ -151,9 +153,14 @@ export default function BucketDetailPage({
               {bucket.status}
             </Badge>
             {bucket.status === "active" && (
-              <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
-                Full Delete
-              </Button>
+              <>
+                <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
+                  <FileUp className="mr-1.5 size-3.5" /> Upload Files
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
+                  Full Delete
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -247,8 +254,13 @@ export default function BucketDetailPage({
 
           <TabsContent value="files">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex-row items-center justify-between">
                 <CardTitle>Files in this Bucket</CardTitle>
+                {bucket.status === "active" && (
+                  <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
+                    <FileUp className="mr-1.5 size-3.5" /> Upload
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
                 <FilesTable files={files} onDelete={handleDeleteFile} />
@@ -264,6 +276,15 @@ export default function BucketDetailPage({
             <ComponentsPreviewTab bucket={bucket} />
           </TabsContent>
         </Tabs>
+
+        {/* Upload dialog */}
+        <UploadDialog
+          open={uploadOpen}
+          onOpenChange={setUploadOpen}
+          bucket={bucket}
+          projectId={bucket.projectId}
+          onUploadComplete={() => refetchFiles()}
+        />
 
         {/* Delete dialog */}
         <DeleteBucketDialog

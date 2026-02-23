@@ -96,7 +96,7 @@ export function ProjectsTable({ projects, onDelete }: ProjectsTableProps) {
                     <Link href={`/projects/${project.id}`}>View Details</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    variant ="destructive"
+                    variant="destructive"
                     onClick={() => onDelete(project.id)}
                   >
                     <Trash2 className="mr-2 size-4" />

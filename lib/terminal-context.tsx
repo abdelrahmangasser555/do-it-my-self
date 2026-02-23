@@ -31,6 +31,9 @@ interface TerminalContextValue {
     source?: string,
     onLine?: (parsed: Record<string, unknown>) => void
   ) => Promise<void>;
+  runCommand: (command: string, cwd?: string) => Promise<void>;
+  isRunning: boolean;
+  commandHistory: string[];
 }
 
 const TerminalContext = createContext<TerminalContextValue | null>(null);
@@ -55,6 +58,8 @@ function createLine(
 export function TerminalProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<TerminalLine[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const linesRef = useRef<TerminalLine[]>([]);
 
   const log = useCallback(
@@ -128,9 +133,50 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
     [log]
   );
 
+  // Execute a shell command via the /api/terminal endpoint
+  const runCommand = useCallback(
+    async (command: string, cwd?: string) => {
+      setIsOpen(true);
+      setIsRunning(true);
+      setCommandHistory((prev) => [...prev, command]);
+
+      try {
+        const res = await fetch("/api/terminal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command, cwd }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          log(err.error || "Command failed", "error", "terminal");
+          setIsRunning(false);
+          return;
+        }
+
+        if (!res.body) {
+          log("No response stream", "error", "terminal");
+          setIsRunning(false);
+          return;
+        }
+
+        await logStream(res.body.getReader(), "terminal");
+      } catch (err) {
+        log(
+          `Command error: ${err instanceof Error ? err.message : "Unknown"}`,
+          "error",
+          "terminal"
+        );
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [log, logStream]
+  );
+
   return (
     <TerminalContext.Provider
-      value={{ lines, isOpen, setIsOpen, log, clear, logStream }}
+      value={{ lines, isOpen, setIsOpen, log, clear, logStream, runCommand, isRunning, commandHistory }}
     >
       {children}
     </TerminalContext.Provider>

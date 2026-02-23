@@ -27,6 +27,7 @@ import {
   Layers,
   FileCode2,
   Terminal,
+  Zap,
 } from "lucide-react";
 
 const navItems = [
@@ -49,6 +50,7 @@ const navItems = [
     items: [
       { label: "Infrastructure", href: "/infrastructure", icon: Server },
       { label: "Code Snippets", href: "/snippets", icon: Code2 },
+      { label: "Commands", href: "/commands", icon: Zap },
     ],
   },
   {

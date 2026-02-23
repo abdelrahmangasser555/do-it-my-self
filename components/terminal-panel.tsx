@@ -1,4 +1,4 @@
-// Integrated terminal panel — collapsible log viewer with colored output
+// Integrated terminal panel — collapsible log viewer with command input
 "use client";
 
 import { useRef, useEffect, useState } from "react";
@@ -14,6 +14,8 @@ import {
   Filter,
   Maximize2,
   Minimize2,
+  Send,
+  Loader2,
 } from "lucide-react";
 import { useTerminal, type LogLevel, type TerminalLine } from "@/lib/terminal-context";
 import { cn } from "@/lib/utils";
@@ -61,10 +63,13 @@ function TerminalLineRow({ line }: { line: TerminalLine }) {
 }
 
 export function TerminalPanel() {
-  const { lines, isOpen, setIsOpen, clear } = useTerminal();
+  const { lines, isOpen, setIsOpen, clear, runCommand, isRunning, commandHistory } = useTerminal();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [filter, setFilter] = useState<LogLevel | "all">("all");
+  const [command, setCommand] = useState("");
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
   // Auto-scroll to bottom on new log lines
   useEffect(() => {
@@ -76,11 +81,48 @@ export function TerminalPanel() {
     }
   }, [lines]);
 
+  // Focus input when panel opens
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [isOpen]);
+
   const filteredLines =
     filter === "all" ? lines : lines.filter((l) => l.level === filter);
 
   const errorCount = lines.filter((l) => l.level === "error").length;
   const warnCount = lines.filter((l) => l.level === "warn").length;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = command.trim();
+    if (!trimmed || isRunning) return;
+    setCommand("");
+    setHistoryIndex(-1);
+    runCommand(trimmed);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (commandHistory.length > 0) {
+        const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
+        setHistoryIndex(newIndex);
+        setCommand(commandHistory[commandHistory.length - 1 - newIndex] || "");
+      }
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (historyIndex > 0) {
+        const newIndex = historyIndex - 1;
+        setHistoryIndex(newIndex);
+        setCommand(commandHistory[commandHistory.length - 1 - newIndex] || "");
+      } else {
+        setHistoryIndex(-1);
+        setCommand("");
+      }
+    }
+  };
 
   return (
     <>
@@ -117,6 +159,21 @@ export function TerminalPanel() {
         )}
       </AnimatePresence>
 
+      {/* Floating open button when no lines yet */}
+      {!isOpen && lines.length === 0 && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 bg-[#181825] text-white border-white/10 hover:bg-[#1e1e2e] hover:text-white shadow-lg"
+            onClick={() => setIsOpen(true)}
+          >
+            <Terminal className="size-4" />
+            Terminal
+          </Button>
+        </div>
+      )}
+
       {/* Terminal panel */}
       <AnimatePresence>
         {isOpen && (
@@ -126,12 +183,12 @@ export function TerminalPanel() {
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className={cn(
-              "fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-[#1e1e2e] shadow-2xl",
-              expanded ? "top-0" : "h-80"
+              "fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-[#1e1e2e] shadow-2xl flex flex-col",
+              expanded ? "top-0" : "h-96"
             )}
           >
             {/* Header bar */}
-            <div className="flex items-center justify-between border-b border-white/10 bg-[#181825] px-4 py-2">
+            <div className="flex items-center justify-between border-b border-white/10 bg-[#181825] px-4 py-2 shrink-0">
               <div className="flex items-center gap-3">
                 <Terminal className="size-4 text-white/60" />
                 <span className="text-sm font-medium text-white/80">
@@ -143,6 +200,11 @@ export function TerminalPanel() {
                 >
                   {lines.length} lines
                 </Badge>
+                {isRunning && (
+                  <Badge className="bg-purple-500/20 text-purple-400 text-xs px-1.5 py-0 gap-1">
+                    <Loader2 className="size-3 animate-spin" /> Running
+                  </Badge>
+                )}
                 {errorCount > 0 && (
                   <Badge variant="destructive" className="text-xs px-1.5 py-0">
                     {errorCount} errors
@@ -205,11 +267,11 @@ export function TerminalPanel() {
             </div>
 
             {/* Log lines */}
-            <ScrollArea className="h-[calc(100%-2.5rem)]" ref={scrollRef}>
+            <ScrollArea className="flex-1 min-h-0" ref={scrollRef}>
               {filteredLines.length === 0 ? (
                 <div className="flex items-center justify-center py-12 text-sm text-white/30">
                   {lines.length === 0
-                    ? "No logs yet. Deploy or run a command to see output here."
+                    ? "Type a command below, or deploy/run an action to see output here."
                     : `No ${filter} logs.`}
                 </div>
               ) : (
@@ -220,6 +282,39 @@ export function TerminalPanel() {
                 </div>
               )}
             </ScrollArea>
+
+            {/* Command input */}
+            <form
+              onSubmit={handleSubmit}
+              className="flex items-center gap-2 border-t border-white/10 bg-[#181825] px-4 py-2 shrink-0"
+            >
+              <span className="text-sm font-mono text-green-400 select-none">$</span>
+              <input
+                ref={inputRef}
+                type="text"
+                value={command}
+                onChange={(e) => setCommand(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={isRunning ? "Waiting for command to finish..." : "Type a command and press Enter..."}
+                disabled={isRunning}
+                className="flex-1 bg-transparent text-sm font-mono text-white/90 placeholder:text-white/30 outline-none disabled:opacity-50"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <Button
+                type="submit"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-white/40 hover:text-white hover:bg-white/10"
+                disabled={isRunning || !command.trim()}
+              >
+                {isRunning ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Send className="size-3.5" />
+                )}
+              </Button>
+            </form>
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,1 +1,21 @@
-[]
+[
+  {
+    "id": "d3bf3f42-5dcd-4e0c-b0e6-ed45f33adc1d",
+    "projectId": "97346070-3fd9-4d87-bb4f-375e6912844a",
+    "name": "gasser-demo",
+    "s3BucketName": "scr-gasser-demo-1771875634128",
+    "s3BucketArn": "arn:aws:s3:::scr-gasser-demo-1771875634128",
+    "cloudFrontDomain": "d2yeq1h38kcf0y.cloudfront.net",
+    "cloudFrontDistributionId": "E2AT609OVNJJAA",
+    "region": "eu-north-1",
+    "status": "active",
+    "config": {
+      "versioning": false,
+      "encryption": "s3",
+      "backupEnabled": false,
+      "maxFileSizeMB": 20
+    },
+    "createdAt": "2026-02-23T19:40:34.129Z",
+    "updatedAt": "2026-02-23T22:14:45.571Z"
+  }
+]

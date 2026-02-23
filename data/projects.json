@@ -1,20 +1,20 @@
 [
   {
-    "id": "17b76e46-269f-4d3a-a5ec-b1129aeaad8e",
-    "name": "Testing system",
+    "id": "97346070-3fd9-4d87-bb4f-375e6912844a",
+    "name": "Gasser-demo",
     "environment": "dev",
     "maxFileSizeMB": 20,
     "allowedMimeTypes": [
       "image/jpeg",
       "image/png",
       "application/pdf",
+      "video/mp4",
       "text/csv",
       "text/plain",
       "audio/mpeg",
-      "video/mp4",
-      "application/zip"
+      "application/json"
     ],
-    "createdAt": "2026-02-23T04:41:18.772Z",
-    "updatedAt": "2026-02-23T04:41:18.772Z"
+    "createdAt": "2026-02-23T19:38:48.333Z",
+    "updatedAt": "2026-02-23T19:38:48.334Z"
   }
 ]

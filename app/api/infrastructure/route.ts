@@ -3,7 +3,12 @@ import { NextRequest } from "next/server";
 import { spawn } from "child_process";
 import path from "path";
 import { updateInJsonFile, readJsonFile } from "@/lib/filesystem";
-import type { Bucket, Project } from "@/lib/types";
+import {
+  describeStack,
+  deleteStack,
+  checkBucketExists,
+} from "@/lib/aws";
+import type { Bucket, Project, BucketSyncStatus } from "@/lib/types";
 
 const CDK_DIR = path.join(process.cwd(), "infrastructure", "cdk");
 
@@ -293,11 +298,45 @@ export async function POST(request: NextRequest) {
 
         await new Promise<void>((resolve) => {
           child.on("close", async (code) => {
-            if (code === 0) {
+            // On Windows, CDK can exit with code === null even on success.
+            // Use multiple heuristics to determine actual success:
+            //   1. code === 0
+            //   2. CDK outputs file exists with valid stack outputs
+            //   3. stdout/stderr contains the ✅ success marker
+            let actuallySucceeded = code === 0;
+
+            if (!actuallySucceeded && action === "deploy" && bucketId) {
+              try {
+                const fs = await import("fs/promises");
+                const outputsPath = path.join(CDK_DIR, "cdk-outputs.json");
+                const outputsRaw = await fs.readFile(outputsPath, "utf-8");
+                const outputs = JSON.parse(outputsRaw);
+                const stackName = Object.keys(outputs).find((k) =>
+                  k.includes(s3BucketName || "")
+                );
+                if (stackName && outputs[stackName]) {
+                  actuallySucceeded = true;
+                }
+              } catch {
+                // outputs file doesn't exist or is invalid
+              }
+            }
+
+            if (
+              !actuallySucceeded &&
+              (stdoutBuffer.includes("✅") || stderrBuffer.includes("✅"))
+            ) {
+              actuallySucceeded = true;
+            }
+
+            if (actuallySucceeded) {
               write({
                 type: "result",
                 status: "success",
-                message: `${action} completed successfully`,
+                message:
+                  code === 0
+                    ? `${action} completed successfully`
+                    : `${action} completed successfully (exit code ${code} — verified via outputs)`,
                 level: "success",
               });
 
@@ -413,4 +452,237 @@ export async function POST(request: NextRequest) {
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
+}
+
+// ── GET: Check / sync bucket status with AWS ─────────────────────────────────
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const action = searchParams.get("action");
+  const bucketId = searchParams.get("bucketId");
+
+  if (action === "check-status") {
+    // Check a single bucket's AWS status
+    if (!bucketId) {
+      return Response.json({ error: "bucketId is required" }, { status: 400 });
+    }
+
+    const { findInJsonFile } = await import("@/lib/filesystem");
+    const bucket = await findInJsonFile<Bucket>("buckets.json", bucketId);
+    if (!bucket) {
+      return Response.json({ error: "Bucket not found" }, { status: 404 });
+    }
+
+    try {
+      const [stackStatus, bucketExists] = await Promise.all([
+        describeStack(bucket.s3BucketName, bucket.region),
+        checkBucketExists(bucket.s3BucketName, bucket.region),
+      ]);
+
+      let recommendedAction: BucketSyncStatus["recommendedAction"];
+      let needsSync = false;
+
+      if (stackStatus) {
+        const isComplete =
+          stackStatus.stackStatus === "CREATE_COMPLETE" ||
+          stackStatus.stackStatus === "UPDATE_COMPLETE";
+        const isFailed =
+          stackStatus.stackStatus.includes("FAILED") ||
+          stackStatus.stackStatus.includes("ROLLBACK");
+        const isInProgress =
+          stackStatus.stackStatus.includes("IN_PROGRESS");
+
+        if (isComplete && bucket.status !== "active") {
+          needsSync = true;
+          recommendedAction = "update-to-active";
+        } else if (isFailed && bucket.status !== "failed") {
+          needsSync = true;
+          recommendedAction = "update-to-failed";
+        } else if (isInProgress && bucket.status !== "deploying") {
+          needsSync = true;
+        }
+      } else {
+        // No stack found
+        if (bucket.status === "active" || bucket.status === "deploying") {
+          needsSync = true;
+          recommendedAction = bucketExists ? "update-to-active" : "update-to-pending";
+        }
+      }
+
+      const result: BucketSyncStatus = {
+        bucketId: bucket.id,
+        bucketName: bucket.name,
+        s3BucketName: bucket.s3BucketName,
+        localStatus: bucket.status,
+        stackExists: !!stackStatus,
+        stackStatus: stackStatus?.stackStatus,
+        stackStatusReason: stackStatus?.stackStatusReason,
+        s3BucketExists: bucketExists,
+        cloudFrontDomain: stackStatus?.outputs["CloudFrontDomain"],
+        cloudFrontDistributionId: stackStatus?.outputs["DistributionId"],
+        resources: stackStatus?.resources ?? [],
+        needsSync,
+        recommendedAction,
+      };
+
+      return Response.json(result);
+    } catch (e) {
+      return Response.json(
+        { error: e instanceof Error ? e.message : "Failed to check status" },
+        { status: 500 }
+      );
+    }
+  }
+
+  if (action === "sync-all") {
+    // Sync all buckets with AWS state
+    const buckets = await readJsonFile<Bucket>("buckets.json");
+    const results: BucketSyncStatus[] = [];
+
+    for (const bucket of buckets) {
+      try {
+        const [stackStatus, bucketExists] = await Promise.all([
+          describeStack(bucket.s3BucketName, bucket.region),
+          checkBucketExists(bucket.s3BucketName, bucket.region),
+        ]);
+
+        let recommendedAction: BucketSyncStatus["recommendedAction"];
+        let needsSync = false;
+
+        if (stackStatus) {
+          const isComplete =
+            stackStatus.stackStatus === "CREATE_COMPLETE" ||
+            stackStatus.stackStatus === "UPDATE_COMPLETE";
+          const isFailed =
+            stackStatus.stackStatus.includes("FAILED") ||
+            stackStatus.stackStatus.includes("ROLLBACK");
+
+          if (isComplete && bucket.status !== "active") {
+            needsSync = true;
+            recommendedAction = "update-to-active";
+            // Auto-sync: update bucket to active with outputs
+            await updateInJsonFile<Bucket>("buckets.json", bucket.id, {
+              status: "active",
+              s3BucketArn: stackStatus.outputs["BucketArn"] || bucket.s3BucketArn,
+              cloudFrontDomain:
+                stackStatus.outputs["CloudFrontDomain"] || bucket.cloudFrontDomain,
+              cloudFrontDistributionId:
+                stackStatus.outputs["DistributionId"] ||
+                bucket.cloudFrontDistributionId,
+              updatedAt: new Date().toISOString(),
+            } as Partial<Bucket>);
+          } else if (isFailed && bucket.status !== "failed") {
+            needsSync = true;
+            recommendedAction = "update-to-failed";
+            await updateInJsonFile<Bucket>("buckets.json", bucket.id, {
+              status: "failed",
+              updatedAt: new Date().toISOString(),
+            } as Partial<Bucket>);
+          }
+        } else {
+          if (bucket.status === "active" || bucket.status === "deploying") {
+            needsSync = true;
+            if (bucketExists) {
+              recommendedAction = "update-to-active";
+            } else {
+              recommendedAction = "update-to-pending";
+              await updateInJsonFile<Bucket>("buckets.json", bucket.id, {
+                status: "pending",
+                updatedAt: new Date().toISOString(),
+              } as Partial<Bucket>);
+            }
+          }
+        }
+
+        results.push({
+          bucketId: bucket.id,
+          bucketName: bucket.name,
+          s3BucketName: bucket.s3BucketName,
+          localStatus: bucket.status,
+          stackExists: !!stackStatus,
+          stackStatus: stackStatus?.stackStatus,
+          stackStatusReason: stackStatus?.stackStatusReason,
+          s3BucketExists: bucketExists,
+          cloudFrontDomain: stackStatus?.outputs["CloudFrontDomain"],
+          cloudFrontDistributionId: stackStatus?.outputs["DistributionId"],
+          resources: stackStatus?.resources ?? [],
+          needsSync,
+          recommendedAction,
+        });
+      } catch {
+        results.push({
+          bucketId: bucket.id,
+          bucketName: bucket.name,
+          s3BucketName: bucket.s3BucketName,
+          localStatus: bucket.status,
+          stackExists: false,
+          s3BucketExists: false,
+          resources: [],
+          needsSync: false,
+        });
+      }
+    }
+
+    return Response.json({ results });
+  }
+
+  if (action === "apply-sync") {
+    // Apply a recommended sync action
+    if (!bucketId) {
+      return Response.json({ error: "bucketId is required" }, { status: 400 });
+    }
+    const syncAction = searchParams.get("syncAction");
+    const { findInJsonFile } = await import("@/lib/filesystem");
+    const bucket = await findInJsonFile<Bucket>("buckets.json", bucketId);
+    if (!bucket) {
+      return Response.json({ error: "Bucket not found" }, { status: 404 });
+    }
+
+    try {
+      if (syncAction === "update-to-active") {
+        const stackStatus = await describeStack(bucket.s3BucketName, bucket.region);
+        await updateInJsonFile<Bucket>("buckets.json", bucketId, {
+          status: "active",
+          s3BucketArn: stackStatus?.outputs["BucketArn"] || bucket.s3BucketArn,
+          cloudFrontDomain:
+            stackStatus?.outputs["CloudFrontDomain"] || bucket.cloudFrontDomain,
+          cloudFrontDistributionId:
+            stackStatus?.outputs["DistributionId"] ||
+            bucket.cloudFrontDistributionId,
+          updatedAt: new Date().toISOString(),
+        } as Partial<Bucket>);
+      } else if (syncAction === "update-to-failed") {
+        await updateInJsonFile<Bucket>("buckets.json", bucketId, {
+          status: "failed",
+          updatedAt: new Date().toISOString(),
+        } as Partial<Bucket>);
+      } else if (syncAction === "update-to-pending") {
+        await updateInJsonFile<Bucket>("buckets.json", bucketId, {
+          status: "pending",
+          s3BucketArn: "",
+          cloudFrontDomain: "",
+          cloudFrontDistributionId: "",
+          updatedAt: new Date().toISOString(),
+        } as Partial<Bucket>);
+      } else if (syncAction === "rollback") {
+        await deleteStack(bucket.s3BucketName, bucket.region);
+        await updateInJsonFile<Bucket>("buckets.json", bucketId, {
+          status: "pending",
+          s3BucketArn: "",
+          cloudFrontDomain: "",
+          cloudFrontDistributionId: "",
+          updatedAt: new Date().toISOString(),
+        } as Partial<Bucket>);
+      }
+
+      return Response.json({ success: true });
+    } catch (e) {
+      return Response.json(
+        { error: e instanceof Error ? e.message : "Sync failed" },
+        { status: 500 }
+      );
+    }
+  }
+
+  return Response.json({ error: "Invalid action. Use check-status, sync-all, or apply-sync." }, { status: 400 });
 }

@@ -1,21 +1,21 @@
 [
   {
-    "id": "a1acfac6-ac90-4485-a865-852d80eaeee1",
+    "id": "cc4539df-4ddb-4dfd-a223-6509471e42a0",
     "projectId": "17b76e46-269f-4d3a-a5ec-b1129aeaad8e",
     "name": "testing-bucket",
-    "s3BucketName": "scr-testing-bucket-1771822123762",
+    "s3BucketName": "scr-testing-bucket-1771824988557",
     "s3BucketArn": "",
     "cloudFrontDomain": "",
     "cloudFrontDistributionId": "",
     "region": "eu-north-1",
-    "status": "deploying",
+    "status": "failed",
     "config": {
       "versioning": false,
       "encryption": "s3",
       "backupEnabled": false,
       "maxFileSizeMB": 100
     },
-    "createdAt": "2026-02-23T04:48:43.762Z",
-    "updatedAt": "2026-02-23T04:48:43.762Z"
+    "createdAt": "2026-02-23T05:36:28.558Z",
+    "updatedAt": "2026-02-23T05:36:28.558Z"
   }
 ]

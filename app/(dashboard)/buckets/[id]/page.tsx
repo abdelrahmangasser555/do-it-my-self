@@ -17,6 +17,7 @@ import {
   Code2,
   Settings2,
   Loader2,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,7 @@ import {
 } from "@/features/infrastructure/components/storage-charts";
 import { FilesTable } from "@/features/files/components/files-table";
 import { SetupTab } from "@/features/buckets/components/setup-tab";
+import { ComponentsPreviewTab } from "@/features/buckets/components/components-preview-tab";
 import { DeleteBucketDialog } from "@/features/buckets/components/delete-bucket-dialog";
 import { useFiles, useDeleteFile } from "@/features/files/hooks/use-files";
 import { useAnalytics } from "@/features/infrastructure/hooks/use-analytics";
@@ -221,6 +223,9 @@ export default function BucketDetailPage({
             <TabsTrigger value="setup" className="gap-1.5">
               <Code2 className="size-3.5" /> Setup
             </TabsTrigger>
+            <TabsTrigger value="components" className="gap-1.5">
+              <Eye className="size-3.5" /> Components
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="analytics">
@@ -253,6 +258,10 @@ export default function BucketDetailPage({
 
           <TabsContent value="setup">
             <SetupTab bucket={bucket} />
+          </TabsContent>
+
+          <TabsContent value="components">
+            <ComponentsPreviewTab bucket={bucket} />
           </TabsContent>
         </Tabs>
 

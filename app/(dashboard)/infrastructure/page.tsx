@@ -1,21 +1,23 @@
-// Infrastructure page for CDK synth/deploy and deployment status
+// Infrastructure page for CDK synth/deploy with streaming terminal output
 "use client";
 
 import { toast } from "sonner";
-import { Rocket, RefreshCw } from "lucide-react";
+import { Rocket, RefreshCw, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { PageTransition } from "@/components/page-transition";
 import { BucketsTable } from "@/features/buckets/components/buckets-table";
 import { useBuckets, useDeleteBucket } from "@/features/buckets/hooks/use-buckets";
 import { useDeployBucket } from "@/features/infrastructure/hooks/use-deploy-bucket";
+import { useTerminal } from "@/lib/terminal-context";
 import type { Bucket } from "@/lib/types";
 
 export default function InfrastructurePage() {
   const { buckets, loading, refetch } = useBuckets();
   const { deleteBucket } = useDeleteBucket();
-  const { deploy, synth, loading: deploying, output, error } = useDeployBucket();
+  const { deploy, synth, loading: deploying } = useDeployBucket();
+  const terminal = useTerminal();
 
   const handleSynth = async () => {
     toast.info("Running CDK synth...");
@@ -55,16 +57,46 @@ export default function InfrastructurePage() {
               Infrastructure
             </h1>
             <p className="text-muted-foreground">
-              Deploy and manage AWS resources via CDK.
+              Deploy and manage AWS resources via CDK. Output streams to the terminal below.
             </p>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => terminal.setIsOpen(true)}
+            >
+              <Terminal className="mr-2 size-4" />
+              Terminal
+            </Button>
             <Button variant="outline" onClick={handleSynth} disabled={deploying}>
               <RefreshCw className="mr-2 size-4" />
               CDK Synth
             </Button>
           </div>
         </div>
+
+        {/* Deployment guide card */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Rocket className="size-4" />
+              Deployment Guide
+            </CardTitle>
+            <CardDescription>
+              The deploy process runs pre-checks, streams CDK output to the
+              terminal, and provides error intelligence with suggested fixes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <Badge variant="outline">Pre-flight checks</Badge>
+              <Badge variant="outline">Streaming logs</Badge>
+              <Badge variant="outline">Error intelligence</Badge>
+              <Badge variant="outline">Auto-status update</Badge>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -84,25 +116,6 @@ export default function InfrastructurePage() {
             )}
           </CardContent>
         </Card>
-
-        {(output || error) && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Command Output</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="max-h-64 rounded-md border bg-muted/50 p-4">
-                <pre className="text-xs font-mono whitespace-pre-wrap">
-                  {error ? (
-                    <span className="text-destructive">{error}</span>
-                  ) : (
-                    output
-                  )}
-                </pre>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </PageTransition>
   );

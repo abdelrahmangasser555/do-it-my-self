@@ -45,19 +45,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check file size limit
-    const maxBytes = project.maxFileSizeMB * 1024 * 1024;
-    if (parsed.fileSize > maxBytes) {
-      return NextResponse.json(
-        { error: `File exceeds max size of ${project.maxFileSizeMB} MB` },
-        { status: 400 }
-      );
-    }
-
     // Check MIME type
     if (!project.allowedMimeTypes.includes(parsed.mimeType)) {
       return NextResponse.json(
-        { error: `MIME type ${parsed.mimeType} is not allowed` },
+        { error: `MIME type ${parsed.mimeType} is not allowed for project "${project.name}". Allowed: ${project.allowedMimeTypes.join(", ")}` },
         { status: 400 }
       );
     }
@@ -73,6 +64,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Bucket not found for this project" },
         { status: 404 }
+      );
+    }
+
+    // Check file size limit — bucket-level is authoritative, project-level is the default fallback
+    const bucketMaxMB = bucket.config?.maxFileSizeMB ?? project.maxFileSizeMB;
+    const effectiveMaxMB = Math.min(bucketMaxMB, project.maxFileSizeMB);
+    const maxBytes = effectiveMaxMB * 1024 * 1024;
+    const fileSizeMB = (parsed.fileSize / (1024 * 1024)).toFixed(2);
+
+    if (parsed.fileSize > maxBytes) {
+      const source = bucketMaxMB <= project.maxFileSizeMB ? "bucket" : "project";
+      return NextResponse.json(
+        {
+          error: `File size (${fileSizeMB} MB) exceeds the ${source}-level limit of ${effectiveMaxMB} MB.`,
+          details: {
+            fileSizeMB: Number(fileSizeMB),
+            bucketLimitMB: bucketMaxMB,
+            projectLimitMB: project.maxFileSizeMB,
+            effectiveLimitMB: effectiveMaxMB,
+            enforcedBy: source,
+          },
+        },
+        { status: 400 }
       );
     }
 

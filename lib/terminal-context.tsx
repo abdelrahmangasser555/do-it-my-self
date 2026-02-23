@@ -32,8 +32,10 @@ interface TerminalContextValue {
     onLine?: (parsed: Record<string, unknown>) => void
   ) => Promise<void>;
   runCommand: (command: string, cwd?: string) => Promise<void>;
+  killCommand: () => Promise<void>;
   isRunning: boolean;
   commandHistory: string[];
+  lastError: string | null;
 }
 
 const TerminalContext = createContext<TerminalContextValue | null>(null);
@@ -60,7 +62,9 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [lastError, setLastError] = useState<string | null>(null);
   const linesRef = useRef<TerminalLine[]>([]);
+  const sessionIdRef = useRef<string | null>(null);
 
   const log = useCallback(
     (message: string, level: LogLevel = "info", source?: string) => {
@@ -138,7 +142,9 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
     async (command: string, cwd?: string) => {
       setIsOpen(true);
       setIsRunning(true);
+      setLastError(null);
       setCommandHistory((prev) => [...prev, command]);
+      sessionIdRef.current = null;
 
       try {
         const res = await fetch("/api/terminal", {
@@ -149,34 +155,79 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
 
         if (!res.ok) {
           const err = await res.json();
-          log(err.error || "Command failed", "error", "terminal");
+          const errMsg = err.error || "Command failed";
+          log(errMsg, "error", "terminal");
+          setLastError(errMsg);
           setIsRunning(false);
           return;
         }
 
         if (!res.body) {
           log("No response stream", "error", "terminal");
+          setLastError("No response stream");
           setIsRunning(false);
           return;
         }
 
-        await logStream(res.body.getReader(), "terminal");
+        let errorBuffer = "";
+        await logStream(res.body.getReader(), "terminal", (parsed) => {
+          // Capture session ID from the first message
+          if (parsed.type === "session" && parsed.sessionId) {
+            sessionIdRef.current = parsed.sessionId as string;
+          }
+          // Track errors for AI debugging
+          if (parsed.level === "error" || parsed.level === "warn") {
+            errorBuffer += (parsed.message || "") + "\n";
+          }
+        });
+        if (errorBuffer.trim()) {
+          setLastError(errorBuffer.trim());
+        }
       } catch (err) {
-        log(
-          `Command error: ${err instanceof Error ? err.message : "Unknown"}`,
-          "error",
-          "terminal"
-        );
+        const errMsg = err instanceof Error ? err.message : "Unknown";
+        log(`Command error: ${errMsg}`, "error", "terminal");
+        setLastError(errMsg);
       } finally {
         setIsRunning(false);
+        sessionIdRef.current = null;
       }
     },
     [log, logStream]
   );
 
+  // Kill the currently running process
+  const killCommand = useCallback(async () => {
+    const sid = sessionIdRef.current;
+    if (!sid) {
+      log("No running process to kill", "warn", "terminal");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/terminal", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: sid }),
+      });
+
+      if (res.ok) {
+        log("Kill signal sent", "warn", "terminal");
+      } else {
+        const err = await res.json();
+        log(`Failed to kill: ${err.error}`, "error", "terminal");
+      }
+    } catch (err) {
+      log(
+        `Kill error: ${err instanceof Error ? err.message : "Unknown"}`,
+        "error",
+        "terminal"
+      );
+    }
+  }, [log]);
+
   return (
     <TerminalContext.Provider
-      value={{ lines, isOpen, setIsOpen, log, clear, logStream, runCommand, isRunning, commandHistory }}
+      value={{ lines, isOpen, setIsOpen, log, clear, logStream, runCommand, killCommand, isRunning, commandHistory, lastError }}
     >
       {children}
     </TerminalContext.Provider>

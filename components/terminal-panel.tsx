@@ -16,6 +16,7 @@ import {
   Minimize2,
   Send,
   Loader2,
+  Square,
 } from "lucide-react";
 import { useTerminal, type LogLevel, type TerminalLine } from "@/lib/terminal-context";
 import { cn } from "@/lib/utils";
@@ -63,7 +64,7 @@ function TerminalLineRow({ line }: { line: TerminalLine }) {
 }
 
 export function TerminalPanel() {
-  const { lines, isOpen, setIsOpen, clear, runCommand, isRunning, commandHistory } = useTerminal();
+  const { lines, isOpen, setIsOpen, clear, runCommand, killCommand, isRunning, commandHistory } = useTerminal();
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState(false);
@@ -201,9 +202,20 @@ export function TerminalPanel() {
                   {lines.length} lines
                 </Badge>
                 {isRunning && (
-                  <Badge className="bg-purple-500/20 text-purple-400 text-xs px-1.5 py-0 gap-1">
-                    <Loader2 className="size-3 animate-spin" /> Running
-                  </Badge>
+                  <>
+                    <Badge className="bg-purple-500/20 text-purple-400 text-xs px-1.5 py-0 gap-1">
+                      <Loader2 className="size-3 animate-spin" /> Running
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 gap-1"
+                      onClick={killCommand}
+                      title="Kill process (Ctrl+C)"
+                    >
+                      <Square className="size-3" /> Kill
+                    </Button>
+                  </>
                 )}
                 {errorCount > 0 && (
                   <Badge variant="destructive" className="text-xs px-1.5 py-0">
@@ -302,14 +314,21 @@ export function TerminalPanel() {
                 spellCheck={false}
               />
               <Button
-                type="submit"
+                type={isRunning ? "button" : "submit"}
                 variant="ghost"
                 size="sm"
-                className="h-7 w-7 p-0 text-white/40 hover:text-white hover:bg-white/10"
-                disabled={isRunning || !command.trim()}
+                className={cn(
+                  "h-7 w-7 p-0 hover:bg-white/10",
+                  isRunning
+                    ? "text-red-400 hover:text-red-300"
+                    : "text-white/40 hover:text-white"
+                )}
+                disabled={!isRunning && !command.trim()}
+                onClick={isRunning ? killCommand : undefined}
+                title={isRunning ? "Kill process" : "Run command"}
               >
                 {isRunning ? (
-                  <Loader2 className="size-3.5 animate-spin" />
+                  <Square className="size-3.5" />
                 ) : (
                   <Send className="size-3.5" />
                 )}

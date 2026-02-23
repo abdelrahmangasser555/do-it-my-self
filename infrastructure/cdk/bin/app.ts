@@ -6,9 +6,10 @@ import { StorageBucketStack } from "../lib/storage-bucket-stack";
 const app = new cdk.App();
 
 const bucketName = process.env.SCR_BUCKET_NAME || "scr-default-bucket";
-const region = process.env.SCR_REGION || "us-east-1";
+const region = process.env.SCR_REGION || "eu-north-1";
+const account = process.env.SCR_ACCOUNT || process.env.CDK_DEFAULT_ACCOUNT;
 
 new StorageBucketStack(app, `SCR-${bucketName}`, {
-  env: { region },
+  env: { region, account },
   bucketName,
 });

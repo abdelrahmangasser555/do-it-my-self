@@ -98,7 +98,7 @@ export function FilesTable({ files, onDelete }: FilesTableProps) {
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem
-                    className="text-destructive"
+                    variant="destructive"
                     onClick={() => onDelete(file.id)}
                   >
                     <Trash2 className="mr-2 size-4" />

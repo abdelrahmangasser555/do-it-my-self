@@ -32,11 +32,11 @@ function formatBytes(bytes: number): string {
 }
 
 const COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
 ];
 
 interface StorageChartsProps {
@@ -52,8 +52,8 @@ export function StorageBarChart({ bucketAnalytics }: StorageChartsProps) {
   }));
 
   const chartConfig = {
-    storage: { label: "Storage (KB)", color: "hsl(var(--chart-1))" },
-    files: { label: "Files", color: "hsl(var(--chart-2))" },
+    storage: { label: "Storage (KB)", color: "var(--chart-1)" },
+    files: { label: "Files", color: "var(--chart-2)" },
   } satisfies ChartConfig;
 
   if (data.length === 0) {
@@ -167,7 +167,7 @@ export function CostBarChart({ bucketAnalytics }: StorageChartsProps) {
   }));
 
   const chartConfig = {
-    cost: { label: "Est. Monthly ($)", color: "hsl(var(--chart-3))" },
+    cost: { label: "Est. Monthly ($)", color: "var(--chart-3)" },
   } satisfies ChartConfig;
 
   if (data.length === 0) return null;
@@ -221,8 +221,8 @@ export function RequestsBarChart({ bucketAnalytics }: StorageChartsProps) {
   }));
 
   const chartConfig = {
-    reads: { label: "Reads", color: "hsl(var(--chart-4))" },
-    writes: { label: "Writes", color: "hsl(var(--chart-5))" },
+    reads: { label: "Reads", color: "var(--chart-4)" },
+    writes: { label: "Writes", color: "var(--chart-5)" },
   } satisfies ChartConfig;
 
   if (data.length === 0) return null;

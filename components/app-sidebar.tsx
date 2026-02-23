@@ -28,6 +28,7 @@ import {
   FileCode2,
   Terminal,
   Zap,
+  Globe,
 } from "lucide-react";
 
 const navItems = [
@@ -43,6 +44,7 @@ const navItems = [
       { label: "Projects", href: "/projects", icon: FolderKanban },
       { label: "Buckets", href: "/buckets", icon: Database },
       { label: "Files", href: "/files", icon: FileUp },
+      { label: "Distributions", href: "/distributions", icon: Globe },
     ],
   },
   {

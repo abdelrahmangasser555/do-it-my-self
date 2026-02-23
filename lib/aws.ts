@@ -14,6 +14,7 @@ import {
   UpdateDistributionCommand,
   DeleteDistributionCommand,
   GetDistributionConfigCommand,
+  ListDistributionsCommand,
 } from "@aws-sdk/client-cloudfront";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -166,6 +167,115 @@ export function buildCloudFrontUrl(
   objectKey: string
 ): string {
   return `https://${cloudFrontDomain}/${objectKey}`;
+}
+
+// ── List S3 objects in a bucket ───────────────────────────────────────────────
+
+export interface S3Object {
+  key: string;
+  size: number;
+  lastModified: string;
+  etag?: string;
+  storageClass?: string;
+}
+
+/** List all objects in a bucket, handling pagination automatically. */
+export async function listS3Objects(
+  bucketName: string,
+  region?: string,
+  prefix?: string
+): Promise<S3Object[]> {
+  const client = getS3Client(region);
+  const objects: S3Object[] = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const response = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucketName,
+        ContinuationToken: continuationToken,
+        Prefix: prefix,
+      })
+    );
+
+    if (response.Contents) {
+      for (const obj of response.Contents) {
+        if (obj.Key) {
+          objects.push({
+            key: obj.Key,
+            size: obj.Size ?? 0,
+            lastModified: obj.LastModified?.toISOString() ?? "",
+            etag: obj.ETag,
+            storageClass: obj.StorageClass,
+          });
+        }
+      }
+    }
+
+    continuationToken = response.IsTruncated
+      ? response.NextContinuationToken
+      : undefined;
+  } while (continuationToken);
+
+  return objects;
+}
+
+// ── List CloudFront distributions ────────────────────────────────────────────
+
+export interface CloudFrontDistributionSummary {
+  id: string;
+  domainName: string;
+  status: string;
+  enabled: boolean;
+  origins: string[];
+  comment: string;
+  lastModified: string;
+  alternativeDomains: string[];
+  priceClass: string;
+}
+
+/** List all CloudFront distributions in the account. */
+export async function listCloudFrontDistributions(): Promise<
+  CloudFrontDistributionSummary[]
+> {
+  const client = getCloudFrontClient();
+  const distributions: CloudFrontDistributionSummary[] = [];
+  let marker: string | undefined;
+
+  do {
+    const response = await client.send(
+      new ListDistributionsCommand({ Marker: marker })
+    );
+
+    const items = response.DistributionList?.Items;
+    if (items) {
+      for (const dist of items) {
+        const origins: string[] = [];
+        if (dist.Origins?.Items) {
+          for (const origin of dist.Origins.Items) {
+            if (origin.DomainName) origins.push(origin.DomainName);
+          }
+        }
+        distributions.push({
+          id: dist.Id ?? "",
+          domainName: dist.DomainName ?? "",
+          status: dist.Status ?? "Unknown",
+          enabled: dist.Enabled ?? false,
+          origins,
+          comment: dist.Comment ?? "",
+          lastModified: dist.LastModifiedTime?.toISOString() ?? "",
+          alternativeDomains: dist.Aliases?.Items ?? [],
+          priceClass: dist.PriceClass ?? "PriceClass_All",
+        });
+      }
+    }
+
+    marker = response.DistributionList?.IsTruncated
+      ? response.DistributionList.NextMarker
+      : undefined;
+  } while (marker);
+
+  return distributions;
 }
 
 // ── Cost estimation helpers ──────────────────────────────────────────────────

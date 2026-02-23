@@ -14,6 +14,8 @@ import {
   generateJavaUploadApi,
   generateFrontendUploadSnippet,
   generateDeleteSnippet,
+  generateLinkedUploadSnippet,
+  generateOrphanExplanationText,
 } from "@/features/infrastructure/utils/snippet-generator";
 
 interface CodeSnippetsProps {
@@ -125,6 +127,29 @@ export function CodeSnippets({ bucket }: CodeSnippetsProps) {
             title="components/file-upload.tsx"
             language="typescript"
             code={generateFrontendUploadSnippet(bucket)}
+            collapsible
+          />
+        </CardContent>
+      </Card>
+
+      {/* Linked vs Orphan Files */}
+      <Card className="border-amber-500/20">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Linked vs Orphan Files</CardTitle>
+          <CardDescription>
+            How file linking works — prevent orphan files by associating uploads with application records
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-md bg-muted/50 p-4 text-sm text-muted-foreground space-y-2">
+            <p><strong>Linked File:</strong> Uploaded with <code className="text-xs">linkedModel</code> + <code className="text-xs">linkedModelId</code> — tied to a specific application record.</p>
+            <p><strong>Orphan File:</strong> Uploaded without linking metadata — exists in S3 but not associated with anything.</p>
+            <p className="text-xs">Orphan files still cost money and are harder to clean up. Always link files when possible.</p>
+          </div>
+          <CodeBlock
+            title="Linked Upload Example"
+            language="typescript"
+            code={generateLinkedUploadSnippet(bucket)}
             collapsible
           />
         </CardContent>

@@ -65,12 +65,15 @@ The system lets you:
 | Layer | Technology | Purpose |
 |---|---|---|
 | Framework | Next.js 16 (App Router) | Full-stack React framework |
-| UI Components | shadcn/ui | Accessible component library |
+| UI Components | shadcn/ui (new-york, neutral) | Accessible component library |
 | Styling | Tailwind CSS v4 | Utility-first CSS |
 | Animations | framer-motion | Sidebar, modals, cards |
 | Icons | lucide-react | Consistent icon set |
+| Charts | recharts (via shadcn chart) | File analytics, storage charts |
 | Forms | React Hook Form + Zod | Type-safe form validation |
-| AWS SDK | @aws-sdk/client-s3 v3 | S3 operations + pre-signed URLs |
+| AI | Vercel AI SDK v6 + OpenAI | Command generation, error debugging |
+| AWS SDK | @aws-sdk/client-s3, client-cloudfront v3 | S3, CloudFront, pre-signed URLs |
+| Syntax Highlighting | prism-react-renderer | Code snippets, terminal output |
 | Infrastructure | AWS CDK v2 (TypeScript) | S3 + CloudFront provisioning |
 | Data Storage | Node.js fs (JSON files) | Local persistence, no database |
 | Runtime | Node.js 20 | Local only |
@@ -89,18 +92,27 @@ storage-control-room/
 │   │   ├── projects/
 │   │   │   ├── page.tsx          ← Projects list
 │   │   │   └── [id]/page.tsx     ← Project detail
-│   │   ├── buckets/page.tsx      ← Buckets list
+│   │   ├── buckets/
+│   │   │   ├── page.tsx          ← Buckets list
+│   │   │   └── [id]/page.tsx     ← Bucket detail (S3 files, analytics)
 │   │   ├── files/page.tsx        ← Files list
+│   │   ├── distributions/page.tsx ← CloudFront distributions
 │   │   ├── infrastructure/page.tsx ← CDK controls
 │   │   ├── snippets/page.tsx     ← Code snippet generator
+│   │   ├── commands/page.tsx     ← Quick actions + AI tools
 │   │   └── docs/                 ← Documentation viewer
 │   │
 │   └── api/                      ← Next.js API Routes
 │       ├── projects/route.ts     ← GET/POST/PUT/DELETE projects
 │       ├── buckets/route.ts      ← GET/POST/PUT/DELETE buckets
 │       ├── files/route.ts        ← GET/POST/DELETE files + presign
+│       ├── files/s3/route.ts     ← GET actual S3 objects
+│       ├── distributions/route.ts ← GET/DELETE CloudFront distributions
 │       ├── infrastructure/route.ts ← CDK synth/deploy
-│       └── analytics/route.ts   ← Aggregated stats
+│       ├── analytics/route.ts    ← Aggregated stats
+│       ├── terminal/route.ts     ← Run/output/kill terminal commands
+│       ├── commands/route.ts     ← Saved commands CRUD
+│       └── ai/route.ts           ← AI generate/debug
 │
 ├── features/                     ← Feature-based code modules
 │   ├── projects/
@@ -110,10 +122,10 @@ storage-control-room/
 │   │   ├── components/
 │   │   └── hooks/
 │   ├── files/
-│   │   ├── components/
-│   │   └── hooks/
+│   │   ├── components/           ← Files table, S3 table, upload dialog, folder tree
+│   │   └── hooks/                ← useFiles, useS3Files, useGeneratePresignedUrl
 │   └── infrastructure/
-│       ├── components/           ← Analytics cards, CDK deploy UI
+│       ├── components/           ← Analytics cards, CDK deploy UI, storage charts
 │       ├── hooks/                ← useDeployBucket, useAnalytics
 │       └── utils/                ← Snippet generator functions
 │
@@ -128,16 +140,18 @@ storage-control-room/
 ├── lib/                          ← Core utilities
 │   ├── types.ts                  ← All TypeScript interfaces
 │   ├── filesystem.ts             ← JSON CRUD helpers
-│   ├── aws.ts                    ← S3 + presigned URL helpers
+│   ├── aws.ts                    ← S3, CloudFront, pre-signed URL helpers
 │   ├── validations.ts            ← Zod schemas
+│   ├── terminal-context.ts       ← Shared terminal state provider
 │   └── utils.ts                  ← cn() + misc helpers
 │
 ├── data/                         ← Local JSON persistence
 │   ├── projects.json
 │   ├── buckets.json
-│   └── files.json
+│   ├── files.json
+│   └── custom-commands.json
 │
-├── docs/                         ← Documentation source files
+├── docs/                         ← Documentation source (Markdown)
 │
 └── infrastructure/
     └── cdk/                      ← AWS CDK TypeScript project
@@ -270,6 +284,56 @@ Aggregates across all three JSON stores:
 - Total projects, buckets, files
 - Total storage bytes
 - Per-bucket breakdown: file count, storage, orphaned files
+
+---
+
+### `GET /api/files/s3?bucketName=<name>&region=<region>&prefix=<prefix>`
+Lists **actual S3 objects** in a bucket (not just local metadata). Merges with `files.json` to identify which files were uploaded through the system.
+
+Returns: `{ files: MergedS3File[], totalSize, totalFiles, systemUploaded, bucketName }`
+
+---
+
+### `GET /api/distributions`
+Lists all CloudFront distributions in the AWS account. Enriches each with linked bucket info by matching domain names against `buckets.json`.
+
+### `DELETE /api/distributions?distributionId=<id>`
+Deletes a disabled CloudFront distribution.
+
+---
+
+### `POST /api/terminal`
+Spawns a child process to run a shell command. Returns `{ id, pid }` for tracking.
+
+### `GET /api/terminal?id=<id>`
+Returns the output and status of a running/completed terminal session.
+
+### `DELETE /api/terminal?id=<id>`
+Kills a running terminal process by PID.
+
+---
+
+### `GET /api/commands`
+Returns all saved custom commands from `data/custom-commands.json`.
+
+### `POST /api/commands`
+Saves a new custom command with label, description, and command string.
+
+### `DELETE /api/commands?id=<id>`
+Removes a saved command by ID.
+
+---
+
+### `POST /api/ai`
+AI-powered command generation and error debugging via GPT-4o-mini.
+
+```json
+// Generate a command
+{ "action": "generate", "prompt": "list all S3 buckets" }
+
+// Debug an error
+{ "action": "debug", "error": "Error: AccessDenied..." }
+```
 
 ---
 

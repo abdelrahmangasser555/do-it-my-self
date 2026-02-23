@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "id": "17b76e46-269f-4d3a-a5ec-b1129aeaad8e",
+    "name": "Testing system",
+    "environment": "dev",
+    "maxFileSizeMB": 20,
+    "allowedMimeTypes": [
+      "image/jpeg",
+      "image/png",
+      "application/pdf",
+      "text/csv",
+      "text/plain",
+      "audio/mpeg",
+      "video/mp4",
+      "application/zip"
+    ],
+    "createdAt": "2026-02-23T04:41:18.772Z",
+    "updatedAt": "2026-02-23T04:41:18.772Z"
+  }
+]

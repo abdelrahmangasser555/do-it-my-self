@@ -29,6 +29,10 @@ export const bucketSchema = z.object({
       "Lowercase letters, numbers, and hyphens only. Must start and end with letter or number."
     ),
   region: z.string().min(1, "Region is required"),
+  versioning: z.boolean(),
+  encryption: z.enum(["s3", "kms", "none"]),
+  backupEnabled: z.boolean(),
+  maxFileSizeMB: z.number().min(1).max(5000),
 });
 
 export const uploadSchema = z.object({
@@ -55,6 +59,10 @@ export const AWS_REGIONS = [
   { value: "eu-central-1", label: "EU (Frankfurt)" },
   { value: "ap-southeast-1", label: "Asia Pacific (Singapore)" },
   { value: "ap-northeast-1", label: "Asia Pacific (Tokyo)" },
+  { value: "ap-southeast-2", label: "Asia Pacific (Sydney)" },
+    { value: "ap-northeast-2", label: "Asia Pacific (Seoul)" },
+  { value: "sa-east-1", label: "South America (São Paulo)" },
+  {value  : "eu-north-1", label: "EU (Stockholm)" },
 ] as const;
 
 export const COMMON_MIME_TYPES = [

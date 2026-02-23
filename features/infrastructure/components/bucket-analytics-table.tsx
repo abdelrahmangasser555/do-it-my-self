@@ -1,4 +1,4 @@
-// Presentational component for per-bucket analytics breakdown
+// Presentational component for per-bucket analytics breakdown with cost and requests
 "use client";
 
 import {
@@ -38,25 +38,44 @@ export function BucketAnalyticsTable({ data }: BucketAnalyticsTableProps) {
       <TableHeader>
         <TableRow>
           <TableHead>Bucket</TableHead>
+          <TableHead>Region</TableHead>
           <TableHead>Files</TableHead>
-          <TableHead>Storage Used</TableHead>
-          <TableHead>Orphaned Files</TableHead>
+          <TableHead>Storage</TableHead>
+          <TableHead>Reads</TableHead>
+          <TableHead>Writes</TableHead>
+          <TableHead>Orphans</TableHead>
+          <TableHead className="text-right">Est. Cost/mo</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {data.map((item) => (
           <TableRow key={item.bucketName}>
-            <TableCell className="font-mono text-sm">
-              {item.bucketName}
+            <TableCell>
+              <div>
+                <span className="font-medium">{item.displayName || item.bucketName}</span>
+                {item.displayName && (
+                  <p className="font-mono text-xs text-muted-foreground">
+                    {item.bucketName}
+                  </p>
+                )}
+              </div>
+            </TableCell>
+            <TableCell>
+              <Badge variant="outline">{item.region}</Badge>
             </TableCell>
             <TableCell>{item.fileCount}</TableCell>
             <TableCell>{formatBytes(item.totalSizeBytes)}</TableCell>
+            <TableCell>{item.readRequests.toLocaleString()}</TableCell>
+            <TableCell>{item.writeRequests.toLocaleString()}</TableCell>
             <TableCell>
               {item.orphanedFiles > 0 ? (
                 <Badge variant="secondary">{item.orphanedFiles}</Badge>
               ) : (
                 <span className="text-muted-foreground">0</span>
               )}
+            </TableCell>
+            <TableCell className="text-right font-mono">
+              ${item.estimatedMonthlyCost.toFixed(4)}
             </TableCell>
           </TableRow>
         ))}

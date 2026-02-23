@@ -1,1 +1,21 @@
-[]
+[
+  {
+    "id": "a1acfac6-ac90-4485-a865-852d80eaeee1",
+    "projectId": "17b76e46-269f-4d3a-a5ec-b1129aeaad8e",
+    "name": "testing-bucket",
+    "s3BucketName": "scr-testing-bucket-1771822123762",
+    "s3BucketArn": "",
+    "cloudFrontDomain": "",
+    "cloudFrontDistributionId": "",
+    "region": "eu-north-1",
+    "status": "deploying",
+    "config": {
+      "versioning": false,
+      "encryption": "s3",
+      "backupEnabled": false,
+      "maxFileSizeMB": 100
+    },
+    "createdAt": "2026-02-23T04:48:43.762Z",
+    "updatedAt": "2026-02-23T04:48:43.762Z"
+  }
+]

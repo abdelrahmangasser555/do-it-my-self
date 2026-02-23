@@ -1,8 +1,8 @@
-// Quick actions & commands page — pre-built commands synced with terminal
+// Quick actions & commands page — pre-built commands, saved commands, AI generation
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Card,
   CardContent,
@@ -34,6 +34,21 @@ import {
   FileCheck,
   HardDrive,
   Settings,
+  Save,
+  Sparkles,
+  Bug,
+  AlertTriangle,
+  BookmarkPlus,
+  Bookmark,
+  X,
+  Brain,
+  Wrench,
+  Clock,
+  Download,
+  List,
+  Eye,
+  Lock,
+  BarChart3,
 } from "lucide-react";
 import type { Bucket } from "@/lib/types";
 
@@ -47,13 +62,28 @@ interface QuickCommand {
   dangerous?: boolean;
 }
 
+interface SavedCommand {
+  id: string;
+  label: string;
+  description: string;
+  command: string;
+  category: string;
+  createdAt: string;
+}
+
+interface AIDebugResult {
+  diagnosis: string;
+  fixCommands: { command: string; description: string }[];
+  tips: string[];
+}
+
 const QUICK_COMMANDS: QuickCommand[] = [
   // CDK Commands
   {
     id: "cdk-synth",
     label: "CDK Synthesize",
     description: "Synthesize the CloudFormation template without deploying",
-    command: "cd infrastructure/cdk && npx cdk synth",
+    command: "cd infrastructure/cdk; npx cdk synth",
     icon: <Package className="size-4" />,
     category: "CDK",
   },
@@ -61,7 +91,7 @@ const QUICK_COMMANDS: QuickCommand[] = [
     id: "cdk-diff",
     label: "CDK Diff",
     description: "Compare deployed stack with current local state",
-    command: "cd infrastructure/cdk && npx cdk diff",
+    command: "cd infrastructure/cdk; npx cdk diff",
     icon: <FileCheck className="size-4" />,
     category: "CDK",
   },
@@ -69,7 +99,7 @@ const QUICK_COMMANDS: QuickCommand[] = [
     id: "cdk-bootstrap",
     label: "CDK Bootstrap",
     description: "Bootstrap your AWS account/region for CDK deployment",
-    command: "cd infrastructure/cdk && npx cdk bootstrap",
+    command: "cd infrastructure/cdk; npx cdk bootstrap",
     icon: <Settings className="size-4" />,
     category: "CDK",
   },
@@ -77,7 +107,7 @@ const QUICK_COMMANDS: QuickCommand[] = [
     id: "cdk-list",
     label: "CDK List Stacks",
     description: "List all CDK stacks in the application",
-    command: "cd infrastructure/cdk && npx cdk list",
+    command: "cd infrastructure/cdk; npx cdk list",
     icon: <Server className="size-4" />,
     category: "CDK",
   },
@@ -85,9 +115,18 @@ const QUICK_COMMANDS: QuickCommand[] = [
     id: "cdk-install",
     label: "Install CDK Dependencies",
     description: "Install npm dependencies for the CDK project",
-    command: "cd infrastructure/cdk && npm install",
+    command: "cd infrastructure/cdk; npm install",
     icon: <Package className="size-4" />,
     category: "CDK",
+  },
+  {
+    id: "cdk-destroy",
+    label: "CDK Destroy Stack",
+    description: "Destroy a deployed CDK stack (irreversible!)",
+    command: "cd infrastructure/cdk; npx cdk destroy --force",
+    icon: <Trash2 className="size-4" />,
+    category: "CDK",
+    dangerous: true,
   },
 
   // AWS S3 Commands
@@ -107,6 +146,22 @@ const QUICK_COMMANDS: QuickCommand[] = [
     icon: <Shield className="size-4" />,
     category: "AWS S3",
   },
+  {
+    id: "s3-list-all-objects",
+    label: "List All S3 Objects",
+    description: "List all objects across all buckets with sizes",
+    command: "aws s3 ls --recursive --human-readable --summarize s3://",
+    icon: <List className="size-4" />,
+    category: "AWS S3",
+  },
+  {
+    id: "s3-get-policy",
+    label: "View Bucket Policy",
+    description: "Get the current bucket policy (specify bucket name)",
+    command: "Write-Host 'Specify bucket: aws s3api get-bucket-policy --bucket YOUR_BUCKET'",
+    icon: <Eye className="size-4" />,
+    category: "AWS S3",
+  },
 
   // CloudFront Commands
   {
@@ -116,6 +171,50 @@ const QUICK_COMMANDS: QuickCommand[] = [
     command: "aws cloudfront list-distributions --query \"DistributionList.Items[].{Id:Id,Domain:DomainName,Status:Status}\" --output table",
     icon: <Globe className="size-4" />,
     category: "CloudFront",
+  },
+  {
+    id: "cf-list-invalidations",
+    label: "List Invalidations",
+    description: "List recent CloudFront cache invalidations",
+    command: "Write-Host 'Specify distribution ID: aws cloudfront list-invalidations --distribution-id YOUR_DIST_ID'",
+    icon: <RefreshCw className="size-4" />,
+    category: "CloudFront",
+  },
+
+  // CloudFormation Commands
+  {
+    id: "cfn-list-stacks",
+    label: "List CloudFormation Stacks",
+    description: "List all active CloudFormation stacks",
+    command: "aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE --query \"StackSummaries[].{Name:StackName,Status:StackStatus}\" --output table",
+    icon: <Cloud className="size-4" />,
+    category: "CloudFormation",
+  },
+  {
+    id: "cfn-describe-toolkit",
+    label: "Check CDKToolkit Stack",
+    description: "Check the CDK bootstrap/toolkit stack status",
+    command: "aws cloudformation describe-stacks --stack-name CDKToolkit --query \"Stacks[0].{Status:StackStatus,Created:CreationTime}\" --output table",
+    icon: <Search className="size-4" />,
+    category: "CloudFormation",
+  },
+
+  // Cost & Billing Commands
+  {
+    id: "cost-s3",
+    label: "S3 Cost Estimate",
+    description: "Get this month's S3 cost breakdown",
+    command: "aws ce get-cost-and-usage --time-period Start=$(Get-Date -Day 1 -Format 'yyyy-MM-dd'),End=$(Get-Date -Format 'yyyy-MM-dd') --granularity MONTHLY --metrics BlendedCost --filter '{\"Dimensions\":{\"Key\":\"SERVICE\",\"Values\":[\"Amazon Simple Storage Service\"]}}' --output table",
+    icon: <BarChart3 className="size-4" />,
+    category: "Cost & Billing",
+  },
+  {
+    id: "cost-cf",
+    label: "CloudFront Cost Estimate",
+    description: "Get this month's CloudFront cost breakdown",
+    command: "aws ce get-cost-and-usage --time-period Start=$(Get-Date -Day 1 -Format 'yyyy-MM-dd'),End=$(Get-Date -Format 'yyyy-MM-dd') --granularity MONTHLY --metrics BlendedCost --filter '{\"Dimensions\":{\"Key\":\"SERVICE\",\"Values\":[\"Amazon CloudFront\"]}}' --output table",
+    icon: <BarChart3 className="size-4" />,
+    category: "Cost & Billing",
   },
 
   // System Commands
@@ -141,6 +240,30 @@ const QUICK_COMMANDS: QuickCommand[] = [
     description: "Check the installed CDK CLI version",
     command: "npx cdk --version",
     icon: <Terminal className="size-4" />,
+    category: "System",
+  },
+  {
+    id: "sys-aws-region",
+    label: "Default AWS Region",
+    description: "Show the currently configured AWS region",
+    command: "aws configure get region",
+    icon: <Globe className="size-4" />,
+    category: "System",
+  },
+  {
+    id: "sys-env-check",
+    label: "Environment Check",
+    description: "Check if all required tools are available",
+    command: "Write-Host '=== Environment Check ==='; Write-Host \"Node: $(node --version)\"; Write-Host \"NPM: $(npm --version)\"; Write-Host \"CDK: $(npx cdk --version 2>&1)\"; Write-Host \"AWS CLI: $(aws --version 2>&1)\"; Write-Host \"AWS Account: $(aws sts get-caller-identity --query Account --output text 2>&1)\"",
+    icon: <Wrench className="size-4" />,
+    category: "System",
+  },
+  {
+    id: "sys-disk-usage",
+    label: "Disk Usage",
+    description: "Show disk space usage on the current drive",
+    command: "Get-PSDrive -PSProvider FileSystem | Format-Table Name, @{N='Used(GB)';E={[math]::Round($_.Used/1GB,2)}}, @{N='Free(GB)';E={[math]::Round($_.Free/1GB,2)}}, @{N='Total(GB)';E={[math]::Round(($_.Used+$_.Free)/1GB,2)}}",
+    icon: <HardDrive className="size-4" />,
     category: "System",
   },
 ];
@@ -177,7 +300,15 @@ function getBucketCommands(bucket: Bucket): QuickCommand[] {
       label: `Check Encryption Config`,
       description: `View server-side encryption configuration for ${bucket.s3BucketName}`,
       command: `aws s3api get-bucket-encryption --bucket ${bucket.s3BucketName}`,
-      icon: <Shield className="size-4" />,
+      icon: <Lock className="size-4" />,
+      category: "Bucket",
+    },
+    {
+      id: `s3-sync-${bucket.id}`,
+      label: `Sync Local to Bucket`,
+      description: `Sync a local directory to the bucket (dry run)`,
+      command: `aws s3 sync . s3://${bucket.s3BucketName} --dryrun`,
+      icon: <Download className="size-4" />,
       category: "Bucket",
     },
   ];
@@ -187,17 +318,38 @@ const CATEGORY_COLORS: Record<string, string> = {
   CDK: "bg-purple-500/10 text-purple-500 border-purple-500/20",
   "AWS S3": "bg-orange-500/10 text-orange-500 border-orange-500/20",
   CloudFront: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+  CloudFormation: "bg-sky-500/10 text-sky-500 border-sky-500/20",
+  "Cost & Billing": "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
   System: "bg-gray-500/10 text-gray-500 border-gray-500/20",
   Bucket: "bg-green-500/10 text-green-500 border-green-500/20",
   Custom: "bg-pink-500/10 text-pink-500 border-pink-500/20",
+  AI: "bg-violet-500/10 text-violet-500 border-violet-500/20",
 };
 
 export default function CommandsPage() {
-  const { runCommand, isRunning, setIsOpen } = useTerminal();
+  const { runCommand, isRunning, setIsOpen, lastError } = useTerminal();
   const [buckets, setBuckets] = useState<Bucket[]>([]);
   const [selectedBucket, setSelectedBucket] = useState<string>("");
   const [customCommand, setCustomCommand] = useState("");
   const [runningId, setRunningId] = useState<string | null>(null);
+
+  // Save command form
+  const [saveMode, setSaveMode] = useState(false);
+  const [saveLabel, setSaveLabel] = useState("");
+  const [saveDescription, setSaveDescription] = useState("");
+  const [savedCommands, setSavedCommands] = useState<SavedCommand[]>([]);
+
+  // AI state
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<{
+    command: string;
+    label: string;
+    description: string;
+    dangerous?: boolean;
+  } | null>(null);
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debugResult, setDebugResult] = useState<AIDebugResult | null>(null);
 
   // Fetch buckets for dynamic commands
   useEffect(() => {
@@ -211,9 +363,22 @@ export default function CommandsPage() {
       .catch(() => {});
   }, []);
 
+  // Fetch saved commands
+  const loadSavedCommands = useCallback(() => {
+    fetch("/api/commands")
+      .then((r) => r.json())
+      .then((data: SavedCommand[]) => setSavedCommands(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadSavedCommands();
+  }, [loadSavedCommands]);
+
   const handleRun = async (cmd: QuickCommand) => {
     setRunningId(cmd.id);
     setIsOpen(true);
+    setDebugResult(null);
     await runCommand(cmd.command);
     setRunningId(null);
   };
@@ -222,9 +387,104 @@ export default function CommandsPage() {
     if (!customCommand.trim() || isRunning) return;
     setRunningId("custom");
     setIsOpen(true);
+    setDebugResult(null);
     await runCommand(customCommand.trim());
     setRunningId(null);
-    setCustomCommand("");
+  };
+
+  const handleSaveCommand = async () => {
+    if (!saveLabel.trim() || !customCommand.trim()) return;
+    try {
+      await fetch("/api/commands", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: saveLabel.trim(),
+          description: saveDescription.trim(),
+          command: customCommand.trim(),
+          category: "Custom",
+        }),
+      });
+      setSaveMode(false);
+      setSaveLabel("");
+      setSaveDescription("");
+      setCustomCommand("");
+      loadSavedCommands();
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleDeleteSaved = async (id: string) => {
+    try {
+      await fetch("/api/commands", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      loadSavedCommands();
+    } catch {
+      // ignore
+    }
+  };
+
+  // AI: Generate command from description
+  const handleAiGenerate = async () => {
+    if (!aiPrompt.trim() || aiLoading) return;
+    setAiLoading(true);
+    setAiResult(null);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "generate", prompt: aiPrompt.trim() }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setAiResult({ command: "", label: "Error", description: data.error, dangerous: false });
+      } else {
+        setAiResult(data.result);
+      }
+    } catch {
+      setAiResult({ command: "", label: "Error", description: "Failed to connect to AI", dangerous: false });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // AI: Debug last error
+  const handleAiDebug = async () => {
+    if (!lastError || debugLoading) return;
+    setDebugLoading(true);
+    setDebugResult(null);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "debug",
+          errorOutput: lastError,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setDebugResult({
+          diagnosis: data.error,
+          fixCommands: [],
+          tips: [],
+        });
+      } else {
+        setDebugResult(data.result);
+      }
+    } catch {
+      setDebugResult({
+        diagnosis: "Failed to connect to AI service",
+        fixCommands: [],
+        tips: [],
+      });
+    } finally {
+      setDebugLoading(false);
+    }
   };
 
   const activeBucket = buckets.find((b) => b.id === selectedBucket);
@@ -242,11 +502,220 @@ export default function CommandsPage() {
             Quick Commands
           </h1>
           <p className="text-muted-foreground mt-1">
-            Pre-built commands for CDK, S3, and CloudFront operations. Output streams to the terminal.
+            Pre-built commands, AI generation, and saved commands. Output streams to the terminal.
           </p>
         </div>
 
-        {/* Custom command */}
+        {/* AI Command Generator */}
+        <Card className="border-violet-500/20 bg-violet-500/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Sparkles className="size-4 text-violet-500" />
+              AI Command Generator
+              <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-500 border-violet-500/20">
+                GPT-4o-mini
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Describe what you want to do in plain English and AI will generate the command
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-end gap-3">
+              <div className="flex-1 space-y-1.5">
+                <Label htmlFor="ai-prompt" className="text-xs">What do you want to do?</Label>
+                <Input
+                  id="ai-prompt"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder='e.g., "list all S3 buckets with their sizes" or "check CloudFront cache hit ratio"'
+                  className="font-mono text-sm"
+                  onKeyDown={(e) => e.key === "Enter" && handleAiGenerate()}
+                  disabled={aiLoading}
+                />
+              </div>
+              <Button
+                onClick={handleAiGenerate}
+                disabled={aiLoading || !aiPrompt.trim()}
+                className="gap-1.5 bg-violet-600 hover:bg-violet-700"
+              >
+                {aiLoading ? (
+                  <><Loader2 className="size-3.5 animate-spin" /> Generating...</>
+                ) : (
+                  <><Brain className="size-3.5" /> Generate</>
+                )}
+              </Button>
+            </div>
+
+            {/* AI Result */}
+            <AnimatePresence>
+              {aiResult && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="rounded-md border bg-background p-4 space-y-3"
+                >
+                  {aiResult.command ? (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium">{aiResult.label}</p>
+                          <p className="text-xs text-muted-foreground">{aiResult.description}</p>
+                        </div>
+                        {aiResult.dangerous && (
+                          <Badge variant="destructive" className="text-[10px] gap-1">
+                            <AlertTriangle className="size-3" /> Dangerous
+                          </Badge>
+                        )}
+                      </div>
+                      <code className="block text-xs font-mono bg-muted/50 px-3 py-2 rounded-md break-all">
+                        {aiResult.command}
+                      </code>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          className="gap-1"
+                          onClick={() => {
+                            setIsOpen(true);
+                            runCommand(aiResult.command);
+                          }}
+                          disabled={isRunning}
+                        >
+                          <Play className="size-3" /> Run
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1"
+                          onClick={() => {
+                            setCustomCommand(aiResult.command);
+                            setSaveMode(true);
+                            setSaveLabel(aiResult.label);
+                            setSaveDescription(aiResult.description);
+                          }}
+                        >
+                          <Save className="size-3" /> Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1"
+                          onClick={() => setCustomCommand(aiResult.command)}
+                        >
+                          Edit First
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="ml-auto"
+                          onClick={() => setAiResult(null)}
+                        >
+                          <X className="size-3" />
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{aiResult.description}</p>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </CardContent>
+        </Card>
+
+        {/* AI Debug Panel */}
+        {lastError && (
+          <Card className="border-red-500/20 bg-red-500/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Bug className="size-4 text-red-500" />
+                AI Error Debugger
+              </CardTitle>
+              <CardDescription>
+                The last command produced errors. AI can help diagnose and fix them.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <code className="block text-[10px] font-mono text-red-400/70 bg-red-500/5 px-3 py-2 rounded-md max-h-20 overflow-auto break-all">
+                {lastError.slice(0, 500)}{lastError.length > 500 ? "..." : ""}
+              </code>
+              <Button
+                size="sm"
+                onClick={handleAiDebug}
+                disabled={debugLoading}
+                className="gap-1.5"
+                variant="outline"
+              >
+                {debugLoading ? (
+                  <><Loader2 className="size-3.5 animate-spin" /> Analyzing...</>
+                ) : (
+                  <><Brain className="size-3.5" /> Debug with AI</>
+                )}
+              </Button>
+
+              <AnimatePresence>
+                {debugResult && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="rounded-md border bg-background p-4 space-y-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">Diagnosis</p>
+                      <p className="text-xs text-muted-foreground mt-1">{debugResult.diagnosis}</p>
+                    </div>
+                    {debugResult.fixCommands?.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium mb-2">Suggested Fixes</p>
+                        <div className="space-y-2">
+                          {debugResult.fixCommands.map((fix, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-muted-foreground">{fix.description}</p>
+                                <code className="block text-[10px] font-mono text-foreground/70 truncate mt-0.5">
+                                  {fix.command}
+                                </code>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0 h-7 gap-1"
+                                onClick={() => {
+                                  setIsOpen(true);
+                                  runCommand(fix.command);
+                                }}
+                                disabled={isRunning}
+                              >
+                                <Play className="size-3" /> Run
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {debugResult.tips?.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium mb-1">Prevention Tips</p>
+                        <ul className="text-xs text-muted-foreground space-y-1">
+                          {debugResult.tips.map((tip, i) => (
+                            <li key={i} className="flex items-start gap-1.5">
+                              <span className="text-yellow-500 mt-0.5">•</span>
+                              {tip}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Custom command + Save */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -257,7 +726,7 @@ export default function CommandsPage() {
               Run any shell command — output will appear in the terminal below
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <div className="flex items-end gap-3">
               <div className="flex-1 space-y-1.5">
                 <Label htmlFor="custom-cmd" className="text-xs">Command</Label>
@@ -267,7 +736,7 @@ export default function CommandsPage() {
                   onChange={(e) => setCustomCommand(e.target.value)}
                   placeholder="e.g., aws s3 ls or npx cdk diff"
                   className="font-mono text-sm"
-                  onKeyDown={(e) => e.key === "Enter" && handleCustomRun()}
+                  onKeyDown={(e) => e.key === "Enter" && !saveMode && handleCustomRun()}
                   disabled={isRunning}
                 />
               </div>
@@ -282,9 +751,133 @@ export default function CommandsPage() {
                   <><Play className="size-3.5" /> Run</>
                 )}
               </Button>
+              <Button
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => setSaveMode(!saveMode)}
+                disabled={!customCommand.trim()}
+              >
+                <BookmarkPlus className="size-3.5" />
+                {saveMode ? "Cancel" : "Save"}
+              </Button>
             </div>
+
+            {/* Save form */}
+            <AnimatePresence>
+              {saveMode && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex items-end gap-3 pt-2">
+                    <div className="flex-1 space-y-1.5">
+                      <Label htmlFor="save-label" className="text-xs">Name</Label>
+                      <Input
+                        id="save-label"
+                        value={saveLabel}
+                        onChange={(e) => setSaveLabel(e.target.value)}
+                        placeholder="e.g., Check S3 Costs"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1.5">
+                      <Label htmlFor="save-desc" className="text-xs">Description (optional)</Label>
+                      <Input
+                        id="save-desc"
+                        value={saveDescription}
+                        onChange={(e) => setSaveDescription(e.target.value)}
+                        placeholder="What does this command do?"
+                        className="text-sm"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSaveCommand}
+                      disabled={!saveLabel.trim() || !customCommand.trim()}
+                      className="gap-1.5"
+                    >
+                      <Save className="size-3.5" /> Save Command
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </CardContent>
         </Card>
+
+        {/* Saved commands */}
+        {savedCommands.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Bookmark className="size-5 text-pink-500" />
+              Saved Commands
+              <Badge variant="outline" className="text-xs">{savedCommands.length}</Badge>
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {savedCommands.map((cmd) => (
+                <motion.div key={cmd.id} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                  <Card className="h-full">
+                    <CardContent className="flex items-start gap-3">
+                      <div className={`rounded-md p-2 ${CATEGORY_COLORS["Custom"]}`}>
+                        <Bookmark className="size-4" />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium">{cmd.label}</p>
+                          <div className="flex items-center gap-1">
+                            <Badge variant="outline" className={`text-[10px] shrink-0 ${CATEGORY_COLORS["Custom"]}`}>
+                              Saved
+                            </Badge>
+                          </div>
+                        </div>
+                        {cmd.description && (
+                          <p className="text-xs text-muted-foreground">{cmd.description}</p>
+                        )}
+                        <code className="block text-[10px] font-mono text-muted-foreground/70 truncate mt-1">
+                          {cmd.command}
+                        </code>
+                        <div className="flex items-center gap-1 mt-1">
+                          <Clock className="size-3 text-muted-foreground/50" />
+                          <span className="text-[10px] text-muted-foreground/50">
+                            {new Date(cmd.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1 shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1"
+                          onClick={() => {
+                            setRunningId(cmd.id);
+                            setIsOpen(true);
+                            runCommand(cmd.command).then(() => setRunningId(null));
+                          }}
+                          disabled={isRunning}
+                        >
+                          {runningId === cmd.id ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : (
+                            <Play className="size-3" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteSaved(cmd.id)}
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Bucket-specific commands */}
         {buckets.length > 0 && (

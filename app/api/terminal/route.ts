@@ -1,6 +1,9 @@
-// API route for executing shell commands with streaming output
+// API route for executing shell commands with streaming output + kill support
 import { NextRequest } from "next/server";
-import { spawn } from "child_process";
+import { spawn, type ChildProcess } from "child_process";
+
+// Track running processes by session ID for kill support
+const runningProcesses = new Map<string, ChildProcess>();
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,6 +31,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generate a session ID to track this process
+    const sessionId = `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
@@ -38,6 +44,13 @@ export async function POST(request: NextRequest) {
             // Stream closed
           }
         };
+
+        // Send session ID so client can use it for kill requests
+        write({
+          type: "session",
+          sessionId,
+          level: "info",
+        });
 
         write({
           type: "command",
@@ -54,8 +67,11 @@ export async function POST(request: NextRequest) {
         const child = spawn(shell, shellArgs, {
           cwd: workingDir,
           env: { ...process.env },
-          timeout: 120000,
+          timeout: 300000, // 5 min timeout
         });
+
+        // Track the process
+        runningProcesses.set(sessionId, child);
 
         child.stdout?.on("data", (chunk: Buffer) => {
           const text = chunk.toString();
@@ -78,8 +94,18 @@ export async function POST(request: NextRequest) {
         });
 
         await new Promise<void>((resolve) => {
-          child.on("close", (code) => {
-            if (code === 0) {
+          child.on("close", (code, signal) => {
+            runningProcesses.delete(sessionId);
+
+            if (signal === "SIGTERM" || signal === "SIGKILL") {
+              write({
+                type: "exit",
+                message: `Process killed (signal: ${signal})`,
+                level: "warn",
+                exitCode: null,
+                killed: true,
+              });
+            } else if (code === 0) {
               write({
                 type: "exit",
                 message: `Process exited with code 0`,
@@ -99,6 +125,7 @@ export async function POST(request: NextRequest) {
           });
 
           child.on("error", (err) => {
+            runningProcesses.delete(sessionId);
             write({
               type: "error",
               message: err.message,
@@ -122,6 +149,57 @@ export async function POST(request: NextRequest) {
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : "Failed to execute command",
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+}
+
+// Kill a running process by session ID
+export async function DELETE(request: NextRequest) {
+  try {
+    const { sessionId } = await request.json();
+
+    if (!sessionId) {
+      return new Response(
+        JSON.stringify({ error: "sessionId is required" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const child = runningProcesses.get(sessionId);
+    if (!child) {
+      return new Response(
+        JSON.stringify({ error: "No running process found", sessionId }),
+        { status: 404, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Kill the process tree on Windows
+    if (process.platform === "win32" && child.pid) {
+      spawn("taskkill", ["/pid", child.pid.toString(), "/T", "/F"]);
+    } else {
+      child.kill("SIGTERM");
+      // Force kill after 3 seconds if still running
+      setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          // Already dead
+        }
+      }, 3000);
+    }
+
+    runningProcesses.delete(sessionId);
+
+    return new Response(
+      JSON.stringify({ success: true, sessionId }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Failed to kill process",
       }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );

@@ -68,7 +68,7 @@ const ERROR_PATTERNS: ErrorPattern[] = [
     title: "Missing Dependencies",
     suggestion:
       "CDK dependencies are missing. Install them in the infrastructure directory.",
-    command: "cd infrastructure/cdk && npm install",
+    command: "cd infrastructure/cdk; npm install",
   },
   {
     pattern: /SyntaxError|TypeError|ReferenceError/i,
@@ -126,7 +126,7 @@ async function runPreChecks(
       type: "check",
       label: "CDK directory not found at infrastructure/cdk",
       level: "error",
-      suggestion: "Create the CDK project: mkdir -p infrastructure/cdk && cd infrastructure/cdk && npx cdk init app --language typescript",
+      suggestion: "Create the CDK project: mkdir -p infrastructure/cdk; cd infrastructure/cdk; npx cdk init app --language typescript",
     });
     return false;
   }
@@ -145,7 +145,7 @@ async function runPreChecks(
       type: "check",
       label: "CDK dependencies not installed",
       level: "warn",
-      suggestion: "Run: cd infrastructure/cdk && npm install",
+      suggestion: "Run: cd infrastructure/cdk; npm install",
     });
   }
 

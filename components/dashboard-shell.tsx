@@ -3,7 +3,7 @@
 
 import { type ReactNode } from "react";
 import { TerminalProvider } from "@/lib/terminal-context";
-import { TerminalPanel } from "@/components/terminal-panel";
+import { TerminalPanel } from "./terminal-panel";
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   return (

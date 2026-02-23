@@ -21,6 +21,7 @@ import {
   FolderTree,
   Cloud,
   RefreshCw,
+  DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,9 @@ import { DeleteBucketDialog } from "@/features/buckets/components/delete-bucket-
 import { UploadDialog } from "@/features/files/components/upload-dialog";
 import { useFiles, useDeleteFile, useS3Files } from "@/features/files/hooks/use-files";
 import { useAnalytics } from "@/features/infrastructure/hooks/use-analytics";
+import { useExpenses } from "@/features/infrastructure/hooks/use-expenses";
+import { CostBreakdownTable, BucketExpensesTable } from "@/features/infrastructure/components/cost-tables";
+import { SyncStatusDialog } from "@/features/infrastructure/components/sync-status-dialog";
 import type { Bucket } from "@/lib/types";
 
 function formatTotalSize(bytes: number): string {
@@ -85,10 +89,15 @@ export default function BucketDetailPage({
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const [filesView, setFilesView] = useState<"table" | "folder">("table");
   const { files, refetch: refetchFiles } = useFiles(undefined, bucket?.s3BucketName);
   const { deleteFile } = useDeleteFile();
   const { bucketAnalytics } = useAnalytics();
+  const {
+    buckets: bucketExpenses,
+    loading: expensesLoading,
+  } = useExpenses(undefined, bucket?.id);
   const {
     s3Files,
     totalSize,
@@ -182,6 +191,9 @@ export default function BucketDetailPage({
             <Badge variant={bucket.status === "active" ? "default" : "secondary"}>
               {bucket.status}
             </Badge>
+            <Button variant="outline" size="sm" onClick={() => setSyncOpen(true)}>
+              <RefreshCw className="mr-1.5 size-3.5" /> Check Status
+            </Button>
             {bucket.status === "active" && (
               <>
                 <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
@@ -278,6 +290,9 @@ export default function BucketDetailPage({
             </TabsTrigger>
             <TabsTrigger value="components" className="gap-1.5">
               <Eye className="size-3.5" /> Components
+            </TabsTrigger>
+            <TabsTrigger value="expenses" className="gap-1.5">
+              <DollarSign className="size-3.5" /> Expenses
             </TabsTrigger>
           </TabsList>
 
@@ -382,6 +397,26 @@ export default function BucketDetailPage({
           <TabsContent value="components">
             <ComponentsPreviewTab bucket={bucket} />
           </TabsContent>
+
+          <TabsContent value="expenses">
+            <div className="space-y-4">
+              {expensesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">Loading cost data...</span>
+                </div>
+              ) : bucketExpenses.length > 0 ? (
+                <CostBreakdownTable
+                  breakdown={bucketExpenses[0].costBreakdown}
+                  title={`Cost Breakdown — ${bucket.name}`}
+                />
+              ) : (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No cost data available for this bucket.
+                </p>
+              )}
+            </div>
+          </TabsContent>
         </Tabs>
 
         {/* Upload dialog */}
@@ -403,6 +438,17 @@ export default function BucketDetailPage({
             setDeleteOpen(false);
             toast.success("Bucket fully deleted");
             window.location.href = "/buckets";
+          }}
+        />
+
+        {/* Sync dialog */}
+        <SyncStatusDialog
+          open={syncOpen}
+          onOpenChange={setSyncOpen}
+          bucketId={bucket.id}
+          onSynced={() => {
+            // Reload bucket data
+            window.location.reload();
           }}
         />
       </div>

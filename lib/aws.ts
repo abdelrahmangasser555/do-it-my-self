@@ -278,11 +278,133 @@ export async function listCloudFrontDistributions(): Promise<
   return distributions;
 }
 
+// ── CloudFormation stack status checking ─────────────────────────────────────
+
+import {
+  CloudFormationClient,
+  DescribeStacksCommand,
+  DescribeStackResourcesCommand,
+  DeleteStackCommand,
+} from "@aws-sdk/client-cloudformation";
+
+export function getCloudFormationClient(region?: string): CloudFormationClient {
+  return new CloudFormationClient({ region: region || REGION });
+}
+
+export interface StackResource {
+  logicalId: string;
+  physicalId: string;
+  type: string;
+  status: string;
+  statusReason?: string;
+  lastUpdated: string;
+}
+
+export interface StackStatus {
+  stackName: string;
+  stackStatus: string;
+  stackStatusReason?: string;
+  creationTime: string;
+  lastUpdatedTime?: string;
+  outputs: Record<string, string>;
+  resources: StackResource[];
+}
+
+/** Check CloudFormation stack status for a bucket. */
+export async function describeStack(
+  s3BucketName: string,
+  region?: string
+): Promise<StackStatus | null> {
+  const client = getCloudFormationClient(region);
+  const stackName = `SCR-${s3BucketName}`;
+
+  try {
+    const response = await client.send(
+      new DescribeStacksCommand({ StackName: stackName })
+    );
+    const stack = response.Stacks?.[0];
+    if (!stack) return null;
+
+    const outputs: Record<string, string> = {};
+    for (const o of stack.Outputs ?? []) {
+      if (o.OutputKey && o.OutputValue) {
+        outputs[o.OutputKey] = o.OutputValue;
+      }
+    }
+
+    // Get resources
+    const resourcesRes = await client.send(
+      new DescribeStackResourcesCommand({ StackName: stackName })
+    );
+    const resources: StackResource[] = (resourcesRes.StackResources ?? []).map(
+      (r) => ({
+        logicalId: r.LogicalResourceId ?? "",
+        physicalId: r.PhysicalResourceId ?? "",
+        type: r.ResourceType ?? "",
+        status: r.ResourceStatus ?? "",
+        statusReason: r.ResourceStatusReason,
+        lastUpdated: r.Timestamp?.toISOString() ?? "",
+      })
+    );
+
+    return {
+      stackName,
+      stackStatus: stack.StackStatus ?? "UNKNOWN",
+      stackStatusReason: stack.StackStatusReason,
+      creationTime: stack.CreationTime?.toISOString() ?? "",
+      lastUpdatedTime: stack.LastUpdatedTime?.toISOString(),
+      outputs,
+      resources,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg.includes("does not exist")) return null;
+    throw e;
+  }
+}
+
+/** Delete a CloudFormation stack (rollback). */
+export async function deleteStack(
+  s3BucketName: string,
+  region?: string
+): Promise<void> {
+  const client = getCloudFormationClient(region);
+  const stackName = `SCR-${s3BucketName}`;
+  await client.send(new DeleteStackCommand({ StackName: stackName }));
+}
+
+// ── S3 bucket size metrics ───────────────────────────────────────────────────
+
+import {
+  HeadBucketCommand,
+} from "@aws-sdk/client-s3";
+
+/** Check if an S3 bucket exists and is accessible. */
+export async function checkBucketExists(
+  bucketName: string,
+  region?: string
+): Promise<boolean> {
+  try {
+    const client = getS3Client(region);
+    await client.send(new HeadBucketCommand({ Bucket: bucketName }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ── Cost estimation helpers ──────────────────────────────────────────────────
-const S3_STORAGE_PER_GB_MONTH = 0.023; // Standard tier
+
+// AWS pricing (us-east-1 standard tier, approximate)
+const S3_STORAGE_PER_GB_MONTH = 0.023;
 const S3_PUT_PER_1K = 0.005;
 const S3_GET_PER_1K = 0.0004;
-const CF_PER_GB_TRANSFER = 0.085; // first 10 TB
+const S3_DELETE_PER_1K = 0.0;
+const S3_LIST_PER_1K = 0.005;
+const CF_PER_GB_TRANSFER = 0.085;      // first 10 TB
+const CF_HTTP_PER_10K = 0.0075;        // HTTP requests
+const CF_HTTPS_PER_10K = 0.01;         // HTTPS requests
+const S3_DATA_TRANSFER_PER_GB = 0.09;  // S3 to internet first 10 TB
 
 /**
  * Very rough monthly cost estimate based on storage bytes and request counts.
@@ -298,4 +420,64 @@ export function estimateMonthlyCost(
   const gets = (readRequests / 1000) * S3_GET_PER_1K;
   const cfTransfer = storageGB * 0.1 * CF_PER_GB_TRANSFER; // assume 10% egress
   return Math.round((storage + puts + gets + cfTransfer) * 100) / 100;
+}
+
+/** Detailed cost breakdown for a single bucket. */
+export interface CostBreakdown {
+  s3Storage: number;
+  s3PutRequests: number;
+  s3GetRequests: number;
+  s3DeleteRequests: number;
+  s3ListRequests: number;
+  s3DataTransfer: number;
+  cfDataTransfer: number;
+  cfRequests: number;
+  total: number;
+}
+
+export function calculateCostBreakdown(
+  storageByes: number,
+  writeRequests: number,
+  readRequests: number,
+  deleteRequests: number,
+  listRequests: number,
+  dataTransferBytes: number
+): CostBreakdown {
+  const storageGB = storageByes / (1024 ** 3);
+  const transferGB = dataTransferBytes / (1024 ** 3);
+
+  const s3Storage = storageGB * S3_STORAGE_PER_GB_MONTH;
+  const s3PutRequests = (writeRequests / 1000) * S3_PUT_PER_1K;
+  const s3GetRequests = (readRequests / 1000) * S3_GET_PER_1K;
+  const s3DeleteRequests = (deleteRequests / 1000) * S3_DELETE_PER_1K;
+  const s3ListRequests = (listRequests / 1000) * S3_LIST_PER_1K;
+  const s3DataTransfer = transferGB * S3_DATA_TRANSFER_PER_GB;
+  const cfDataTransfer = transferGB * 0.3 * CF_PER_GB_TRANSFER; // ~30% via CloudFront
+  const cfRequests = ((readRequests + writeRequests) / 10000) * CF_HTTPS_PER_10K;
+
+  const total =
+    s3Storage +
+    s3PutRequests +
+    s3GetRequests +
+    s3DeleteRequests +
+    s3ListRequests +
+    s3DataTransfer +
+    cfDataTransfer +
+    cfRequests;
+
+  return {
+    s3Storage: round4(s3Storage),
+    s3PutRequests: round4(s3PutRequests),
+    s3GetRequests: round4(s3GetRequests),
+    s3DeleteRequests: round4(s3DeleteRequests),
+    s3ListRequests: round4(s3ListRequests),
+    s3DataTransfer: round4(s3DataTransfer),
+    cfDataTransfer: round4(cfDataTransfer),
+    cfRequests: round4(cfRequests),
+    total: round4(total),
+  };
+}
+
+function round4(n: number): number {
+  return Math.round(n * 10000) / 10000;
 }

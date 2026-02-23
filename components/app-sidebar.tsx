@@ -26,6 +26,7 @@ import {
   BookOpen,
   Layers,
   FileCode2,
+  Terminal,
 } from "lucide-react";
 
 const navItems = [
@@ -53,6 +54,7 @@ const navItems = [
   {
     title: "Documentation",
     items: [
+      { label: "Setup Guide", href: "/docs/setup-guide", icon: Terminal },
       { label: "User Guide", href: "/docs/user-guide", icon: BookOpen },
       { label: "Architecture", href: "/docs/architecture-short", icon: Layers },
       { label: "Full Docs", href: "/docs/architecture-full", icon: FileCode2 },

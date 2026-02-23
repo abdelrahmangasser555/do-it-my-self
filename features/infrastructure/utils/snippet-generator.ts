@@ -300,3 +300,99 @@ export async function DELETE(request: NextRequest) {
 
 // Re-export aliases for backward compatibility
 export const generateUploadApiSnippet = generateNextjsUploadApi;
+
+// --- Linked vs Orphan File Upload Example ---
+export function generateLinkedUploadSnippet(bucket: Bucket): string {
+  return `// Example: Upload a FILE that is LINKED to a model record
+// This makes the file traceable and NOT an orphan in your system.
+//
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  LINKED FILE:  Has linkedModel + linkedModelId set          ║
+// ║  ORPHAN FILE:  Missing linkedModel or linkedModelId         ║
+// ╚══════════════════════════════════════════════════════════════╝
+//
+// When you upload a file through the Storage Control Room API and
+// provide linkedModel and linkedModelId, the file is associated
+// with a specific record in your application (e.g., a user avatar,
+// a product image, a document attachment).
+//
+// Files uploaded WITHOUT these fields are marked as "Orphan" —
+// they exist in S3 but are not linked to any application record.
+
+// Step 1: Request a presigned upload URL WITH linking metadata
+const response = await fetch("/api/files", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    projectId: "your-project-id",
+    bucketName: "${bucket.s3BucketName}",
+    fileName: "profile-photo.jpg",
+    fileSize: 204800, // 200 KB
+    mimeType: "image/jpeg",
+
+    // ✅ LINKED — These two fields prevent the file from being an orphan
+    linkedModel: "User",           // The model/table name in your app
+    linkedModelId: "user-12345",   // The specific record ID
+  }),
+});
+
+const { uploadUrl, objectKey, cloudFrontUrl } = await response.json();
+// uploadUrl → presigned S3 PUT URL (expires in 1 hour)
+// objectKey → e.g., "your-project-id/abc123-profile-photo.jpg"
+// cloudFrontUrl → e.g., "https://${bucket.cloudFrontDomain || "xxx.cloudfront.net"}/your-project-id/abc123-profile-photo.jpg"
+
+// Step 2: Upload the actual file to S3 using the presigned URL
+await fetch(uploadUrl, {
+  method: "PUT",
+  headers: { "Content-Type": "image/jpeg" },
+  body: fileBlob, // File or Blob object
+});
+
+// Step 3: Save the CDN URL in your application database
+// e.g., UPDATE users SET avatar_url = cloudFrontUrl WHERE id = 'user-12345';
+console.log("File accessible at:", cloudFrontUrl);
+
+// ──────────────────────────────────────────────────────
+// ORPHAN example (what NOT to do if you want linking):
+// ──────────────────────────────────────────────────────
+// const orphanResponse = await fetch("/api/files", {
+//   method: "POST",
+//   body: JSON.stringify({
+//     projectId: "your-project-id",
+//     bucketName: "${bucket.s3BucketName}",
+//     fileName: "random-file.pdf",
+//     fileSize: 102400,
+//     mimeType: "application/pdf",
+//     // ❌ No linkedModel or linkedModelId → ORPHAN
+//   }),
+// });`;
+}
+
+// --- Orphan Explanation Text ---
+export function generateOrphanExplanationText(): string {
+  return `## Linked vs Orphan Files
+
+**Linked File**: A file uploaded with \`linkedModel\` and \`linkedModelId\` fields.
+These fields associate the file with a specific record in your application
+(e.g., a user profile photo linked to User:user-123).
+
+**Orphan File**: A file uploaded WITHOUT linking metadata. The file exists in
+S3 and has a CDN URL, but is not associated with any application record.
+
+### Why does this matter?
+- **Cleanup**: Orphan files make it harder to determine which files are still
+  needed. When you delete a user record, linked files can be cleaned up
+  automatically, but orphan files remain.
+- **Tracking**: The Storage Control Room dashboard shows orphan badges to help
+  you identify files that may need linking or cleanup.
+- **Billing**: Unlinked files still cost money for storage and CDN delivery.
+
+### How to link files
+When calling the upload API, include:
+\`\`\`json
+{
+  "linkedModel": "YourModelName",
+  "linkedModelId": "record-id-123"
+}
+\`\`\``;
+}

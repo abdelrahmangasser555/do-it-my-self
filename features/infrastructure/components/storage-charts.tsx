@@ -22,6 +22,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { BucketAnalytics } from "@/lib/types";
+import type { MergedS3File } from "@/features/files/hooks/use-files";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -251,6 +252,164 @@ export function RequestsBarChart({ bucketAnalytics }: StorageChartsProps) {
             <ChartLegend content={<ChartLegendContent />} />
             <Bar dataKey="reads" radius={[4, 4, 0, 0]} fill="var(--color-reads)" />
             <Bar dataKey="writes" radius={[4, 4, 0, 0]} fill="var(--color-writes)" />
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── File Type Distribution Chart (from real S3 data) ─────────────────────────
+
+function getFileExtension(key: string): string {
+  const ext = key.split(".").pop()?.toLowerCase();
+  if (!ext || ext === key.toLowerCase() || ext.length > 10) return "other";
+  return ext;
+}
+
+const FILE_TYPE_COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "#f59e0b",
+  "#ec4899",
+  "#8b5cf6",
+  "#14b8a6",
+  "#f97316",
+];
+
+interface S3FileChartsProps {
+  s3Files: MergedS3File[];
+}
+
+export function FileTypeDistributionChart({ s3Files }: S3FileChartsProps) {
+  // Group by file extension
+  const extCounts: Record<string, { count: number; size: number }> = {};
+  for (const file of s3Files) {
+    const ext = getFileExtension(file.key);
+    if (!extCounts[ext]) extCounts[ext] = { count: 0, size: 0 };
+    extCounts[ext].count++;
+    extCounts[ext].size += file.size;
+  }
+
+  const data = Object.entries(extCounts)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 10)
+    .map(([ext, stats], i) => ({
+      name: `.${ext}`,
+      value: stats.count,
+      size: stats.size,
+      fill: FILE_TYPE_COLORS[i % FILE_TYPE_COLORS.length],
+    }));
+
+  const chartConfig = data.reduce((acc, d, i) => {
+    acc[d.name] = { label: d.name, color: FILE_TYPE_COLORS[i % FILE_TYPE_COLORS.length] };
+    return acc;
+  }, {} as ChartConfig);
+
+  if (data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>File Type Distribution</CardTitle>
+          <CardDescription>No files to analyze</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>File Type Distribution</CardTitle>
+        <CardDescription>Breakdown by file extension ({s3Files.length} files total)</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-[250px]">
+          <PieChart>
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  formatter={(value, name) => `${value} files`}
+                />
+              }
+            />
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="name"
+              innerRadius={45}
+              strokeWidth={2}
+            >
+              {data.map((entry, i) => (
+                <Cell key={entry.name} fill={FILE_TYPE_COLORS[i % FILE_TYPE_COLORS.length]} />
+              ))}
+            </Pie>
+            <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+          </PieChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── File Size Range Distribution Chart ───────────────────────────────────────
+
+const SIZE_RANGES = [
+  { label: "< 1 KB", min: 0, max: 1024 },
+  { label: "1-10 KB", min: 1024, max: 10240 },
+  { label: "10-100 KB", min: 10240, max: 102400 },
+  { label: "100 KB-1 MB", min: 102400, max: 1048576 },
+  { label: "1-10 MB", min: 1048576, max: 10485760 },
+  { label: "10-100 MB", min: 10485760, max: 104857600 },
+  { label: "> 100 MB", min: 104857600, max: Infinity },
+];
+
+export function FileSizeRangeChart({ s3Files }: S3FileChartsProps) {
+  const rangeCounts = SIZE_RANGES.map((range) => ({
+    name: range.label,
+    count: s3Files.filter((f) => f.size >= range.min && f.size < range.max).length,
+  })).filter((d) => d.count > 0);
+
+  const chartConfig = {
+    count: { label: "Files", color: "var(--chart-2)" },
+  } satisfies ChartConfig;
+
+  if (rangeCounts.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>File Size Distribution</CardTitle>
+          <CardDescription>No files to analyze</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>File Size Distribution</CardTitle>
+        <CardDescription>Number of files by size range</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={chartConfig} className="min-h-[250px] w-full">
+          <BarChart data={rangeCounts} accessibilityLayer>
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="name"
+              tickLine={false}
+              tickMargin={10}
+              axisLine={false}
+              fontSize={11}
+            />
+            <YAxis tickLine={false} axisLine={false} />
+            <ChartTooltip
+              content={<ChartTooltipContent formatter={(value) => `${value} files`} />}
+            />
+            <Bar dataKey="count" radius={[4, 4, 0, 0]} fill="var(--color-count)" />
           </BarChart>
         </ChartContainer>
       </CardContent>

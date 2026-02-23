@@ -88,3 +88,65 @@ export function useDeleteFile() {
 
   return { deleteFile, loading };
 }
+
+// ── S3 real files hook ──────────────────────────────────────────────────────
+
+export interface MergedS3File {
+  key: string;
+  size: number;
+  lastModified: string;
+  etag?: string;
+  storageClass?: string;
+  uploadedFromSystem: boolean;
+  metadata?: FileRecord;
+  cdnUrl?: string;
+}
+
+export interface S3FilesResponse {
+  files: MergedS3File[];
+  totalSize: number;
+  totalFiles: number;
+  systemUploaded: number;
+  bucketName: string;
+}
+
+export function useS3Files(bucketName?: string, region?: string) {
+  const [data, setData] = useState<S3FilesResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchS3Files = useCallback(async () => {
+    if (!bucketName) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams({ bucketName });
+      if (region) params.set("region", region);
+      const res = await fetch(`/api/files/s3?${params.toString()}`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to list S3 files");
+      }
+      const result = await res.json();
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }, [bucketName, region]);
+
+  useEffect(() => {
+    fetchS3Files();
+  }, [fetchS3Files]);
+
+  return {
+    s3Files: data?.files ?? [],
+    totalSize: data?.totalSize ?? 0,
+    totalFiles: data?.totalFiles ?? 0,
+    systemUploaded: data?.systemUploaded ?? 0,
+    loading,
+    error,
+    refetch: fetchS3Files,
+  };
+}

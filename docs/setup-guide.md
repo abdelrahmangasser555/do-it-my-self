@@ -382,9 +382,27 @@ The project reads these environment variables at runtime. You can create a `.env
 # .env.local (optional overrides)
 AWS_REGION=us-east-1
 DATA_DIR=./data
+
+# Required for AI features (command generation + error debugging)
+OPENAI_API_KEY=sk-...
 ```
 
 All AWS credentials come from the standard AWS credential chain (CLI config, env vars, IAM role) — no AWS keys are stored in `.env.local`.
+
+### AI Features (Optional)
+
+The **Commands** page includes an AI command generator and error debugger powered by OpenAI GPT-4o-mini. To enable these features:
+
+1. Get an API key from [platform.openai.com](https://platform.openai.com/api-keys)
+2. Add it to `.env.local`:
+
+```bash
+OPENAI_API_KEY=sk-proj-your-key-here
+```
+
+3. Restart the dev server
+
+> **Note:** AI features are optional. The dashboard works fully without an OpenAI key — the AI tab on the Commands page will simply return an error when used.
 
 ---
 

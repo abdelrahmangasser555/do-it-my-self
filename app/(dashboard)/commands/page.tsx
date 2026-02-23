@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageTransition } from "@/components/page-transition";
 import { useTerminal } from "@/lib/terminal-context";
 import {
@@ -506,214 +507,234 @@ export default function CommandsPage() {
           </p>
         </div>
 
-        {/* AI Command Generator */}
-        <Card className="border-violet-500/20 bg-violet-500/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Sparkles className="size-4 text-violet-500" />
-              AI Command Generator
-              <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-500 border-violet-500/20">
+        {/* AI Tools */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="size-5 text-primary" />
+              AI Tools
+              <Badge variant="secondary" className="text-[10px]">
                 GPT-4o-mini
               </Badge>
             </CardTitle>
             <CardDescription>
-              Describe what you want to do in plain English and AI will generate the command
+              Generate commands from natural language or debug errors with AI assistance.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-end gap-3">
-              <div className="flex-1 space-y-1.5">
-                <Label htmlFor="ai-prompt" className="text-xs">What do you want to do?</Label>
-                <Input
-                  id="ai-prompt"
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  placeholder='e.g., "list all S3 buckets with their sizes" or "check CloudFront cache hit ratio"'
-                  className="font-mono text-sm"
-                  onKeyDown={(e) => e.key === "Enter" && handleAiGenerate()}
-                  disabled={aiLoading}
-                />
-              </div>
-              <Button
-                onClick={handleAiGenerate}
-                disabled={aiLoading || !aiPrompt.trim()}
-                className="gap-1.5 bg-violet-600 hover:bg-violet-700"
-              >
-                {aiLoading ? (
-                  <><Loader2 className="size-3.5 animate-spin" /> Generating...</>
-                ) : (
-                  <><Brain className="size-3.5" /> Generate</>
-                )}
-              </Button>
-            </div>
-
-            {/* AI Result */}
-            <AnimatePresence>
-              {aiResult && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="rounded-md border bg-background p-4 space-y-3"
-                >
-                  {aiResult.command ? (
-                    <>
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium">{aiResult.label}</p>
-                          <p className="text-xs text-muted-foreground">{aiResult.description}</p>
-                        </div>
-                        {aiResult.dangerous && (
-                          <Badge variant="destructive" className="text-[10px] gap-1">
-                            <AlertTriangle className="size-3" /> Dangerous
-                          </Badge>
-                        )}
-                      </div>
-                      <code className="block text-xs font-mono bg-muted/50 px-3 py-2 rounded-md break-all">
-                        {aiResult.command}
-                      </code>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          className="gap-1"
-                          onClick={() => {
-                            setIsOpen(true);
-                            runCommand(aiResult.command);
-                          }}
-                          disabled={isRunning}
-                        >
-                          <Play className="size-3" /> Run
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1"
-                          onClick={() => {
-                            setCustomCommand(aiResult.command);
-                            setSaveMode(true);
-                            setSaveLabel(aiResult.label);
-                            setSaveDescription(aiResult.description);
-                          }}
-                        >
-                          <Save className="size-3" /> Save
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="gap-1"
-                          onClick={() => setCustomCommand(aiResult.command)}
-                        >
-                          Edit First
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="ml-auto"
-                          onClick={() => setAiResult(null)}
-                        >
-                          <X className="size-3" />
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{aiResult.description}</p>
+          <CardContent>
+            <Tabs defaultValue="generate" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="generate" className="gap-1.5">
+                  <Brain className="size-3.5" /> Generate Command
+                </TabsTrigger>
+                <TabsTrigger value="debug" className="gap-1.5" disabled={!lastError}>
+                  <Bug className="size-3.5" /> Debug Error
+                  {lastError && (
+                    <span className="ml-1 size-2 rounded-full bg-destructive animate-pulse" />
                   )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </CardContent>
-        </Card>
+                </TabsTrigger>
+              </TabsList>
 
-        {/* AI Debug Panel */}
-        {lastError && (
-          <Card className="border-red-500/20 bg-red-500/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Bug className="size-4 text-red-500" />
-                AI Error Debugger
-              </CardTitle>
-              <CardDescription>
-                The last command produced errors. AI can help diagnose and fix them.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <code className="block text-[10px] font-mono text-red-400/70 bg-red-500/5 px-3 py-2 rounded-md max-h-20 overflow-auto break-all">
-                {lastError.slice(0, 500)}{lastError.length > 500 ? "..." : ""}
-              </code>
-              <Button
-                size="sm"
-                onClick={handleAiDebug}
-                disabled={debugLoading}
-                className="gap-1.5"
-                variant="outline"
-              >
-                {debugLoading ? (
-                  <><Loader2 className="size-3.5 animate-spin" /> Analyzing...</>
-                ) : (
-                  <><Brain className="size-3.5" /> Debug with AI</>
-                )}
-              </Button>
+              {/* Generate tab */}
+              <TabsContent value="generate" className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ai-prompt">Describe what you want to do</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="ai-prompt"
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      placeholder='e.g., "list all S3 buckets with their sizes"'
+                      className="font-mono text-sm"
+                      onKeyDown={(e) => e.key === "Enter" && handleAiGenerate()}
+                      disabled={aiLoading}
+                    />
+                    <Button
+                      onClick={handleAiGenerate}
+                      disabled={aiLoading || !aiPrompt.trim()}
+                      className="gap-1.5 shrink-0"
+                    >
+                      {aiLoading ? (
+                        <><Loader2 className="size-3.5 animate-spin" /> Generating...</>
+                      ) : (
+                        <><Sparkles className="size-3.5" /> Generate</>
+                      )}
+                    </Button>
+                  </div>
+                </div>
 
-              <AnimatePresence>
-                {debugResult && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="rounded-md border bg-background p-4 space-y-3"
-                  >
-                    <div>
-                      <p className="text-sm font-medium">Diagnosis</p>
-                      <p className="text-xs text-muted-foreground mt-1">{debugResult.diagnosis}</p>
-                    </div>
-                    {debugResult.fixCommands?.length > 0 && (
-                      <div>
-                        <p className="text-sm font-medium mb-2">Suggested Fixes</p>
-                        <div className="space-y-2">
-                          {debugResult.fixCommands.map((fix, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs text-muted-foreground">{fix.description}</p>
-                                <code className="block text-[10px] font-mono text-foreground/70 truncate mt-0.5">
-                                  {fix.command}
-                                </code>
+                <AnimatePresence>
+                  {aiResult && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                    >
+                      {aiResult.command ? (
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <CardTitle className="text-sm">{aiResult.label}</CardTitle>
+                              <div className="flex items-center gap-1.5">
+                                {aiResult.dangerous && (
+                                  <Badge variant="destructive" className="text-[10px] gap-1">
+                                    <AlertTriangle className="size-3" /> Destructive
+                                  </Badge>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => setAiResult(null)}
+                                >
+                                  <X className="size-3" />
+                                </Button>
                               </div>
+                            </div>
+                            <CardDescription>{aiResult.description}</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <pre className="text-xs font-mono bg-muted px-3 py-2.5 rounded-md break-all whitespace-pre-wrap">
+                              {aiResult.command}
+                            </pre>
+                            <div className="flex items-center gap-2">
                               <Button
                                 size="sm"
-                                variant="outline"
-                                className="shrink-0 h-7 gap-1"
+                                className="gap-1.5"
                                 onClick={() => {
                                   setIsOpen(true);
-                                  runCommand(fix.command);
+                                  runCommand(aiResult.command);
                                 }}
                                 disabled={isRunning}
                               >
                                 <Play className="size-3" /> Run
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1.5"
+                                onClick={() => {
+                                  setCustomCommand(aiResult.command);
+                                  setSaveMode(true);
+                                  setSaveLabel(aiResult.label);
+                                  setSaveDescription(aiResult.description);
+                                }}
+                              >
+                                <Save className="size-3" /> Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="gap-1.5"
+                                onClick={() => setCustomCommand(aiResult.command)}
+                              >
+                                Edit First
+                              </Button>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {debugResult.tips?.length > 0 && (
-                      <div>
-                        <p className="text-sm font-medium mb-1">Prevention Tips</p>
-                        <ul className="text-xs text-muted-foreground space-y-1">
-                          {debugResult.tips.map((tip, i) => (
-                            <li key={i} className="flex items-start gap-1.5">
-                              <span className="text-yellow-500 mt-0.5">•</span>
-                              {tip}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </motion.div>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        <p className="text-sm text-muted-foreground py-2">{aiResult.description}</p>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </TabsContent>
+
+              {/* Debug tab */}
+              <TabsContent value="debug" className="space-y-4">
+                {lastError ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Last Error Output</Label>
+                      <pre className="text-[11px] font-mono text-destructive/80 bg-destructive/5 border border-destructive/20 px-3 py-2 rounded-md max-h-24 overflow-auto break-all whitespace-pre-wrap">
+                        {lastError.slice(0, 800)}{lastError.length > 800 ? "..." : ""}
+                      </pre>
+                    </div>
+                    <Button
+                      onClick={handleAiDebug}
+                      disabled={debugLoading}
+                      className="gap-1.5"
+                      variant="outline"
+                    >
+                      {debugLoading ? (
+                        <><Loader2 className="size-3.5 animate-spin" /> Analyzing Error...</>
+                      ) : (
+                        <><Brain className="size-3.5" /> Diagnose with AI</>
+                      )}
+                    </Button>
+
+                    <AnimatePresence>
+                      {debugResult && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                        >
+                          <Card>
+                            <CardContent className="pt-4 space-y-4">
+                              <div>
+                                <p className="text-sm font-semibold mb-1">Diagnosis</p>
+                                <p className="text-sm text-muted-foreground">{debugResult.diagnosis}</p>
+                              </div>
+                              {debugResult.fixCommands?.length > 0 && (
+                                <div>
+                                  <p className="text-sm font-semibold mb-2">Suggested Fixes</p>
+                                  <div className="space-y-2">
+                                    {debugResult.fixCommands.map((fix, i) => (
+                                      <div key={i} className="flex items-center gap-3 rounded-md border p-2.5">
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-xs font-medium">{fix.description}</p>
+                                          <code className="block text-[11px] font-mono text-muted-foreground truncate mt-0.5">
+                                            {fix.command}
+                                          </code>
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          className="shrink-0 gap-1"
+                                          onClick={() => {
+                                            setIsOpen(true);
+                                            runCommand(fix.command);
+                                          }}
+                                          disabled={isRunning}
+                                        >
+                                          <Play className="size-3" /> Run
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {debugResult.tips?.length > 0 && (
+                                <div>
+                                  <p className="text-sm font-semibold mb-1">Prevention Tips</p>
+                                  <ul className="space-y-1">
+                                    {debugResult.tips.map((tip, i) => (
+                                      <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                                        <AlertTriangle className="size-3 text-amber-500 mt-0.5 shrink-0" />
+                                        {tip}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                    <Bug className="mb-2 size-8" />
+                    <p className="text-sm">No errors to debug.</p>
+                    <p className="text-xs mt-1">Run a command first — if it fails, the error will appear here for AI analysis.</p>
+                  </div>
                 )}
-              </AnimatePresence>
-            </CardContent>
-          </Card>
-        )}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
 
         {/* Custom command + Save */}
         <Card>

@@ -161,6 +161,99 @@ Instead of writing the integration code manually, use the built-in snippet gener
 
 Click the **copy icon** on any snippet to copy it to the clipboard.
 
+The snippets page also includes a **Linked vs Orphan Files** section explaining how to properly associate uploads with your data models – and what happens when you don't.
+
+---
+
+## Browsing S3 Files
+
+Each bucket detail page shows the **actual files in S3**, not just locally-tracked metadata.
+
+### S3 Files Tab
+
+1. Go to **Buckets** and click any active bucket
+2. The default **S3 Files** tab shows every object in the S3 bucket
+3. Each file displays:
+   - **File name and full object key**
+   - **MIME type** (inferred from extension)
+   - **Size** (formatted in KB/MB/GB)
+   - **Source badge**: "Uploaded from System" (tracked in metadata) or "External / Direct" (uploaded outside the dashboard)
+   - **Last modified date**
+4. Use the **toggle buttons** in the top-right to switch between table view and folder tree view
+
+### Folder Structure View
+
+Click the **folder icon** toggle to see files organized in an expandable tree:
+- Folders show aggregate file count and total size
+- Click a folder to expand/collapse its contents
+- Nested paths (e.g. `project-id/subfolder/file.jpg`) render as proper hierarchical directories
+
+### Total Size
+
+The bucket overview card grid shows the **total size** of all objects in S3, formatted as KB, MB, or GB depending on scale.
+
+---
+
+## File Analytics
+
+The **Analytics** tab on each bucket page shows two charts:
+
+### File Type Distribution
+A pie chart showing the breakdown of file types (by extension) in your bucket. Useful for understanding what kind of content is stored.
+
+### File Size Range Distribution
+A bar chart grouping files into size ranges (< 1KB, 1-10KB, 10-100KB, 100KB-1MB, 1-10MB, 10-100MB, > 100MB). Helps identify unusually large files or storage patterns.
+
+---
+
+## Managing CloudFront Distributions
+
+The **Distributions** page (`/distributions`) shows all CloudFront distributions in your AWS account.
+
+### What you can see:
+- **Summary cards**: Total distributions, active count, disabled count
+- **Distribution table**: ID, domain name, status, origins, linked bucket (if managed by SCR), last modified date
+- **External links**: Click any domain to open it in a new tab
+
+### Deleting a distribution:
+Only **disabled** distributions can be deleted. If a distribution is active:
+1. Disable it first via the AWS Console
+2. Wait for the status to change to "Disabled"
+3. Then delete it from the Distributions page
+
+> Distributions created by CDK are automatically linked to their corresponding bucket in the dashboard.
+
+---
+
+## Commands & AI Tools
+
+The **Commands** page provides quick access to pre-built AWS/CDK commands and AI-powered utilities.
+
+### Pre-built Commands
+25+ commands organized by category: CDK, AWS S3, CloudFront, CloudFormation, Cost & Billing, System, and Bucket-specific. Click **Run** to execute any command directly from the dashboard.
+
+### Custom Commands
+Type any command in the custom input box and run it. Toggle **Save** to store it for later use.
+
+### Saved Commands
+Saved custom commands appear in a grid with their label and description. Click to run, or delete them when no longer needed.
+
+### AI Command Generator
+1. Switch to the **Generate Command** tab in the AI Tools card
+2. Describe what you want in plain English (e.g. "list all S3 buckets sorted by size")
+3. AI generates the command with label, description, and a safety warning if destructive
+4. Click **Run** to execute, **Save** to store, or **Edit First** to modify before running
+
+### AI Error Debugger
+1. When a command fails, the error output is captured automatically
+2. Switch to the **Debug Error** tab (a red dot indicates an error is available)
+3. Click **Diagnose with AI** — it provides:
+   - A diagnosis explaining what went wrong
+   - Suggested fix commands you can run directly
+   - Prevention tips for the future
+
+> AI features require an `OPENAI_API_KEY` in `.env.local`. See the [Setup Guide](/docs/setup-guide) for details.
+
 ---
 
 ## Viewing Analytics

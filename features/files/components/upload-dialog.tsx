@@ -252,10 +252,22 @@ export function UploadDialog({
                         </p>
                       )}
                       {f.status === "success" && (
-                        <p className="text-xs text-green-600 flex items-center gap-1">
-                          <CheckCircle2 className="size-3" /> Uploaded
-                          {f.cdnUrl && <span className="font-mono text-[10px] text-muted-foreground truncate ml-1">{f.cdnUrl}</span>}
-                        </p>
+                        <div className="text-xs text-green-600 flex items-center gap-1">
+                          <CheckCircle2 className="size-3 shrink-0" /> Uploaded
+                          {f.cdnUrl && (
+                            <a
+                              href={f.cdnUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-[10px] text-muted-foreground hover:text-primary truncate block max-w-[250px]"
+                              title={f.cdnUrl}
+                            >
+                              {f.cdnUrl.length > 60
+                                ? `${f.cdnUrl.slice(0, 30)}...${f.cdnUrl.slice(-25)}`
+                                : f.cdnUrl}
+                            </a>
+                          )}
+                        </div>
                       )}
                     </div>
                     {f.status === "pending" && !uploading && (

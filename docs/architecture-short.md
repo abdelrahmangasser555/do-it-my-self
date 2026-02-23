@@ -13,7 +13,9 @@ Next.js 16 (App Router)
   ├── UI: shadcn/ui + Tailwind v4
   ├── Animations: framer-motion
   ├── Forms: React Hook Form + Zod
-  └── AWS: @aws-sdk/client-s3 v3
+  ├── Charts: recharts (via shadcn chart components)
+  ├── AI: Vercel AI SDK v6 + OpenAI GPT-4o-mini
+  └── AWS: @aws-sdk/client-s3 + @aws-sdk/client-cloudfront v3
 
 Data: Plain JSON files in /data/
 Infra: AWS CDK v2 TypeScript
@@ -54,10 +56,13 @@ For uploads, your **external app** talks to `/api/files` to get a pre-signed URL
 | `/` | Analytics overview |
 | `/projects` | Manage projects |
 | `/buckets` | Manage S3 buckets |
+| `/buckets/[id]` | Bucket detail — S3 files, analytics, setup |
 | `/files` | View all file records |
+| `/distributions` | CloudFront distributions management |
 | `/infrastructure` | Deploy CDK stacks |
 | `/snippets` | Integration code generator |
-| `/docs` | This documentation |
+| `/commands` | Quick actions, saved commands, AI tools |
+| `/docs` | Documentation viewer |
 
 ---
 
@@ -68,8 +73,13 @@ For uploads, your **external app** talks to `/api/files` to get a pre-signed URL
 | `/api/projects` | GET, POST, PUT, DELETE |
 | `/api/buckets` | GET, POST, PUT, DELETE |
 | `/api/files` | GET, POST (+ presign), DELETE |
+| `/api/files/s3` | GET (list actual S3 objects) |
+| `/api/distributions` | GET, DELETE |
 | `/api/infrastructure` | POST (CDK synth/deploy) |
 | `/api/analytics` | GET |
+| `/api/terminal` | POST (run), GET (output), DELETE (kill) |
+| `/api/commands` | GET, POST, DELETE (saved commands) |
+| `/api/ai` | POST (generate, debug) |
 
 ---
 
@@ -85,9 +95,10 @@ Each deploy creates:
 ## Data Files
 
 ```
-/data/projects.json  →  [ { id, name, environment, maxFileSizeMB, ... } ]
-/data/buckets.json   →  [ { id, projectId, s3BucketName, status, ... } ]
-/data/files.json     →  [ { id, objectKey, cloudFrontUrl, size, ... } ]
+/data/projects.json         →  [ { id, name, environment, maxFileSizeMB, ... } ]
+/data/buckets.json          →  [ { id, projectId, s3BucketName, status, ... } ]
+/data/files.json            →  [ { id, objectKey, cloudFrontUrl, size, ... } ]
+/data/custom-commands.json  →  [ { id, label, description, command, ... } ]
 ```
 
 All persistence is flat JSON. No migrations ever needed.

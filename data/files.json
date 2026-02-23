@@ -1,14 +1,1 @@
-[
-  {
-    "id": "8c9efea5-b163-4f8c-8d82-fc7d8ebeccb6",
-    "projectId": "17b76e46-269f-4d3a-a5ec-b1129aeaad8e",
-    "bucketName": "scr-testing-bucket-1771824988557",
-    "objectKey": "17b76e46-269f-4d3a-a5ec-b1129aeaad8e/2dbb2716-14a9-4caf-ade5-dc57f28a0cec-whats app profile image.jpg",
-    "cloudFrontUrl": "https://d3kqp95584rrts.cloudfront.net/17b76e46-269f-4d3a-a5ec-b1129aeaad8e/2dbb2716-14a9-4caf-ade5-dc57f28a0cec-whats app profile image.jpg",
-    "size": 65281,
-    "mimeType": "image/jpeg",
-    "linkedModel": "",
-    "linkedModelId": "",
-    "createdAt": "2026-02-23T07:44:32.776Z"
-  }
-]
+[]

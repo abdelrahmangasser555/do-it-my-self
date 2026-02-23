@@ -14,6 +14,13 @@ export interface DocEntry {
 
 export const DOCS: DocEntry[] = [
   {
+    slug: "setup-guide",
+    title: "Setup Guide",
+    description: "Install & configure everything from scratch",
+    icon: "Terminal",
+    filePath: "docs/setup-guide.md",
+  },
+  {
     slug: "user-guide",
     title: "User Guide",
     description: "How to use the dashboard day-to-day",

@@ -1,4 +1,4 @@
-// Presentational dialog for creating a new S3 bucket
+// Presentational dialog for creating a new S3 bucket with config options
 "use client";
 
 import { useForm } from "react-hook-form";
@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -21,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { bucketSchema, type BucketFormValues, AWS_REGIONS } from "@/lib/validations";
 import type { Project } from "@/lib/types";
 import { AnimatedDialog } from "@/components/animated-dialog";
@@ -44,6 +46,7 @@ export function CreateBucketDialog({
     register,
     handleSubmit,
     setValue,
+    watch,
     reset,
     formState: { errors },
   } = useForm<BucketFormValues>({
@@ -52,8 +55,15 @@ export function CreateBucketDialog({
       projectId: "",
       name: "",
       region: "us-east-1",
+      versioning: false,
+      encryption: "s3",
+      backupEnabled: false,
+      maxFileSizeMB: 100,
     },
   });
+
+  const versioning = watch("versioning");
+  const backupEnabled = watch("backupEnabled");
 
   const handleFormSubmit = async (data: BucketFormValues) => {
     await onSubmit(data);
@@ -63,7 +73,7 @@ export function CreateBucketDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <AnimatedDialog open={open}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[540px]">
           <DialogHeader>
             <DialogTitle>Create New Bucket</DialogTitle>
             <DialogDescription>
@@ -71,6 +81,7 @@ export function CreateBucketDialog({
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+            {/* Project */}
             <div className="space-y-2">
               <Label>Project</Label>
               <Select
@@ -94,6 +105,7 @@ export function CreateBucketDialog({
               )}
             </div>
 
+            {/* Bucket name */}
             <div className="space-y-2">
               <Label htmlFor="bucketName">Bucket Name</Label>
               <Input
@@ -106,6 +118,7 @@ export function CreateBucketDialog({
               )}
             </div>
 
+            {/* Region */}
             <div className="space-y-2">
               <Label>AWS Region</Label>
               <Select
@@ -128,6 +141,84 @@ export function CreateBucketDialog({
               {errors.region && (
                 <p className="text-sm text-destructive">{errors.region.message}</p>
               )}
+            </div>
+
+            <Separator />
+
+            {/* Bucket Configuration Section */}
+            <div className="space-y-4">
+              <p className="text-sm font-medium text-muted-foreground">
+                Bucket Configuration
+              </p>
+
+              {/* Versioning */}
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="versioning">Versioning</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Keep multiple versions of objects
+                  </p>
+                </div>
+                <Switch
+                  id="versioning"
+                  checked={versioning}
+                  onCheckedChange={(v) => setValue("versioning", v)}
+                />
+              </div>
+
+              {/* Encryption */}
+              <div className="space-y-2">
+                <Label>Encryption</Label>
+                <Select
+                  defaultValue="s3"
+                  onValueChange={(v) =>
+                    setValue("encryption", v as "s3" | "kms" | "none", {
+                      shouldValidate: true,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="s3">S3-Managed (SSE-S3)</SelectItem>
+                    <SelectItem value="kms">KMS-Managed (SSE-KMS)</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Backup */}
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="backup">Backup Replication</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Cross-region replication for disaster recovery
+                  </p>
+                </div>
+                <Switch
+                  id="backup"
+                  checked={backupEnabled}
+                  onCheckedChange={(v) => setValue("backupEnabled", v)}
+                />
+              </div>
+
+              {/* Max File Size */}
+              <div className="space-y-2">
+                <Label htmlFor="maxFileSizeMB">Max File Size (MB)</Label>
+                <Input
+                  id="maxFileSizeMB"
+                  type="number"
+                  min={1}
+                  max={5000}
+                  {...register("maxFileSizeMB", { valueAsNumber: true })}
+                />
+                {errors.maxFileSizeMB && (
+                  <p className="text-sm text-destructive">
+                    {errors.maxFileSizeMB.message}
+                  </p>
+                )}
+              </div>
             </div>
 
             <DialogFooter>

@@ -1,4 +1,4 @@
-// Buckets listing page with create and deploy controls
+// Buckets listing page with create, deploy, and full-delete controls
 "use client";
 
 import { useState } from "react";
@@ -9,19 +9,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageTransition } from "@/components/page-transition";
 import { BucketsTable } from "@/features/buckets/components/buckets-table";
 import { CreateBucketDialog } from "@/features/buckets/components/create-bucket-dialog";
+import { DeleteBucketDialog } from "@/features/buckets/components/delete-bucket-dialog";
 import { useBuckets, useCreateBucket, useDeleteBucket } from "@/features/buckets/hooks/use-buckets";
 import { useProjects } from "@/features/projects/hooks/use-projects";
 import { useDeployBucket } from "@/features/infrastructure/hooks/use-deploy-bucket";
+import { useFiles } from "@/features/files/hooks/use-files";
 import type { BucketFormValues } from "@/lib/validations";
 import type { Bucket } from "@/lib/types";
 
 export default function BucketsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Bucket | null>(null);
   const { buckets, loading, refetch } = useBuckets();
   const { projects } = useProjects();
   const { createBucket, loading: creating } = useCreateBucket();
   const { deleteBucket } = useDeleteBucket();
   const { deploy } = useDeployBucket();
+  const { files } = useFiles();
 
   const handleCreate = async (data: BucketFormValues) => {
     const result = await createBucket(data);
@@ -37,11 +41,15 @@ export default function BucketsPage() {
   const handleDelete = async (id: string) => {
     const success = await deleteBucket(id);
     if (success) {
-      toast.success("Bucket deleted");
+      toast.success("Bucket metadata removed");
       refetch();
     } else {
       toast.error("Failed to delete bucket");
     }
+  };
+
+  const handleFullDelete = (bucket: Bucket) => {
+    setDeleteTarget(bucket);
   };
 
   const handleDeploy = async (bucket: Bucket) => {
@@ -54,6 +62,9 @@ export default function BucketsPage() {
       toast.error(`Deployment failed: ${result.error}`);
     }
   };
+
+  const fileCountForBucket = (bucket: Bucket | null) =>
+    bucket ? files.filter((f) => f.bucketName === bucket.s3BucketName).length : 0;
 
   return (
     <PageTransition>
@@ -84,6 +95,7 @@ export default function BucketsPage() {
               <BucketsTable
                 buckets={buckets}
                 onDelete={handleDelete}
+                onFullDelete={handleFullDelete}
                 onDeploy={handleDeploy}
               />
             )}
@@ -96,6 +108,18 @@ export default function BucketsPage() {
           onSubmit={handleCreate}
           projects={projects}
           loading={creating}
+        />
+
+        <DeleteBucketDialog
+          open={!!deleteTarget}
+          onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}
+          bucket={deleteTarget}
+          fileCount={fileCountForBucket(deleteTarget)}
+          onComplete={() => {
+            setDeleteTarget(null);
+            refetch();
+            toast.success("Bucket fully deleted from AWS");
+          }}
         />
       </div>
     </PageTransition>

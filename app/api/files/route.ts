@@ -123,6 +123,25 @@ export async function DELETE(request: NextRequest) {
   if (!id) {
     return NextResponse.json({ error: "ID is required" }, { status: 400 });
   }
+
+  // Find the file record first so we can delete from S3
+  const file = await findInJsonFile<FileRecord>(FILE, id);
+  if (!file) {
+    return NextResponse.json({ error: "File not found" }, { status: 404 });
+  }
+
+  // Attempt S3 deletion
+  try {
+    const buckets = await readJsonFile<Bucket>("buckets.json");
+    const bucket = buckets.find((b) => b.s3BucketName === file.bucketName);
+    if (bucket && bucket.status === "active") {
+      const { deleteS3Object } = await import("@/lib/aws");
+      await deleteS3Object(file.bucketName, file.objectKey, bucket.region);
+    }
+  } catch {
+    // S3 deletion failed — continue with metadata removal and report
+  }
+
   const deleted = await deleteFromJsonFile<FileRecord>(FILE, id);
   if (!deleted) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });

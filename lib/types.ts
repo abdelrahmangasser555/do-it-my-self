@@ -10,6 +10,13 @@ export interface Project {
   updatedAt: string;
 }
 
+export interface BucketConfig {
+  versioning: boolean;
+  encryption: "s3" | "kms" | "none";
+  backupEnabled: boolean;
+  maxFileSizeMB: number;
+}
+
 export interface Bucket {
   id: string;
   projectId: string;
@@ -19,9 +26,17 @@ export interface Bucket {
   cloudFrontDomain: string;
   cloudFrontDistributionId: string;
   region: string;
-  status: "pending" | "deploying" | "active" | "failed";
+  status: "pending" | "deploying" | "active" | "failed" | "deleting";
+  config: BucketConfig;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DeletionStep {
+  id: string;
+  label: string;
+  status: "pending" | "running" | "done" | "error";
+  error?: string;
 }
 
 export interface FileRecord {
@@ -71,11 +86,19 @@ export interface AnalyticsSummary {
   totalBuckets: number;
   totalFiles: number;
   totalStorageBytes: number;
+  estimatedMonthlyCost: number;
+  projectedMonthlyCost: number;
 }
 
 export interface BucketAnalytics {
+  bucketId: string;
   bucketName: string;
+  displayName: string;
+  region: string;
   fileCount: number;
   totalSizeBytes: number;
   orphanedFiles: number;
+  estimatedMonthlyCost: number;
+  readRequests: number;
+  writeRequests: number;
 }

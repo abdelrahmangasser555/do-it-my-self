@@ -1,9 +1,15 @@
-// Main dashboard page with analytics overview
+// Main dashboard page with analytics overview and charts
 "use client";
 
 import { PageTransition } from "@/components/page-transition";
 import { AnalyticsCards } from "@/features/infrastructure/components/analytics-cards";
 import { BucketAnalyticsTable } from "@/features/infrastructure/components/bucket-analytics-table";
+import {
+  StorageBarChart,
+  StoragePieChart,
+  CostBarChart,
+  RequestsBarChart,
+} from "@/features/infrastructure/components/storage-charts";
 import { useAnalytics } from "@/features/infrastructure/hooks/use-analytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -21,6 +27,16 @@ export default function DashboardPage() {
         </div>
 
         <AnalyticsCards summary={summary} loading={loading} />
+
+        {/* Charts grid */}
+        {!loading && bucketAnalytics.length > 0 && (
+          <div className="grid gap-4 md:grid-cols-2">
+            <StorageBarChart bucketAnalytics={bucketAnalytics} />
+            <StoragePieChart bucketAnalytics={bucketAnalytics} />
+            <CostBarChart bucketAnalytics={bucketAnalytics} />
+            <RequestsBarChart bucketAnalytics={bucketAnalytics} />
+          </div>
+        )}
 
         <Card>
           <CardHeader>

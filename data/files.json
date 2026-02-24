@@ -22,5 +22,17 @@
     "linkedModel": "",
     "linkedModelId": "",
     "createdAt": "2026-02-23T22:16:03.771Z"
+  },
+  {
+    "id": "0e897dcb-1631-4074-acb0-cbd784dec83e",
+    "projectId": "97346070-3fd9-4d87-bb4f-375e6912844a",
+    "bucketName": "scr-gasser-demo-1771875634128",
+    "objectKey": "images/4d8bd678-a86d-41e9-889f-60ecd8fb8b10-Screenshot_2025-10-21_163757.png",
+    "cloudFrontUrl": "https://d2yeq1h38kcf0y.cloudfront.net/images/4d8bd678-a86d-41e9-889f-60ecd8fb8b10-Screenshot_2025-10-21_163757.png",
+    "size": 73706,
+    "mimeType": "image/png",
+    "linkedModel": "",
+    "linkedModelId": "",
+    "createdAt": "2026-02-24T12:36:42.953Z"
   }
 ]

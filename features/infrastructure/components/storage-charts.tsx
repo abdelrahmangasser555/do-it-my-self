@@ -90,8 +90,8 @@ export function StorageBarChart({ bucketAnalytics }: StorageChartsProps) {
             <YAxis tickLine={false} axisLine={false} />
             <ChartTooltip content={<ChartTooltipContent />} />
             <ChartLegend content={<ChartLegendContent />} />
-            <Bar dataKey="storage" radius={[4, 4, 0, 0]} fill="var(--color-storage)" />
-            <Bar dataKey="files" radius={[4, 4, 0, 0]} fill="var(--color-files)" />
+            <Bar dataKey="storage" radius={[12, 12, 0, 0]} fill="var(--color-storage)" />
+            <Bar dataKey="files" radius={[12, 12, 0, 0]} fill="var(--color-files)" />
           </BarChart>
         </ChartContainer>
       </CardContent>
@@ -250,8 +250,8 @@ export function RequestsBarChart({ bucketAnalytics }: StorageChartsProps) {
             <YAxis tickLine={false} axisLine={false} />
             <ChartTooltip content={<ChartTooltipContent />} />
             <ChartLegend content={<ChartLegendContent />} />
-            <Bar dataKey="reads" radius={[4, 4, 0, 0]} fill="var(--color-reads)" />
-            <Bar dataKey="writes" radius={[4, 4, 0, 0]} fill="var(--color-writes)" />
+            <Bar dataKey="reads" radius={[12, 12, 0, 0]} fill="var(--color-reads)" />
+            <Bar dataKey="writes" radius={[12, 12, 0, 0]} fill="var(--color-writes)" />
           </BarChart>
         </ChartContainer>
       </CardContent>

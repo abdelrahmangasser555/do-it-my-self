@@ -34,7 +34,7 @@ import {
 } from "@/features/infrastructure/utils/analytics-export";
 
 export default function DashboardPage() {
-  const { summary, bucketAnalytics, loading, refetch } = useAnalytics();
+  const { summary, bucketAnalytics, loading, syncedAt, refetch } = useAnalytics();
   const {
     summary: costSummary,
     projects: projectExpenses,
@@ -64,17 +64,20 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-muted-foreground">
               Overview of your storage infrastructure.
-            </p>
-          </div>
+            </p>            {syncedAt && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Last synced: {new Date(syncedAt).toLocaleString()}
+              </p>
+            )}          </div>
           <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={refetch}
+              onClick={() => { refetch(); refetchExpenses(); }}
               disabled={loading}
             >
-              <RefreshCw className="mr-2 size-3.5" />
-              Refresh
+              <RefreshCw className={`mr-2 size-3.5 ${loading ? "animate-spin" : ""}`} />
+              Sync
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

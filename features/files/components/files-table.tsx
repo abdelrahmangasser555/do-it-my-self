@@ -12,14 +12,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Trash2, ExternalLink, FileUp, Upload, Cloud } from "lucide-react";
+import { MoreHorizontal, Trash2, ExternalLink, FileUp, Upload, Cloud, ArrowRightLeft, File, HardDrive, Clock, Key, Tag, Database } from "lucide-react";
 import type { FileRecord } from "@/lib/types";
 import type { MergedS3File } from "@/features/files/hooks/use-files";
+import { toast } from "sonner";
 
 // ── Legacy metadata view ────────────────────────────────────────────────────
 
@@ -122,6 +128,7 @@ export function FilesTable({ files, onDelete }: FilesTableProps) {
 interface S3FilesTableProps {
   files: MergedS3File[];
   onDeleteMetadata?: (id: string) => void;
+  onMove?: (key: string) => void;
 }
 
 function getMimeFromKey(key: string): string {
@@ -145,7 +152,7 @@ function getFileName(key: string): string {
   return key.split("/").pop() ?? key;
 }
 
-export function S3FilesTable({ files, onDeleteMetadata }: S3FilesTableProps) {
+export function S3FilesTable({ files, onDeleteMetadata, onMove }: S3FilesTableProps) {
   if (files.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -173,8 +180,82 @@ export function S3FilesTable({ files, onDeleteMetadata }: S3FilesTableProps) {
           const mime = file.metadata?.mimeType || getMimeFromKey(file.key);
           return (
             <TableRow key={file.key}>
-              <TableCell className="font-medium text-sm max-w-[180px] truncate">
-                {getFileName(file.key)}
+              <TableCell className="font-medium text-sm max-w-[180px]">
+                <HoverCard openDelay={300} closeDelay={100}>
+                  <HoverCardTrigger asChild>
+                    <span className="truncate block cursor-default hover:text-primary transition-colors">
+                      {getFileName(file.key)}
+                    </span>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80" side="right" align="start">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <File className="size-4 text-primary shrink-0" />
+                        <p className="font-semibold text-sm truncate">{getFileName(file.key)}</p>
+                      </div>
+                      <div className="grid gap-2 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Key className="size-3 text-muted-foreground shrink-0" />
+                          <span className="text-muted-foreground shrink-0">Key:</span>
+                          <span className="font-mono truncate min-w-0 flex-1">{file.key}</span>
+                        </div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <HardDrive className="size-3 text-muted-foreground shrink-0" />
+                          <span className="text-muted-foreground shrink-0">Size:</span>
+                          <span>{formatBytes(file.size)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Tag className="size-3 text-muted-foreground shrink-0" />
+                          <span className="text-muted-foreground shrink-0">Type:</span>
+                          <span>{mime}</span>
+                        </div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Clock className="size-3 text-muted-foreground shrink-0" />
+                          <span className="text-muted-foreground shrink-0">Modified:</span>
+                          <span>{file.lastModified ? new Date(file.lastModified).toLocaleString() : "—"}</span>
+                        </div>
+                        {file.storageClass && (
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Database className="size-3 text-muted-foreground shrink-0" />
+                            <span className="text-muted-foreground shrink-0">Storage:</span>
+                            <span>{file.storageClass}</span>
+                          </div>
+                        )}
+                        {file.etag && (
+                          <div className="flex items-center gap-2 cursor-copy min-w-0" 
+                            onClick={() => {
+                              // copy to clipboard
+                              navigator.clipboard.writeText(file?.etag || "");
+                              toast.success("ETag copied to clipboard");
+                            }}
+                          >
+                            <Tag className="size-3 text-muted-foreground shrink-0" />
+                            <span className="text-muted-foreground shrink-0">ETag:</span>
+                            <span className="font-mono truncate min-w-0 flex-1">{file.etag}</span>
+                          </div>
+                        )}
+                        {file.cdnUrl && (
+                          <div className="flex items-center gap-2 min-w-0">
+                            <ExternalLink className="size-3 text-muted-foreground shrink-0" />
+                            <span className="text-muted-foreground shrink-0">CDN:</span>
+                            <a href={file.cdnUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate min-w-0 flex-1">
+                              {file.cdnUrl}
+                            </a>
+                          </div>
+                        )}
+                        {file.metadata && (
+                          <div className="mt-1 pt-1 border-t border-border">
+                            <p className="text-[10px] text-muted-foreground mb-1">Metadata Record</p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">Linked:</span>
+                              <span>{file.metadata.linkedModel ? `${file.metadata.linkedModel}:${file.metadata.linkedModelId}` : "Orphan"}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </HoverCardContent>
+                </HoverCard>
               </TableCell>
               <TableCell className="max-w-[220px] truncate font-mono text-xs text-muted-foreground">
                 {file.key}
@@ -217,6 +298,12 @@ export function S3FilesTable({ files, onDeleteMetadata }: S3FilesTableProps) {
                           <ExternalLink className="mr-2 size-4" />
                           Open CDN URL
                         </a>
+                      </DropdownMenuItem>
+                    )}
+                    {onMove && (
+                      <DropdownMenuItem onClick={() => onMove(file.key)}>
+                        <ArrowRightLeft className="mr-2 size-4" />
+                        Move File
                       </DropdownMenuItem>
                     )}
                     {file.uploadedFromSystem && file.metadata && onDeleteMetadata && (

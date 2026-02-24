@@ -22,6 +22,7 @@ import {
   Cloud,
   RefreshCw,
   DollarSign,
+  FolderPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,8 @@ import { SetupTab } from "@/features/buckets/components/setup-tab";
 import { ComponentsPreviewTab } from "@/features/buckets/components/components-preview-tab";
 import { DeleteBucketDialog } from "@/features/buckets/components/delete-bucket-dialog";
 import { UploadDialog } from "@/features/files/components/upload-dialog";
+import { CreateFolderDialog } from "@/features/files/components/create-folder-dialog";
+import { MoveFileDialog } from "@/features/files/components/move-file-dialog";
 import { useFiles, useDeleteFile, useS3Files } from "@/features/files/hooks/use-files";
 import { useAnalytics } from "@/features/infrastructure/hooks/use-analytics";
 import { useExpenses } from "@/features/infrastructure/hooks/use-expenses";
@@ -90,6 +93,8 @@ export default function BucketDetailPage({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [moveFileKey, setMoveFileKey] = useState<string | null>(null);
   const [filesView, setFilesView] = useState<"table" | "folder">("table");
   const { files, refetch: refetchFiles } = useFiles(undefined, bucket?.s3BucketName);
   const { deleteFile } = useDeleteFile();
@@ -138,6 +143,18 @@ export default function BucketDetailPage({
     refetchFiles();
     refetchS3();
   };
+
+  // Extract existing folders from S3 file keys
+  const existingFolders = [
+    ...new Set(
+      s3Files
+        .map((f) => {
+          const parts = f.key.split("/");
+          return parts.length > 1 ? parts.slice(0, -1).join("/") : "";
+        })
+        .filter(Boolean)
+    ),
+  ];
 
   // Filter analytics for this bucket only
   const thisBucketAnalytics = bucket
@@ -297,7 +314,7 @@ export default function BucketDetailPage({
           </TabsList>
 
           <TabsContent value="files">
-            <Card>
+            <Card className="relative">
               <CardHeader className="flex-row items-center justify-between">
                 <div>
                   <CardTitle>S3 Bucket Contents</CardTitle>
@@ -328,9 +345,14 @@ export default function BucketDetailPage({
                     <RefreshCw className={`size-3.5 ${s3Loading ? "animate-spin" : ""}`} />
                   </Button>
                   {bucket.status === "active" && (
-                    <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
-                      <FileUp className="mr-1.5 size-3.5" /> Upload
-                    </Button>
+                    <div className="flex items-center gap-1.5 absolute right-4 top-5">
+                      <Button variant="outline" size="sm" onClick={() => setCreateFolderOpen(true)}>
+                        <FolderPlus className="mr-1.5 size-3.5" /> New Folder
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
+                        <FileUp className="mr-1.5 size-3.5" /> Upload
+                      </Button>
+                    </div>
                   )}
                 </div>
               </CardHeader>
@@ -351,7 +373,11 @@ export default function BucketDetailPage({
                 ) : filesView === "folder" ? (
                   <FolderStructureView files={s3Files} />
                 ) : (
-                  <S3FilesTable files={s3Files} onDeleteMetadata={handleDeleteFile} />
+                  <S3FilesTable
+                    files={s3Files}
+                    onDeleteMetadata={handleDeleteFile}
+                    onMove={(key) => setMoveFileKey(key)}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -426,6 +452,35 @@ export default function BucketDetailPage({
           bucket={bucket}
           projectId={bucket.projectId}
           onUploadComplete={handleUploadComplete}
+          existingFolders={existingFolders}
+        />
+
+        {/* Create folder dialog */}
+        <CreateFolderDialog
+          open={createFolderOpen}
+          onOpenChange={setCreateFolderOpen}
+          bucketName={bucket.s3BucketName}
+          region={bucket.region}
+          existingFolders={existingFolders}
+          onCreated={() => {
+            refetchS3();
+            setCreateFolderOpen(false);
+          }}
+        />
+
+        {/* Move file dialog */}
+        <MoveFileDialog
+          open={!!moveFileKey}
+          onOpenChange={(open) => { if (!open) setMoveFileKey(null); }}
+          bucketName={bucket.s3BucketName}
+          region={bucket.region}
+          sourceKey={moveFileKey ?? ""}
+          existingFolders={existingFolders}
+          onMoved={() => {
+            refetchS3();
+            refetchFiles();
+            setMoveFileKey(null);
+          }}
         />
 
         {/* Delete dialog */}

@@ -272,7 +272,7 @@ export default function ProjectDetailPage({
                 <h3 className="text-sm font-medium text-muted-foreground">
                   Per-Bucket Line-Item Breakdown
                 </h3>
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="w-full">
                   {bucketExpenses.map((be) => (
                     <CostBreakdownTable
                       key={be.bucketId}

@@ -13,6 +13,26 @@ import type { FileRecord, Bucket, Project } from "@/lib/types";
 
 const FILE = "files.json";
 
+// Infer MIME type from file extension as a fallback
+function inferMimeType(fileName: string): string {
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  const mimeMap: Record<string, string> = {
+    jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif",
+    webp: "image/webp", svg: "image/svg+xml", bmp: "image/bmp", ico: "image/x-icon",
+    pdf: "application/pdf", json: "application/json", xml: "application/xml",
+    csv: "text/csv", txt: "text/plain", html: "text/html", css: "text/css",
+    js: "application/javascript", ts: "application/typescript",
+    zip: "application/zip", gz: "application/gzip", tar: "application/x-tar",
+    mp4: "video/mp4", webm: "video/webm", avi: "video/x-msvideo",
+    mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  };
+  return mimeMap[ext] || "application/octet-stream";
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId");
@@ -33,6 +53,31 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const parsed = uploadSchema.parse(body);
 
+    // Sanitize file name: trim whitespace, replace problematic characters
+    const sanitizedFileName = parsed.fileName
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .replace(/_{2,}/g, "_");
+
+    if (!sanitizedFileName || sanitizedFileName === "_") {
+      return NextResponse.json(
+        { error: "Invalid file name" },
+        { status: 400 }
+      );
+    }
+
+    // Resolve MIME type: use extension-based inference as fallback
+    let resolvedMimeType = parsed.mimeType;
+    if (
+      resolvedMimeType === "application/octet-stream" ||
+      !resolvedMimeType
+    ) {
+      const inferred = inferMimeType(parsed.fileName);
+      if (inferred !== "application/octet-stream") {
+        resolvedMimeType = inferred;
+      }
+    }
+
     // Validate project exists and check limits
     const project = await findInJsonFile<Project>(
       "projects.json",
@@ -45,10 +90,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check MIME type
-    if (!project.allowedMimeTypes.includes(parsed.mimeType)) {
+    // Check MIME type against allowed list
+    // If inferred type is still octet-stream, allow it as a wildcard fallback
+    if (
+      !project.allowedMimeTypes.includes(resolvedMimeType) &&
+      resolvedMimeType !== "application/octet-stream"
+    ) {
       return NextResponse.json(
-        { error: `MIME type ${parsed.mimeType} is not allowed for project "${project.name}". Allowed: ${project.allowedMimeTypes.join(", ")}` },
+        {
+          error: `MIME type ${resolvedMimeType} is not allowed for project "${project.name}". Allowed: ${project.allowedMimeTypes.join(", ")}`,
+        },
         { status: 400 }
       );
     }
@@ -91,11 +142,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate object key and presigned URL
-    const objectKey = `${parsed.projectId}/${uuidv4()}-${parsed.fileName}`;
+    // Support optional folderPrefix for organizing files into folders
+    const rawPrefix = body.folderPrefix
+      ? body.folderPrefix.replace(/^\/+|\/+$/g, "").replace(/\/\//g, "/")
+      : parsed.projectId;
+    const folderPrefix = rawPrefix || parsed.projectId; // ensure never empty
+    const objectKey = `${folderPrefix}/${uuidv4()}-${sanitizedFileName}`;
     const uploadUrl = await generatePresignedUploadUrl(
       bucket.s3BucketName,
       objectKey,
-      parsed.mimeType,
+      resolvedMimeType,
       bucket.region
     );
 
@@ -111,7 +167,7 @@ export async function POST(request: NextRequest) {
       objectKey,
       cloudFrontUrl,
       size: parsed.fileSize,
-      mimeType: parsed.mimeType,
+      mimeType: resolvedMimeType,
       linkedModel: parsed.linkedModel || "",
       linkedModelId: parsed.linkedModelId || "",
       createdAt: new Date().toISOString(),

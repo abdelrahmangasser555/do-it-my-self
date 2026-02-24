@@ -1,6 +1,7 @@
 // Presentational component for per-bucket analytics breakdown with cost and requests
 "use client";
 
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -51,14 +52,14 @@ export function BucketAnalyticsTable({ data }: BucketAnalyticsTableProps) {
         {data.map((item) => (
           <TableRow key={item.bucketName}>
             <TableCell>
-              <div>
-                <span className="font-medium">{item.displayName || item.bucketName}</span>
+              <Link href={`/buckets/${item.bucketId}`} className="group">
+                <span className="font-medium group-hover:text-primary transition-colors">{item.displayName || item.bucketName}</span>
                 {item.displayName && (
-                  <p className="font-mono text-xs text-muted-foreground">
+                  <p className="font-mono text-xs text-muted-foreground group-hover:text-primary/70 transition-colors">
                     {item.bucketName}
                   </p>
                 )}
-              </div>
+              </Link>
             </TableCell>
             <TableCell>
               <Badge variant="outline">{item.region}</Badge>

@@ -24,6 +24,13 @@ import {
   X,
   File as FileIcon,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { Bucket } from "@/lib/types";
 
 interface UploadDialogProps {
@@ -32,6 +39,7 @@ interface UploadDialogProps {
   bucket: Bucket;
   projectId: string;
   onUploadComplete?: () => void;
+  existingFolders?: string[];
 }
 
 interface UploadFile {
@@ -56,25 +64,36 @@ export function UploadDialog({
   bucket,
   projectId,
   onUploadComplete,
+  existingFolders = [],
 }: UploadDialogProps) {
+  const ROOT_SENTINEL = "__root__";
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [targetFolder, setTargetFolder] = useState<string>(ROOT_SENTINEL);
+  const [newFolderName, setNewFolderName] = useState<string>("");
+  const [folderMode, setFolderMode] = useState<"existing" | "new">("existing");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const maxMB = bucket.config?.maxFileSizeMB ?? 100;
 
   const addFiles = useCallback(
     (fileList: FileList) => {
-      const newFiles: UploadFile[] = Array.from(fileList).map((file) => ({
-        file,
-        status: "pending" as const,
-        progress: 0,
-        error:
-          file.size > maxMB * 1024 * 1024
-            ? `File exceeds ${maxMB} MB limit`
-            : undefined,
-      }));
+      const newFiles: UploadFile[] = Array.from(fileList)
+        .filter((file) => {
+          // Skip zero-byte files (likely directories dropped by mistake)
+          if (file.size === 0) return false;
+          return true;
+        })
+        .map((file) => ({
+          file,
+          status: "pending" as const,
+          progress: 0,
+          error:
+            file.size > maxMB * 1024 * 1024
+              ? `File exceeds ${maxMB} MB limit`
+              : undefined,
+        }));
       // Mark oversized files as error immediately
       newFiles.forEach((f) => {
         if (f.error) f.status = "error";
@@ -104,6 +123,13 @@ export function UploadDialog({
       });
 
       try {
+        // Determine the folder prefix
+        const effectiveTarget = targetFolder === ROOT_SENTINEL ? "" : targetFolder;
+        const folder =
+          folderMode === "new" && newFolderName.trim()
+            ? newFolderName.trim().replace(/^\/+|\/+$/g, "")
+            : effectiveTarget || undefined;
+
         // Get presigned URL
         const res = await fetch("/api/files", {
           method: "POST",
@@ -114,6 +140,7 @@ export function UploadDialog({
             fileName: uploadFile.file.name,
             fileSize: uploadFile.file.size,
             mimeType: uploadFile.file.type || "application/octet-stream",
+            folderPrefix: folder,
           }),
         });
 
@@ -189,7 +216,7 @@ export function UploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className=" w-fit max-w-full no-scrollbar">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Upload className="size-5" />
@@ -201,7 +228,52 @@ export function UploadDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 ">
+          {/* Folder target */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Upload to folder</Label>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={folderMode === "existing" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7"
+                onClick={() => setFolderMode("existing")}
+              >
+                Existing
+              </Button>
+              <Button
+                variant={folderMode === "new" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7"
+                onClick={() => setFolderMode("new")}
+              >
+                New Folder
+              </Button>
+            </div>
+            {folderMode === "existing" ? (
+              <Select value={targetFolder} onValueChange={setTargetFolder}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Root (default project folder)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ROOT_SENTINEL}>Root</SelectItem>
+                  {existingFolders.filter(Boolean).map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {f}/
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="e.g. images/avatars"
+                className="h-8 text-xs font-mono"
+              />
+            )}
+          </div>
+
           {/* Drop zone */}
           <div
             onDragEnter={(e) => { e.preventDefault(); setDragging(true); }}
@@ -229,7 +301,7 @@ export function UploadDialog({
 
           {/* File list */}
           {files.length > 0 && (
-            <div className="max-h-60 space-y-2 overflow-y-auto">
+            <div className="max-h-60 space-y-2 overflow-y-auto no-scrollbar ">
               <AnimatePresence>
                 {files.map((f, i) => (
                   <motion.div
@@ -242,7 +314,7 @@ export function UploadDialog({
                     <FileIcon className="size-4 shrink-0 text-muted-foreground" />
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium truncate">{f.file.name}</p>
+                        <p className="text-sm font-medium truncate max-w-[250px]">{f.file.name}</p>
                         <span className="text-xs text-muted-foreground shrink-0">{formatBytes(f.file.size)}</span>
                       </div>
                       {f.status === "uploading" && <Progress value={f.progress} className="h-1.5" />}

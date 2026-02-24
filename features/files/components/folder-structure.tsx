@@ -39,6 +39,47 @@ interface TreeNode {
 }
 
 function buildTree(files: MergedS3File[]): TreeNode {
+  // ── Step 1: classify each S3 object ────────────────────────────────────
+  // Folder markers are zero-byte objects whose key ends with "/" (e.g. "images/")
+  // or whose normalized key exactly collides with a folder prefix produced by
+  // real files below it (e.g. an object keyed "images" when "images/file.jpg" also exists).
+
+  // First pass: collect all folder prefixes that have real file children
+  const populatedFolders = new Set<string>();
+  for (const f of files) {
+    if (f.key.endsWith("/")) continue; // skip markers in this pass
+    const parts = f.key.split("/").filter(Boolean);
+    for (let i = 0; i < parts.length - 1; i++) {
+      populatedFolders.add(parts.slice(0, i + 1).join("/"));
+    }
+  }
+
+  // Classify each object:
+  //   "marker"  → folder marker that should NOT become a file node
+  //               (either explicit trailing-slash key, or key matches a populated folder prefix)
+  //   "empty"   → explicit trailing-slash marker with NO child files → render as empty folder
+  //   "file"    → real content — added to the tree normally
+  const contentFiles: MergedS3File[] = [];
+  const emptyFolderPaths: string[] = [];
+
+  for (const f of files) {
+    const normalizedKey = f.key.replace(/\/+$/, ""); // strip trailing slash
+    const isExplicitMarker = f.key.endsWith("/");
+    const shadowsFolder = populatedFolders.has(normalizedKey);
+
+    if (isExplicitMarker || shadowsFolder) {
+      // Only keep it as an "empty folder" if it has no children
+      if (isExplicitMarker && !populatedFolders.has(normalizedKey) && normalizedKey) {
+        emptyFolderPaths.push(normalizedKey);
+      }
+      // Either way, do NOT treat it as a file node
+      continue;
+    }
+
+    contentFiles.push(f);
+  }
+
+  // ── Step 2: build tree from real content files ──────────────────────────
   const root: TreeNode = {
     name: "/",
     path: "",
@@ -48,7 +89,24 @@ function buildTree(files: MergedS3File[]): TreeNode {
     fileCount: 0,
   };
 
-  for (const file of files) {
+  // Helper: ensure a folder path exists in the tree and return the leaf node
+  function ensureFolder(folderPath: string): TreeNode {
+    const parts = folderPath.split("/").filter(Boolean);
+    let current = root;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const path = parts.slice(0, i + 1).join("/");
+      let folder = current.children.find((c) => c.isFolder && c.name === part);
+      if (!folder) {
+        folder = { name: part, path, isFolder: true, children: [], totalSize: 0, fileCount: 0 };
+        current.children.push(folder);
+      }
+      current = folder;
+    }
+    return current;
+  }
+
+  for (const file of contentFiles) {
     const parts = file.key.split("/").filter(Boolean);
     let current = root;
 
@@ -68,15 +126,12 @@ function buildTree(files: MergedS3File[]): TreeNode {
           totalSize: file.size,
           fileCount: 1,
         });
-        // Propagate size upward
-        let parent: TreeNode | null = root;
-        const pathParts = parts.slice(0, -1);
-        parent.totalSize += file.size;
-        parent.fileCount++;
-        for (const pp of pathParts) {
-          const found: TreeNode | undefined = parent.children.find(
-            (c) => c.isFolder && c.name === pp
-          );
+        // Propagate size upward through all ancestor folders
+        root.totalSize += file.size;
+        root.fileCount++;
+        let parent: TreeNode = root;
+        for (const pp of parts.slice(0, -1)) {
+          const found = parent.children.find((c) => c.isFolder && c.name === pp);
           if (found) {
             found.totalSize += file.size;
             found.fileCount++;
@@ -85,18 +140,9 @@ function buildTree(files: MergedS3File[]): TreeNode {
         }
       } else {
         // Folder node — find or create
-        let folder = current.children.find(
-          (c) => c.isFolder && c.name === part
-        );
+        let folder = current.children.find((c) => c.isFolder && c.name === part);
         if (!folder) {
-          folder = {
-            name: part,
-            path: currentPath,
-            isFolder: true,
-            children: [],
-            totalSize: 0,
-            fileCount: 0,
-          };
+          folder = { name: part, path: currentPath, isFolder: true, children: [], totalSize: 0, fileCount: 0 };
           current.children.push(folder);
         }
         current = folder;
@@ -104,7 +150,12 @@ function buildTree(files: MergedS3File[]): TreeNode {
     }
   }
 
-  // Sort: folders first, then files, alphabetically
+  // ── Step 3: inject empty folders (externally created, no children) ──────
+  for (const folderPath of emptyFolderPaths) {
+    ensureFolder(folderPath); // no-op if already exists
+  }
+
+  // ── Step 4: sort — folders first, then files, alphabetically ───────────
   function sortChildren(node: TreeNode) {
     node.children.sort((a, b) => {
       if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
@@ -261,7 +312,7 @@ function TreeNodeRow({
           >
             {node.children.map((child) => (
               <TreeNodeRow
-                key={child.path}
+                key={`${child.isFolder ? "dir" : "file"}:${child.path}`}
                 node={child}
                 depth={depth + 1}
               />
@@ -301,7 +352,7 @@ export function FolderStructureView({ files }: FolderStructureViewProps) {
         </span>
       </div>
       {tree.children.map((child) => (
-        <TreeNodeRow key={child.path} node={child} depth={0} />
+        <TreeNodeRow key={`${child.isFolder ? "dir" : "file"}:${child.path}`} node={child} depth={0} />
       ))}
     </div>
   );
@@ -376,7 +427,7 @@ function BucketFolderSection({ bucket }: { bucket: BucketS3Data }) {
           >
             <div className="p-2 font-mono text-sm">
               {tree.children.map((child) => (
-                <TreeNodeRow key={child.path} node={child} depth={0} />
+                <TreeNodeRow key={`${child.isFolder ? "dir" : "file"}:${child.path}`} node={child} depth={0} />
               ))}
             </div>
           </motion.div>

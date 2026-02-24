@@ -7,6 +7,7 @@ import {
   ListObjectsV2Command,
   DeleteObjectsCommand,
   DeleteBucketCommand,
+  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 import {
   CloudFrontClient,
@@ -167,6 +168,51 @@ export function buildCloudFrontUrl(
   objectKey: string
 ): string {
   return `https://${cloudFrontDomain}/${objectKey}`;
+}
+
+// ── S3 folder & move operations ───────────────────────────────────────────────
+
+/** Create a "folder" in S3 by placing a zero-byte object with a trailing slash. */
+export async function createS3Folder(
+  bucketName: string,
+  folderPath: string,
+  region?: string
+): Promise<void> {
+  const client = getS3Client(region);
+  const key = folderPath.endsWith("/") ? folderPath : `${folderPath}/`;
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      Body: "",
+      ContentLength: 0,
+    })
+  );
+}
+
+/** Move (copy + delete) an S3 object between keys within the same bucket. */
+export async function moveS3Object(
+  bucketName: string,
+  sourceKey: string,
+  destinationKey: string,
+  region?: string
+): Promise<void> {
+  const client = getS3Client(region);
+  // Copy
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: bucketName,
+      CopySource: `${bucketName}/${sourceKey}`,
+      Key: destinationKey,
+    })
+  );
+  // Delete original
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: bucketName,
+      Key: sourceKey,
+    })
+  );
 }
 
 // ── List S3 objects in a bucket ───────────────────────────────────────────────

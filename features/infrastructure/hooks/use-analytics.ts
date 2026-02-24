@@ -1,4 +1,4 @@
-// Hook for fetching analytics summary and per-bucket stats
+// Hook for fetching analytics summary and per-bucket stats (live S3 sync)
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -9,6 +9,7 @@ export function useAnalytics(projectId?: string) {
   const [bucketAnalytics, setBucketAnalytics] = useState<BucketAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncedAt, setSyncedAt] = useState<string | null>(null);
 
   const fetchAnalytics = useCallback(async () => {
     try {
@@ -21,6 +22,7 @@ export function useAnalytics(projectId?: string) {
       const data = await res.json();
       setSummary(data.summary);
       setBucketAnalytics(data.bucketAnalytics);
+      setSyncedAt(data.syncedAt ?? new Date().toISOString());
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -33,5 +35,5 @@ export function useAnalytics(projectId?: string) {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
-  return { summary, bucketAnalytics, loading, error, refetch: fetchAnalytics };
+  return { summary, bucketAnalytics, loading, error, syncedAt, refetch: fetchAnalytics };
 }

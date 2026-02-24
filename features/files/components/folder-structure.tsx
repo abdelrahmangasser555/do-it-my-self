@@ -11,8 +11,19 @@ import {
   FileIcon,
   Upload,
   Cloud,
+  Database,
+  HardDrive,
+  Clock,
+  Key,
+  Tag,
+  ExternalLink,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import type { MergedS3File } from "@/features/files/hooks/use-files";
 
 // ── Tree data structure ─────────────────────────────────────────────────────
@@ -116,6 +127,19 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
+function getMimeFromKey(key: string): string {
+  const ext = key.split(".").pop()?.toLowerCase() ?? "";
+  const map: Record<string, string> = {
+    jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif",
+    webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf",
+    json: "application/json", xml: "application/xml", csv: "text/csv",
+    txt: "text/plain", html: "text/html", css: "text/css",
+    js: "application/javascript", ts: "application/typescript",
+    zip: "application/zip", mp4: "video/mp4", mp3: "audio/mpeg",
+  };
+  return map[ext] || "application/octet-stream";
+}
+
 // ── Tree node component ─────────────────────────────────────────────────────
 
 function TreeNodeRow({
@@ -129,27 +153,78 @@ function TreeNodeRow({
 
   if (!node.isFolder) {
     const file = node.file;
+    const mime = file?.metadata?.mimeType || getMimeFromKey(node.name);
     return (
-      <div
-        className="flex items-center gap-2 py-1 px-2 hover:bg-muted/50 rounded-sm"
-        style={{ paddingLeft: `${depth * 20 + 8}px` }}
-      >
-        <FileIcon className="size-3.5 text-muted-foreground shrink-0" />
-        <span className="text-sm truncate">{node.name}</span>
-        <span className="text-xs text-muted-foreground ml-auto shrink-0">
-          {formatBytes(node.totalSize)}
-        </span>
-        {file?.uploadedFromSystem && (
-          <Badge className="gap-0.5 text-[9px] h-4 bg-green-500/10 text-green-600 border-green-500/20 shrink-0">
-            <Upload className="size-2" /> System
-          </Badge>
+      <HoverCard openDelay={400} closeDelay={100}>
+        <HoverCardTrigger asChild>
+          <div
+            className="flex items-center gap-2 py-1 px-2 hover:bg-muted/50 rounded-sm cursor-default"
+            style={{ paddingLeft: `${depth * 20 + 8}px` }}
+          >
+            <FileIcon className="size-3.5 text-muted-foreground shrink-0" />
+            <span className="text-sm truncate">{node.name}</span>
+            <span className="text-xs text-muted-foreground ml-auto shrink-0">
+              {formatBytes(node.totalSize)}
+            </span>
+            {file?.uploadedFromSystem && (
+              <Badge className="gap-0.5 text-[9px] h-4 bg-green-500/10 text-green-600 border-green-500/20 shrink-0">
+                <Upload className="size-2" /> System
+              </Badge>
+            )}
+            {file && !file.uploadedFromSystem && (
+              <Badge variant="secondary" className="text-[9px] h-4 shrink-0">
+                <Cloud className="mr-0.5 size-2" /> External
+              </Badge>
+            )}
+          </div>
+        </HoverCardTrigger>
+        {file && (
+          <HoverCardContent className="w-72" side="right" align="start">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <FileIcon className="size-4 text-primary shrink-0" />
+                <p className="font-semibold text-sm truncate">{node.name}</p>
+              </div>
+              <div className="grid gap-1.5 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Key className="size-3 text-muted-foreground shrink-0" />
+                  <span className="text-muted-foreground shrink-0">Key:</span>
+                  <span className="font-mono truncate min-w-0 flex-1">{file.key}</span>
+                </div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <HardDrive className="size-3 text-muted-foreground shrink-0" />
+                  <span className="text-muted-foreground shrink-0">Size:</span>
+                  <span>{formatBytes(file.size)}</span>
+                </div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Tag className="size-3 text-muted-foreground shrink-0" />
+                  <span className="text-muted-foreground shrink-0">Type:</span>
+                  <span>{mime}</span>
+                </div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Clock className="size-3 text-muted-foreground shrink-0" />
+                  <span className="text-muted-foreground shrink-0">Modified:</span>
+                  <span>{file.lastModified ? new Date(file.lastModified).toLocaleString() : "\u2014"}</span>
+                </div>
+                {file.storageClass && (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Database className="size-3 text-muted-foreground shrink-0" />
+                    <span className="text-muted-foreground shrink-0">Storage:</span>
+                    <span>{file.storageClass}</span>
+                  </div>
+                )}
+                {file.cdnUrl && (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ExternalLink className="size-3 text-muted-foreground shrink-0" />
+                    <span className="text-muted-foreground shrink-0">CDN:</span>
+                    <a href={file.cdnUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate min-w-0 flex-1">{file.cdnUrl}</a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </HoverCardContent>
         )}
-        {file && !file.uploadedFromSystem && (
-          <Badge variant="secondary" className="text-[9px] h-4 shrink-0">
-            <Cloud className="mr-0.5 size-2" /> External
-          </Badge>
-        )}
-      </div>
+      </HoverCard>
     );
   }
 
@@ -228,6 +303,85 @@ export function FolderStructureView({ files }: FolderStructureViewProps) {
       {tree.children.map((child) => (
         <TreeNodeRow key={child.path} node={child} depth={0} />
       ))}
+    </div>
+  );
+}
+
+// ── Global folder view — all buckets ────────────────────────────────────────
+
+interface BucketS3Data {
+  bucketId: string;
+  bucketName: string;
+  displayName: string;
+  files: MergedS3File[];
+  totalSize: number;
+  totalFiles: number;
+}
+
+interface GlobalFolderViewProps {
+  buckets: BucketS3Data[];
+}
+
+export function GlobalFolderView({ buckets }: GlobalFolderViewProps) {
+  if (buckets.length === 0 || buckets.every((b) => b.files.length === 0)) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+        <Folder className="mb-3 size-10" />
+        <p className="text-sm">No files found in any S3 bucket.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {buckets.map((bucket) => (
+        <BucketFolderSection key={bucket.bucketId} bucket={bucket} />
+      ))}
+    </div>
+  );
+}
+
+function BucketFolderSection({ bucket }: { bucket: BucketS3Data }) {
+  const [expanded, setExpanded] = useState(true);
+  const tree = buildTree(bucket.files);
+
+  return (
+    <div className="rounded-md border">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-2 px-3 py-2 hover:bg-muted/50 text-left"
+      >
+        {expanded ? (
+          <ChevronDown className="size-4 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="size-4 text-muted-foreground" />
+        )}
+        <Database className="size-4 text-primary" />
+        <span className="text-sm font-semibold">{bucket.displayName}</span>
+        <Badge variant="outline" className="text-[10px] ml-1">
+          {bucket.totalFiles} files
+        </Badge>
+        <span className="text-xs text-muted-foreground ml-auto">
+          {formatBytes(bucket.totalSize)}
+        </span>
+      </button>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.15 }}
+            className="overflow-hidden border-t"
+          >
+            <div className="p-2 font-mono text-sm">
+              {tree.children.map((child) => (
+                <TreeNodeRow key={child.path} node={child} depth={0} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { BookOpen, FileCode2, Layers, Terminal } from "lucide-react";
 import { DOCS } from "@/lib/docs";
 import { DocsProvider, useDocsContext } from "@/components/docs-context";
+import { DocsChatbot } from "@/features/docs/components/docs-chatbot";
 import { cn } from "@/lib/utils";
 
 const ICONS = { BookOpen, FileCode2, Layers, Terminal } as const;
@@ -118,11 +119,12 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
        * Fixed height = full viewport minus the 56px dashboard header.
        * Two columns each scroll independently — no page-level overflow.
        */}
-      <div className="-m-6 flex" style={{ height: "calc(100vh - 56px)" }}>
+      <div className="-m-6 flex " style={{ height: "calc(100vh - 56px)" }}>
         <DocsSidebar />
-        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden no-scrollbar">
           {children}
         </div>
+        <DocsChatbot />
       </div>
     </DocsProvider>
   );

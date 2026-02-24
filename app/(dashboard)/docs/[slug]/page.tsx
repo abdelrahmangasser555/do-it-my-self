@@ -41,7 +41,7 @@ export default async function DocPage({ params }: PageProps) {
   const badge = BADGE[slug] ?? { label: "Docs", className: "bg-muted text-muted-foreground" };
 
   return (
-    <article className="mx-auto max-w-3xl px-8 py-8">
+    <article className="mx-auto max-w-3xl px-8 py-8 no-scrollbar">
       {/* Doc header card */}
       <div className="mb-8 flex items-start gap-4 rounded-xl border bg-muted/30 p-5">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-background shadow-sm">

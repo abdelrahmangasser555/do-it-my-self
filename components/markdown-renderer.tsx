@@ -239,6 +239,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
         ol: ({ children }) => <OL>{children}</OL>,
         strong: ({ children }) => <Strong>{children}</Strong>,
       }}
+      
     >
       {content}
     </ReactMarkdown>

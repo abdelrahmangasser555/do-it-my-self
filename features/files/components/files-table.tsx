@@ -20,9 +20,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Trash2, ExternalLink, FileUp, Upload, Cloud, ArrowRightLeft, File, HardDrive, Clock, Key, Tag, Database } from "lucide-react";
+import { MoreHorizontal, Trash2, FileX, ExternalLink, FileUp, Upload, Cloud, ArrowRightLeft, File, HardDrive, Clock, Key, Tag, Database } from "lucide-react";
 import type { FileRecord } from "@/lib/types";
 import type { MergedS3File } from "@/features/files/hooks/use-files";
 import { toast } from "sonner";
@@ -127,7 +128,10 @@ export function FilesTable({ files, onDelete }: FilesTableProps) {
 
 interface S3FilesTableProps {
   files: MergedS3File[];
+  /** Soft-delete: removes only the local tracking record. File stays in S3, reappears as External on sync. */
   onDeleteMetadata?: (id: string) => void;
+  /** Hard-delete: permanently removes the file from S3 and clears any tracking record. */
+  onDeleteS3?: (key: string) => void;
   onMove?: (key: string) => void;
 }
 
@@ -152,7 +156,7 @@ function getFileName(key: string): string {
   return key.split("/").pop() ?? key;
 }
 
-export function S3FilesTable({ files, onDeleteMetadata, onMove }: S3FilesTableProps) {
+export function S3FilesTable({ files, onDeleteMetadata, onDeleteS3, onMove }: S3FilesTableProps) {
   if (files.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -287,7 +291,7 @@ export function S3FilesTable({ files, onDeleteMetadata, onMove }: S3FilesTablePr
                       <MoreHorizontal className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" className="w-60">
                     {file.cdnUrl && (
                       <DropdownMenuItem asChild>
                         <a
@@ -306,13 +310,40 @@ export function S3FilesTable({ files, onDeleteMetadata, onMove }: S3FilesTablePr
                         Move File
                       </DropdownMenuItem>
                     )}
+
+                    {(onDeleteS3 || (file.uploadedFromSystem && file.metadata && onDeleteMetadata)) && (
+                      <DropdownMenuSeparator />
+                    )}
+
+                    {onDeleteS3 && (
+                      <DropdownMenuItem
+                        variant="destructive"
+                        className="flex-col items-start gap-0.5 py-2"
+                        onClick={() => onDeleteS3(file.key)}
+                      >
+                        <span className="flex items-center gap-2">
+                          <Trash2 className="size-3.5 shrink-0 text-destructive" />
+                          Delete from S3
+                        </span>
+                        <span className="pl-5 text-[10px] font-normal opacity-60 leading-snug">
+                          Permanently removes from cloud storage
+                        </span>
+                      </DropdownMenuItem>
+                    )}
+
                     {file.uploadedFromSystem && file.metadata && onDeleteMetadata && (
                       <DropdownMenuItem
                         variant="destructive"
+                        className="flex-col items-start gap-0.5 py-2"
                         onClick={() => onDeleteMetadata(file.metadata!.id)}
                       >
-                        <Trash2 className="mr-2 size-4" />
-                        Delete Metadata
+                        <span className="flex items-center gap-2">
+                          <FileX className="size-3.5 shrink-0 text-destructive" />
+                          Remove Tracking Record
+                        </span>
+                        <span className="pl-5 text-[10px] font-normal opacity-60 leading-snug">
+                          File stays in S3, reappears as External on sync
+                        </span>
                       </DropdownMenuItem>
                     )}
                   </DropdownMenuContent>

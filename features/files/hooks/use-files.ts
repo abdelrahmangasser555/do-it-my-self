@@ -74,6 +74,7 @@ export function useGeneratePresignedUrl() {
 export function useDeleteFile() {
   const [loading, setLoading] = useState(false);
 
+  /** Full delete — removes from S3 and the local metadata record. */
   const deleteFile = async (id: string): Promise<boolean> => {
     try {
       setLoading(true);
@@ -86,7 +87,23 @@ export function useDeleteFile() {
     }
   };
 
-  return { deleteFile, loading };
+  /**
+   * Soft delete — removes only the local tracking record.
+   * The file remains in S3 and will re-appear as "External / Direct" on the next sync.
+   */
+  const deleteMetadataOnly = async (id: string): Promise<boolean> => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/files?id=${id}&skipS3=true`, { method: "DELETE" });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { deleteFile, deleteMetadataOnly, loading };
 }
 
 // ── S3 real files hook ──────────────────────────────────────────────────────

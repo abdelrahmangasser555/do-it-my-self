@@ -1,17 +1,5 @@
 [
   {
-    "id": "972ec57f-dfdf-4a32-af8e-22aaec4def74",
-    "projectId": "97346070-3fd9-4d87-bb4f-375e6912844a",
-    "bucketName": "scr-gasser-demo-1771875634128",
-    "objectKey": "97346070-3fd9-4d87-bb4f-375e6912844a/c8bfecf3-3f1c-42ed-863e-0bbf18b53c80-partner-fullswing.png",
-    "cloudFrontUrl": "https://d2yeq1h38kcf0y.cloudfront.net/97346070-3fd9-4d87-bb4f-375e6912844a/c8bfecf3-3f1c-42ed-863e-0bbf18b53c80-partner-fullswing.png",
-    "size": 5168,
-    "mimeType": "image/png",
-    "linkedModel": "",
-    "linkedModelId": "",
-    "createdAt": "2026-02-23T22:16:03.269Z"
-  },
-  {
     "id": "bcd8facd-60dd-4f11-86e7-f2138c6094f1",
     "projectId": "97346070-3fd9-4d87-bb4f-375e6912844a",
     "bucketName": "scr-gasser-demo-1771875634128",

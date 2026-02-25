@@ -32,6 +32,7 @@ import {
 interface BucketS3Data {
   bucketId: string;
   bucketName: string;
+  region?: string;
   displayName: string;
   files: MergedS3File[];
   totalSize: number;
@@ -48,7 +49,7 @@ function formatBytes(bytes: number): string {
 
 export default function FilesPage() {
   const { files: metadataFiles, loading: metaLoading, refetch: refetchMeta } = useFiles();
-  const { deleteFile } = useDeleteFile();
+  const { deleteMetadataOnly } = useDeleteFile();
   const [bucketData, setBucketData] = useState<BucketS3Data[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
@@ -74,6 +75,7 @@ export default function FilesPage() {
           return {
             bucketId: bucket.id,
             bucketName: bucket.s3BucketName,
+            region: bucket.region,
             displayName: bucket.name,
             files: data.files as MergedS3File[],
             totalSize: data.totalSize as number,
@@ -82,10 +84,9 @@ export default function FilesPage() {
         })
       );
 
-      const data = results
-        .filter((r): r is PromiseFulfilledResult<BucketS3Data | null> => r.status === "fulfilled")
-        .map((r) => r.value)
-        .filter((d): d is BucketS3Data => d !== null);
+      const data: BucketS3Data[] = results.flatMap((r) =>
+        r.status === "fulfilled" && r.value !== null ? [r.value] : []
+      );
 
       setBucketData(data);
       setSyncedAt(new Date().toISOString());
@@ -106,14 +107,40 @@ export default function FilesPage() {
     toast.info("Syncing files from AWS...");
   };
 
+  /** Soft-delete: removes only the tracking record; file stays in S3 and reappears as External on next sync */
   const handleDeleteMetadata = async (id: string) => {
-    const success = await deleteFile(id);
+    const success = await deleteMetadataOnly(id);
     if (success) {
-      toast.success("File record deleted");
+      toast.success("Tracking record removed — file remains in S3");
       refetchMeta();
       fetchAllS3();
     } else {
-      toast.error("Failed to delete file");
+      toast.error("Failed to remove tracking record");
+    }
+  };
+
+  /** Hard-delete factory: permanently removes a file from S3 for the given bucket */
+  const makeDeleteS3Handler = (bd: BucketS3Data) => async (key: string) => {
+    try {
+      const res = await fetch("/api/files/s3", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete",
+          bucketName: bd.bucketName,
+          region: bd.region,
+          key,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete file from S3");
+      }
+      toast.success("File permanently deleted from S3");
+      refetchMeta();
+      fetchAllS3();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete file from S3");
     }
   };
 
@@ -252,6 +279,7 @@ export default function FilesPage() {
                       <S3FilesTable
                         files={bd.files}
                         onDeleteMetadata={handleDeleteMetadata}
+                        onDeleteS3={makeDeleteS3Handler(bd)}
                       />
                     </div>
                   ))

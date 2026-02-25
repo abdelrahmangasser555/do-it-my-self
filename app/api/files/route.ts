@@ -190,6 +190,10 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
+  // skipS3=true → only remove the local metadata record, leave the S3 object intact
+  // (the file will re-appear as "External" on the next S3 sync)
+  const skipS3 = searchParams.get("skipS3") === "true";
+
   if (!id) {
     return NextResponse.json({ error: "ID is required" }, { status: 400 });
   }
@@ -200,16 +204,18 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "File not found" }, { status: 404 });
   }
 
-  // Attempt S3 deletion
-  try {
-    const buckets = await readJsonFile<Bucket>("buckets.json");
-    const bucket = buckets.find((b) => b.s3BucketName === file.bucketName);
-    if (bucket && bucket.status === "active") {
-      const { deleteS3Object } = await import("@/lib/aws");
-      await deleteS3Object(file.bucketName, file.objectKey, bucket.region);
+  // Attempt S3 deletion (skipped when caller only wants metadata removal)
+  if (!skipS3) {
+    try {
+      const buckets = await readJsonFile<Bucket>("buckets.json");
+      const bucket = buckets.find((b) => b.s3BucketName === file.bucketName);
+      if (bucket && bucket.status === "active") {
+        const { deleteS3Object } = await import("@/lib/aws");
+        await deleteS3Object(file.bucketName, file.objectKey, bucket.region);
+      }
+    } catch {
+      // S3 deletion failed — continue with metadata removal and report
     }
-  } catch {
-    // S3 deletion failed — continue with metadata removal and report
   }
 
   const deleted = await deleteFromJsonFile<FileRecord>(FILE, id);

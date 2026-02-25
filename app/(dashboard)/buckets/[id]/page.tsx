@@ -97,7 +97,7 @@ export default function BucketDetailPage({
   const [moveFileKey, setMoveFileKey] = useState<string | null>(null);
   const [filesView, setFilesView] = useState<"table" | "folder">("table");
   const { files, refetch: refetchFiles } = useFiles(undefined, bucket?.s3BucketName);
-  const { deleteFile } = useDeleteFile();
+  const { deleteFile, deleteMetadataOnly } = useDeleteFile();
   const { bucketAnalytics } = useAnalytics();
   const {
     buckets: bucketExpenses,
@@ -136,6 +136,44 @@ export default function BucketDetailPage({
       refetchS3();
     } else {
       toast.error("Failed to delete file");
+    }
+  };
+
+  /** Soft-delete: removes only the local tracking record; file stays in S3 */
+  const handleRemoveTracking = async (metadataId: string) => {
+    const success = await deleteMetadataOnly(metadataId);
+    if (success) {
+      toast.success("Tracking record removed — file remains in S3");
+      refetchFiles();
+      refetchS3();
+    } else {
+      toast.error("Failed to remove tracking record");
+    }
+  };
+
+  /** Hard-delete: permanently removes the file from S3 and clears any tracking record */
+  const handleDeleteS3 = async (key: string) => {
+    if (!bucket) return;
+    try {
+      const res = await fetch("/api/files/s3", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete",
+          bucketName: bucket.s3BucketName,
+          region: bucket.region,
+          key,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete file from S3");
+      }
+      toast.success("File permanently deleted from S3");
+      refetchFiles();
+      refetchS3();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete file from S3");
     }
   };
 
@@ -375,7 +413,8 @@ export default function BucketDetailPage({
                 ) : (
                   <S3FilesTable
                     files={s3Files}
-                    onDeleteMetadata={handleDeleteFile}
+                    onDeleteMetadata={handleRemoveTracking}
+                    onDeleteS3={handleDeleteS3}
                     onMove={(key) => setMoveFileKey(key)}
                   />
                 )}

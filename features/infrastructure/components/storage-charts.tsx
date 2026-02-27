@@ -90,8 +90,8 @@ export function StorageBarChart({ bucketAnalytics }: StorageChartsProps) {
             <YAxis tickLine={false} axisLine={false} />
             <ChartTooltip content={<ChartTooltipContent />} />
             <ChartLegend content={<ChartLegendContent />} />
-            <Bar dataKey="storage" radius={[12, 12, 0, 0]} fill="var(--color-storage)" />
-            <Bar dataKey="files" radius={[12, 12, 0, 0]} fill="var(--color-files)" />
+            <Bar dataKey="storage" radius={[28, 28, 0, 0]} fill="var(--color-storage)" />
+            <Bar dataKey="files" radius={[28, 28, 0, 0]} fill="var(--color-files)" />
           </BarChart>
         </ChartContainer>
       </CardContent>
@@ -206,7 +206,7 @@ export function CostBarChart({ bucketAnalytics }: StorageChartsProps) {
                 <ChartTooltipContent formatter={(value) => `$${Number(value).toFixed(4)}`} />
               }
             />
-            <Bar dataKey="cost" radius={[4, 4, 0, 0]} fill="var(--color-cost)" />
+            <Bar dataKey="cost" radius={[28, 28, 0, 0]} fill="var(--color-cost)" />
           </BarChart>
         </ChartContainer>
       </CardContent>
@@ -250,8 +250,8 @@ export function RequestsBarChart({ bucketAnalytics }: StorageChartsProps) {
             <YAxis tickLine={false} axisLine={false} />
             <ChartTooltip content={<ChartTooltipContent />} />
             <ChartLegend content={<ChartLegendContent />} />
-            <Bar dataKey="reads" radius={[12, 12, 0, 0]} fill="var(--color-reads)" />
-            <Bar dataKey="writes" radius={[12, 12, 0, 0]} fill="var(--color-writes)" />
+            <Bar dataKey="reads" radius={[28, 28, 0, 0]} fill="var(--color-reads)" />
+            <Bar dataKey="writes" radius={[28, 28, 0, 0]} fill="var(--color-writes)" />
           </BarChart>
         </ChartContainer>
       </CardContent>
@@ -409,7 +409,7 @@ export function FileSizeRangeChart({ s3Files }: S3FileChartsProps) {
             <ChartTooltip
               content={<ChartTooltipContent formatter={(value) => `${value} files`} />}
             />
-            <Bar dataKey="count" radius={[4, 4, 0, 0]} fill="var(--color-count)" />
+            <Bar dataKey="count" radius={[28, 28, 0, 0]} fill="var(--color-count)" />
           </BarChart>
         </ChartContainer>
       </CardContent>

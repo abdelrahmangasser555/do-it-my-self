@@ -1,20 +1,19 @@
 [
   {
-    "id": "97346070-3fd9-4d87-bb4f-375e6912844a",
-    "name": "Gasser-demo",
+    "id": "30d71a6a-2e95-4491-b46c-cc62d435ddb1",
+    "name": "testing-throughly",
     "environment": "dev",
-    "maxFileSizeMB": 20,
+    "maxFileSizeMB": 10,
     "allowedMimeTypes": [
       "image/jpeg",
       "image/png",
       "application/pdf",
-      "video/mp4",
       "text/csv",
       "text/plain",
-      "audio/mpeg",
-      "application/json"
+      "application/json",
+      "video/mp4"
     ],
-    "createdAt": "2026-02-23T19:38:48.333Z",
-    "updatedAt": "2026-02-23T19:38:48.334Z"
+    "createdAt": "2026-02-27T08:11:11.414Z",
+    "updatedAt": "2026-02-27T08:11:11.414Z"
   }
 ]

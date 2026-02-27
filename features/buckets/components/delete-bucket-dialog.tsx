@@ -158,6 +158,7 @@ export function DeleteBucketDialog({
               </>
             )}
             {deleting && "Deletion in progress…"}
+            {deleting && "this may take a few minutes please don't close this dialog."}
             {complete && "All resources have been cleaned up."}
           </AlertDialogDescription>
         </AlertDialogHeader>

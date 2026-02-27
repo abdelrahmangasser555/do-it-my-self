@@ -79,11 +79,11 @@ export default function BucketsPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setSyncOpen(true)}>
+            <Button variant="outline" onClick={() => setSyncOpen(true)} data-tour-step-id="tour-sync-aws">
               <RefreshCw className="mr-2 size-4" />
               Sync with AWS
             </Button>
-            <Button onClick={() => setDialogOpen(true)}>
+            <Button onClick={() => setDialogOpen(true)} data-tour-step-id="tour-new-bucket">
               <Plus className="mr-2 size-4" />
               New Bucket
             </Button>

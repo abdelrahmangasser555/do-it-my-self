@@ -15,6 +15,7 @@ import {
   SidebarMenuItem,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
 import {
   FolderKanban,
   Database,
@@ -29,7 +30,9 @@ import {
   Terminal,
   Zap,
   Globe,
+  Compass,
 } from "lucide-react";
+import { useTour } from "@/components/ui/tour";
 
 const navItems = [
   {
@@ -68,6 +71,7 @@ const navItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const tour = useTour();
 
   return (
     <Sidebar>
@@ -79,7 +83,7 @@ export function AppSidebar() {
           </span>
         </Link>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className=" no-scrollbar">
         {navItems.map((group) => (
           <SidebarGroup key={group.title}>
             <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
@@ -107,7 +111,16 @@ export function AppSidebar() {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter className="border-t px-6 py-3">
+      <SidebarFooter className="border-t px-6 py-3 space-y-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2 text-xs text-muted-foreground hover:text-primary"
+          onClick={() => tour.start("product-tour")}
+        >
+          <Compass className="size-3.5" />
+          Start Tour
+        </Button>
         <p className="text-xs text-muted-foreground">
           Local-only · No hosting
         </p>

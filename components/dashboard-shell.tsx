@@ -1,14 +1,17 @@
-// Client-side shell wrapping TerminalProvider + TerminalPanel
+// Client-side shell wrapping TerminalProvider + TerminalPanel + TourProvider
 "use client";
 
 import { type ReactNode } from "react";
 import { TerminalProvider } from "@/lib/terminal-context";
 import { TerminalPanel } from "./terminal-panel";
+import { TourWrapper } from "@/features/onboarding/components/tour-wrapper";
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <TerminalProvider>
-      {children}
+      <TourWrapper>
+        {children}
+      </TourWrapper>
       <TerminalPanel />
     </TerminalProvider>
   );

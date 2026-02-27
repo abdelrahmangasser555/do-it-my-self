@@ -497,7 +497,7 @@ export default function CommandsPage() {
   return (
     <PageTransition>
       <div className="space-y-6">
-        <div>
+        <div data-tour-step-id="tour-commands-area">
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Zap className="size-6 text-primary" />
             Quick Commands

@@ -53,7 +53,7 @@ export default function ProjectsPage() {
               Manage your storage projects and their configuration.
             </p>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
+          <Button onClick={() => setDialogOpen(true)} data-tour-step-id="tour-new-project">
             <Plus className="mr-2 size-4" />
             New Project
           </Button>

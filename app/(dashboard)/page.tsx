@@ -59,7 +59,7 @@ export default function DashboardPage() {
   return (
     <PageTransition>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between" data-tour-step-id="tour-dashboard-heading">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-muted-foreground">
@@ -100,7 +100,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <AnalyticsCards summary={summary} loading={loading} />
+        <div data-tour-step-id="tour-analytics-cards">
+          <AnalyticsCards summary={summary} loading={loading} />
+        </div>
 
         {/* Charts grid */}
         {!loading && bucketAnalytics.length > 0 && (
@@ -124,7 +126,7 @@ export default function DashboardPage() {
         {/* ── Overall Cost Section ──────────────────────────────────────── */}
         <Separator />
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between" data-tour-step-id="tour-cost-section">
           <div className="flex items-center gap-2">
             <DollarSign className="size-5 text-primary" />
             <div>

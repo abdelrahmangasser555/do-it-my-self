@@ -1,9 +1,9 @@
 {
-  "SCR-scr-gasser-demo-1771875634128": {
-    "BucketArn": "arn:aws:s3:::scr-gasser-demo-1771875634128",
-    "BucketName": "scr-gasser-demo-1771875634128",
-    "DistributionId": "E2AT609OVNJJAA",
-    "CloudFrontDomain": "d2yeq1h38kcf0y.cloudfront.net",
-    "UploadPolicyArn": "arn:aws:iam::006545530824:policy/SCR-scr-gasser-demo-1771875634128-UploadPolicy81A9CED6-V6mUSJsZ1fBL"
+  "SCR-scr-normal-region-bucket-1772181061081": {
+    "BucketArn": "arn:aws:s3:::scr-normal-region-bucket-1772181061081",
+    "BucketName": "scr-normal-region-bucket-1772181061081",
+    "DistributionId": "E1Q5EO5IW0AHMC",
+    "CloudFrontDomain": "d28vslhq836chz.cloudfront.net",
+    "UploadPolicyArn": "arn:aws:iam::006545530824:policy/SCR-scr-normal-region-bucket-1772181061081-UploadPolicy81A9CED6-EZjRUkl7QGWJ"
   }
 }

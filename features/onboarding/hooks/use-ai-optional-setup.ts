@@ -75,12 +75,12 @@ export function useAiOptionalSetup(): UseAiOptionalSetupReturn {
         throw new Error("Failed to save AI configuration");
       }
 
-      // Write the key to .env.local via terminal
+      // Write the key to .env.local via terminal (cross-platform command)
       const writeRes = await fetch("/api/terminal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          command: `$envFile = ".env.local"; $content = if (Test-Path $envFile) { Get-Content $envFile -Raw } else { "" }; $lines = $content -split "\\r?\\n" | Where-Object { $_ -notmatch "^OPENAI_API_KEY=" }; $lines += "OPENAI_API_KEY=${key}"; $lines | Set-Content $envFile -Encoding UTF8; Write-Host "API key saved to .env.local"`,
+          command: `grep -v "^OPENAI_API_KEY=" .env.local 2>/dev/null > .env.local.tmp || true && echo "OPENAI_API_KEY=${key}" >> .env.local.tmp && mv .env.local.tmp .env.local && echo "API key saved to .env.local"`,
         }),
       });
 

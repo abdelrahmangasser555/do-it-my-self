@@ -23,8 +23,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { bucketSchema, type BucketFormValues, AWS_REGIONS } from "@/lib/validations";
-import type { Project } from "@/lib/types";
+import {
+  bucketSchema,
+  type BucketFormValues,
+  AWS_REGIONS,
+} from "@/lib/validations";
+import type { Project, BootstrappedEnvironment } from "@/lib/types";
 import { AnimatedDialog } from "@/components/animated-dialog";
 
 interface CreateBucketDialogProps {
@@ -33,6 +37,7 @@ interface CreateBucketDialogProps {
   onSubmit: (data: BucketFormValues) => Promise<void>;
   projects: Project[];
   loading?: boolean;
+  environments?: BootstrappedEnvironment[];
 }
 
 export function CreateBucketDialog({
@@ -41,6 +46,7 @@ export function CreateBucketDialog({
   onSubmit,
   projects,
   loading,
+  environments,
 }: CreateBucketDialogProps) {
   const {
     register,
@@ -101,7 +107,9 @@ export function CreateBucketDialog({
                 </SelectContent>
               </Select>
               {errors.projectId && (
-                <p className="text-sm text-destructive">{errors.projectId.message}</p>
+                <p className="text-sm text-destructive">
+                  {errors.projectId.message}
+                </p>
               )}
             </div>
 
@@ -114,32 +122,59 @@ export function CreateBucketDialog({
                 {...register("name")}
               />
               {errors.name && (
-                <p className="text-sm text-destructive">{errors.name.message}</p>
+                <p className="text-sm text-destructive">
+                  {errors.name.message}
+                </p>
               )}
             </div>
 
             {/* Region */}
             <div className="space-y-2">
               <Label>AWS Region</Label>
-              <Select
-                defaultValue="us-east-1"
-                onValueChange={(v) =>
-                  setValue("region", v, { shouldValidate: true })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {AWS_REGIONS.map((r) => (
-                    <SelectItem key={r.value} value={r.value}>
-                      {r.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {(() => {
+                const activeEnvs =
+                  environments?.filter((e) => e.status === "active") ?? [];
+                const regionOptions =
+                  activeEnvs.length > 0
+                    ? activeEnvs.map((e) => ({
+                        value: e.region,
+                        label:
+                          AWS_REGIONS.find((r) => r.value === e.region)
+                            ?.label ?? e.region,
+                      }))
+                    : AWS_REGIONS;
+                return (
+                  <Select
+                    defaultValue={regionOptions[0]?.value ?? "us-east-1"}
+                    onValueChange={(v) =>
+                      setValue("region", v, { shouldValidate: true })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {regionOptions.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>
+                          {r.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
+              {environments &&
+                environments.filter((e) => e.status === "active").length >
+                  0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Only bootstrapped regions are shown. Manage regions in
+                    Environments.
+                  </p>
+                )}
               {errors.region && (
-                <p className="text-sm text-destructive">{errors.region.message}</p>
+                <p className="text-sm text-destructive">
+                  {errors.region.message}
+                </p>
               )}
             </div>
 

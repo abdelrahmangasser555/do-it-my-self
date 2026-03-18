@@ -16,7 +16,8 @@ export const DEPENDENCIES: DependencyCheck[] = [
       const match = output.match(/v?(\d+\.\d+\.\d+)/);
       return match ? match[0] : null;
     },
-    installSnippet: "# Download from https://nodejs.org/\n# Or use nvm:\nnvm install --lts",
+    installSnippet:
+      "# Download from https://nodejs.org/\n# Or use nvm:\nnvm install --lts",
     icon: "node",
   },
   {
@@ -26,7 +27,8 @@ export const DEPENDENCIES: DependencyCheck[] = [
       const match = output.match(/(\d+\.\d+\.\d+)/);
       return match ? match[0] : null;
     },
-    installSnippet: "# npm comes with Node.js\n# Update: npm install -g npm@latest",
+    installSnippet:
+      "# npm comes with Node.js\n# Update: npm install -g npm@latest",
     icon: "npm",
   },
   {
@@ -37,7 +39,7 @@ export const DEPENDENCIES: DependencyCheck[] = [
       return match ? `v${match[1]}` : null;
     },
     installSnippet:
-      "# Download from https://aws.amazon.com/cli/\n# Or: msiexec.exe /i https://awscli.amazonaws.com/AWSCLIV2.msi",
+      '# macOS:\nbrew install awscli\n# Linux:\ncurl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && unzip awscliv2.zip && sudo ./aws/install\n# Windows:\nmsiexec.exe /i https://awscli.amazonaws.com/AWSCLIV2.msi',
     icon: "aws",
   },
   {
@@ -78,7 +80,12 @@ export async function executeCommand(command: string): Promise<CommandResult> {
   }
 
   if (!res.body) {
-    return { stdout: "", stderr: "No response stream", exitCode: 1, success: false };
+    return {
+      stdout: "",
+      stderr: "No response stream",
+      exitCode: 1,
+      success: false,
+    };
   }
 
   const reader = res.body.getReader();
@@ -125,7 +132,7 @@ export async function executeCommand(command: string): Promise<CommandResult> {
 /** Execute a command and return streaming lines via a callback. */
 export async function executeCommandStreaming(
   command: string,
-  onLine: (line: { type: string; message: string; level: string }) => void
+  onLine: (line: { type: string; message: string; level: string }) => void,
 ): Promise<CommandResult> {
   const res = await fetch("/api/terminal", {
     method: "POST",
@@ -142,7 +149,12 @@ export async function executeCommandStreaming(
 
   if (!res.body) {
     onLine({ type: "error", message: "No response stream", level: "error" });
-    return { stdout: "", stderr: "No response stream", exitCode: 1, success: false };
+    return {
+      stdout: "",
+      stderr: "No response stream",
+      exitCode: 1,
+      success: false,
+    };
   }
 
   const reader = res.body.getReader();

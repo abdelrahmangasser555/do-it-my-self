@@ -90,28 +90,24 @@ export default function BucketsPage() {
   const handleImportBuckets = async (
     awsBuckets: { name: string; creationDate: string; region: string }[]
   ) => {
-    let imported = 0;
-    for (const ab of awsBuckets) {
-      try {
-        const res = await fetch("/api/buckets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            projectId: projects[0]?.id || "",
-            name: ab.name,
-            region: ab.region,
-            versioning: false,
-            encryption: "s3",
-            backupEnabled: false,
-            maxFileSizeMB: 100,
-          }),
-        });
-        if (res.ok) imported++;
-      } catch {
-        // continue with next bucket
+    try {
+      const res = await fetch("/api/buckets/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ buckets: awsBuckets }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(
+          `Imported ${data.imported} bucket${data.imported !== 1 ? "s" : ""}`
+        );
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Import failed");
       }
+    } catch {
+      toast.error("Failed to import buckets");
     }
-    toast.success(`Imported ${imported} bucket${imported !== 1 ? "s" : ""}`);
     refetch();
     setAwsSyncOpen(false);
   };
@@ -161,11 +157,11 @@ export default function BucketsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>All Buckets</CardTitle>
-              <div className="relative w-72">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <div className="flex items-center w-72 rounded-md border border-input bg-transparent shadow-xs">
+                <Search className="ml-3 size-4 text-muted-foreground shrink-0" />
                 <Input
                   placeholder="Search buckets by name, region, status…"
-                  className="pl-9"
+                  className="border-0 shadow-none focus-visible:ring-0"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />

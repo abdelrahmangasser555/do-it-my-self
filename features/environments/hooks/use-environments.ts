@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import type { BootstrappedEnvironment } from "@/lib/types";
 
 export function useEnvironments() {
@@ -54,6 +55,10 @@ export function useBootstrapEnvironment() {
       setLoading(true);
       setError(null);
 
+      const toastId = toast.loading(`Bootstrapping ${alias || region}…`, {
+        description: "Creating environment record",
+      });
+
       // 1. Create the environment record
       const createRes = await fetch("/api/environments", {
         method: "POST",
@@ -63,10 +68,16 @@ export function useBootstrapEnvironment() {
 
       if (!createRes.ok) {
         const err = await createRes.json();
+        toast.error(`Bootstrap failed`, { id: toastId, description: err.error || "Failed to create environment" });
         throw new Error(err.error || "Failed to create environment");
       }
 
       const env: BootstrappedEnvironment = await createRes.json();
+
+      toast.loading(`Bootstrapping ${alias || region}…`, {
+        id: toastId,
+        description: "Running CDK bootstrap — this may take a few minutes",
+      });
 
       // 2. Run CDK bootstrap for the specific region
       const termRes = await fetch("/api/terminal", {
@@ -84,10 +95,11 @@ export function useBootstrapEnvironment() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: env.id, status: "failed" }),
         });
+        toast.error(`Bootstrap failed`, { id: toastId, description: "Bootstrap command failed to start" });
         throw new Error("Bootstrap command failed to start");
       }
 
-      // 3. Consume the stream and check result
+      // 3. Consume the stream and show progress toasts
       let success = false;
       if (termRes.body) {
         const reader = termRes.body.getReader();
@@ -104,6 +116,18 @@ export function useBootstrapEnvironment() {
             if (!raw.trim()) continue;
             try {
               const parsed = JSON.parse(raw);
+
+              // Show meaningful progress lines
+              if (parsed.type === "stdout" || parsed.type === "stderr") {
+                const text = (parsed.data || "").trim();
+                if (text && text.length > 5 && text.length < 200) {
+                  toast.loading(`Bootstrapping ${alias || region}…`, {
+                    id: toastId,
+                    description: text,
+                  });
+                }
+              }
+
               if (parsed.type === "exit" && parsed.exitCode === 0) {
                 success = true;
               }
@@ -127,13 +151,23 @@ export function useBootstrapEnvironment() {
       });
 
       if (!updateRes.ok) {
+        toast.error(`Bootstrap failed`, { id: toastId, description: "Failed to update environment status" });
         throw new Error("Failed to update environment status");
       }
 
       const updated = await updateRes.json();
       if (!success) {
+        toast.error(`Bootstrap failed for ${alias || region}`, {
+          id: toastId,
+          description: "CDK bootstrap exited with errors. Check your AWS credentials and try again.",
+        });
         throw new Error("CDK bootstrap failed for this region");
       }
+
+      toast.success(`${alias || region} bootstrapped successfully!`, {
+        id: toastId,
+        description: "Region is now ready for deployments",
+      });
 
       return updated;
     } catch (err) {

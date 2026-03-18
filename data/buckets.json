@@ -1,1 +1,78 @@
-[]
+[
+  {
+    "id": "ac0311cd-a7c8-456e-8d7a-ff62513e62c3",
+    "projectId": "561f45a6-58a8-4d0e-bea1-935051da401a",
+    "name": "admin",
+    "s3BucketName": "scr-admin-1773844277889",
+    "s3BucketArn": "arn:aws:s3:::scr-admin-1773844277889",
+    "cloudFrontDomain": "d36xa8s6x9j68.cloudfront.net",
+    "cloudFrontDistributionId": "E25LA5GSQNFINM",
+    "region": "eu-north-1",
+    "status": "active",
+    "config": {
+      "versioning": false,
+      "encryption": "s3",
+      "backupEnabled": false,
+      "maxFileSizeMB": 100
+    },
+    "createdAt": "2026-03-18T14:31:17.889Z",
+    "updatedAt": "2026-03-18T14:37:58.079Z"
+  },
+  {
+    "id": "a0db990c-bbc7-4fd3-af2d-d7bd7ea30f9f",
+    "projectId": "",
+    "name": "cdk-hnb659fds-assets-006545530824-eu-north-1",
+    "s3BucketName": "cdk-hnb659fds-assets-006545530824-eu-north-1",
+    "s3BucketArn": "arn:aws:s3:::cdk-hnb659fds-assets-006545530824-eu-north-1",
+    "cloudFrontDomain": "",
+    "cloudFrontDistributionId": "",
+    "region": "eu-north-1",
+    "status": "active",
+    "config": {
+      "versioning": false,
+      "encryption": "s3",
+      "backupEnabled": false,
+      "maxFileSizeMB": 100
+    },
+    "createdAt": "2026-02-23T07:27:06.000Z",
+    "updatedAt": "2026-03-18T14:38:15.595Z"
+  },
+  {
+    "id": "985e5833-e977-414d-9cf8-98034dccb800",
+    "projectId": "",
+    "name": "cdk-hnb659fds-assets-006545530824-us-west-1",
+    "s3BucketName": "cdk-hnb659fds-assets-006545530824-us-west-1",
+    "s3BucketArn": "arn:aws:s3:::cdk-hnb659fds-assets-006545530824-us-west-1",
+    "cloudFrontDomain": "",
+    "cloudFrontDistributionId": "",
+    "region": "us-west-1",
+    "status": "active",
+    "config": {
+      "versioning": false,
+      "encryption": "s3",
+      "backupEnabled": false,
+      "maxFileSizeMB": 100
+    },
+    "createdAt": "2026-03-18T14:00:01.000Z",
+    "updatedAt": "2026-03-18T14:38:17.310Z"
+  },
+  {
+    "id": "6d449f33-e84a-49c7-9086-e8b7fd4bd7e3",
+    "projectId": "",
+    "name": "risk-assesment",
+    "s3BucketName": "risk-assesment",
+    "s3BucketArn": "arn:aws:s3:::risk-assesment",
+    "cloudFrontDomain": "",
+    "cloudFrontDistributionId": "",
+    "region": "eu-north-1",
+    "status": "active",
+    "config": {
+      "versioning": false,
+      "encryption": "s3",
+      "backupEnabled": false,
+      "maxFileSizeMB": 100
+    },
+    "createdAt": "2024-08-09T11:46:06.000Z",
+    "updatedAt": "2026-03-18T14:38:17.745Z"
+  }
+]

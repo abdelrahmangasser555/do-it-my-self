@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "id": "561f45a6-58a8-4d0e-bea1-935051da401a",
+    "name": "new project",
+    "environment": "dev",
+    "maxFileSizeMB": 10,
+    "allowedMimeTypes": [
+      "image/jpeg",
+      "image/png",
+      "application/pdf",
+      "image/svg+xml",
+      "text/plain",
+      "audio/mpeg",
+      "video/mp4"
+    ],
+    "createdAt": "2026-03-18T14:28:58.680Z",
+    "updatedAt": "2026-03-18T14:28:58.680Z"
+  }
+]

@@ -68,7 +68,10 @@ export function useBootstrapEnvironment() {
 
       if (!createRes.ok) {
         const err = await createRes.json();
-        toast.error(`Bootstrap failed`, { id: toastId, description: err.error || "Failed to create environment" });
+        toast.error(`Bootstrap failed`, {
+          id: toastId,
+          description: err.error || "Failed to create environment",
+        });
         throw new Error(err.error || "Failed to create environment");
       }
 
@@ -80,11 +83,12 @@ export function useBootstrapEnvironment() {
       });
 
       // 2. Run CDK bootstrap for the specific region
+      // Ensure CDK deps are installed before running bootstrap
       const termRes = await fetch("/api/terminal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          command: `cd infrastructure/cdk && npx cdk bootstrap aws://${accountId}/${region}`,
+          command: `cd infrastructure/cdk && npm install --prefer-offline 2>/dev/null && npx cdk bootstrap aws://${accountId}/${region}`,
         }),
       });
 
@@ -95,7 +99,10 @@ export function useBootstrapEnvironment() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: env.id, status: "failed" }),
         });
-        toast.error(`Bootstrap failed`, { id: toastId, description: "Bootstrap command failed to start" });
+        toast.error(`Bootstrap failed`, {
+          id: toastId,
+          description: "Bootstrap command failed to start",
+        });
         throw new Error("Bootstrap command failed to start");
       }
 
@@ -119,7 +126,7 @@ export function useBootstrapEnvironment() {
 
               // Show meaningful progress lines
               if (parsed.type === "stdout" || parsed.type === "stderr") {
-                const text = (parsed.data || "").trim();
+                const text = (parsed.message || "").trim();
                 if (text && text.length > 5 && text.length < 200) {
                   toast.loading(`Bootstrapping ${alias || region}…`, {
                     id: toastId,
@@ -151,7 +158,10 @@ export function useBootstrapEnvironment() {
       });
 
       if (!updateRes.ok) {
-        toast.error(`Bootstrap failed`, { id: toastId, description: "Failed to update environment status" });
+        toast.error(`Bootstrap failed`, {
+          id: toastId,
+          description: "Failed to update environment status",
+        });
         throw new Error("Failed to update environment status");
       }
 
@@ -159,7 +169,8 @@ export function useBootstrapEnvironment() {
       if (!success) {
         toast.error(`Bootstrap failed for ${alias || region}`, {
           id: toastId,
-          description: "CDK bootstrap exited with errors. Check your AWS credentials and try again.",
+          description:
+            "CDK bootstrap exited with errors. Check your AWS credentials and try again.",
         });
         throw new Error("CDK bootstrap failed for this region");
       }

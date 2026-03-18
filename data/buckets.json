@@ -1,24 +1,5 @@
 [
   {
-    "id": "ac0311cd-a7c8-456e-8d7a-ff62513e62c3",
-    "projectId": "561f45a6-58a8-4d0e-bea1-935051da401a",
-    "name": "admin",
-    "s3BucketName": "scr-admin-1773844277889",
-    "s3BucketArn": "arn:aws:s3:::scr-admin-1773844277889",
-    "cloudFrontDomain": "d36xa8s6x9j68.cloudfront.net",
-    "cloudFrontDistributionId": "E25LA5GSQNFINM",
-    "region": "eu-north-1",
-    "status": "active",
-    "config": {
-      "versioning": false,
-      "encryption": "s3",
-      "backupEnabled": false,
-      "maxFileSizeMB": 100
-    },
-    "createdAt": "2026-03-18T14:31:17.889Z",
-    "updatedAt": "2026-03-18T14:37:58.079Z"
-  },
-  {
     "id": "a0db990c-bbc7-4fd3-af2d-d7bd7ea30f9f",
     "projectId": "",
     "name": "cdk-hnb659fds-assets-006545530824-eu-north-1",
@@ -73,6 +54,82 @@
       "maxFileSizeMB": 100
     },
     "createdAt": "2024-08-09T11:46:06.000Z",
-    "updatedAt": "2026-03-18T14:38:17.745Z"
+    "updatedAt": "2026-03-18T22:53:28.320Z"
+  },
+  {
+    "id": "4cbfae1c-5e38-44ef-b1bc-949d682c35a0",
+    "projectId": "",
+    "name": "dr-pie-images",
+    "s3BucketName": "dr-pie-images",
+    "s3BucketArn": "arn:aws:s3:::dr-pie-images",
+    "cloudFrontDomain": "",
+    "cloudFrontDistributionId": "",
+    "region": "eu-north-1",
+    "status": "active",
+    "config": {
+      "versioning": false,
+      "encryption": "s3",
+      "backupEnabled": false,
+      "maxFileSizeMB": 100
+    },
+    "createdAt": "2024-04-21T06:16:42.000Z",
+    "updatedAt": "2026-03-18T22:53:07.079Z"
+  },
+  {
+    "id": "e26ae309-c662-40b0-85e9-2609569969da",
+    "projectId": "",
+    "name": "northlambdatest",
+    "s3BucketName": "northlambdatest",
+    "s3BucketArn": "arn:aws:s3:::northlambdatest",
+    "cloudFrontDomain": "",
+    "cloudFrontDistributionId": "",
+    "region": "eu-north-1",
+    "status": "active",
+    "config": {
+      "versioning": false,
+      "encryption": "s3",
+      "backupEnabled": false,
+      "maxFileSizeMB": 100
+    },
+    "createdAt": "2023-11-11T17:59:08.000Z",
+    "updatedAt": "2026-03-18T22:53:07.084Z"
+  },
+  {
+    "id": "4d6a8a87-62ab-45d2-afc4-0e38658348ea",
+    "projectId": "",
+    "name": "pcr-moc",
+    "s3BucketName": "pcr-moc",
+    "s3BucketArn": "arn:aws:s3:::pcr-moc",
+    "cloudFrontDomain": "",
+    "cloudFrontDistributionId": "",
+    "region": "eu-north-1",
+    "status": "active",
+    "config": {
+      "versioning": false,
+      "encryption": "s3",
+      "backupEnabled": false,
+      "maxFileSizeMB": 100
+    },
+    "createdAt": "2024-11-18T14:23:44.000Z",
+    "updatedAt": "2026-03-18T23:15:03.399Z"
+  },
+  {
+    "id": "f47076ab-a08d-4866-bbda-15e019aaf9a9",
+    "projectId": "d6716645-5c35-41a9-9810-81ce702d0d42",
+    "name": "testing-sdr",
+    "s3BucketName": "scr-testing-sdr-1773874734270",
+    "s3BucketArn": "arn:aws:s3:::scr-testing-sdr-1773874734270",
+    "cloudFrontDomain": "d2lptmtp3eizng.cloudfront.net",
+    "cloudFrontDistributionId": "E1AWIS81EF9EIO",
+    "region": "us-west-1",
+    "status": "active",
+    "config": {
+      "versioning": false,
+      "encryption": "s3",
+      "backupEnabled": false,
+      "maxFileSizeMB": 100
+    },
+    "createdAt": "2026-03-18T22:58:54.270Z",
+    "updatedAt": "2026-03-18T22:58:54.270Z"
   }
 ]

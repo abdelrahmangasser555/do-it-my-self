@@ -3,11 +3,7 @@ import { NextRequest } from "next/server";
 import { spawn } from "child_process";
 import path from "path";
 import { updateInJsonFile, readJsonFile } from "@/lib/filesystem";
-import {
-  describeStack,
-  deleteStack,
-  checkBucketExists,
-} from "@/lib/aws";
+import { describeStack, deleteStack, checkBucketExists } from "@/lib/aws";
 import type { Bucket, Project, BucketSyncStatus } from "@/lib/types";
 
 const CDK_DIR = path.join(process.cwd(), "infrastructure", "cdk");
@@ -22,14 +18,16 @@ interface ErrorPattern {
 
 const ERROR_PATTERNS: ErrorPattern[] = [
   {
-    pattern: /Is account \d+ bootstrapped|Has the environment been bootstrapped|No bucket named 'cdk-hnb659fds-assets/i,
+    pattern:
+      /Is account \d+ bootstrapped|Has the environment been bootstrapped|No bucket named 'cdk-hnb659fds-assets/i,
     title: "CDK Bootstrap Required",
     suggestion:
       "Your AWS account/region has not been bootstrapped for CDK. The CDK needs a bootstrap stack to store assets. Run the bootstrap command with your account ID and region.",
     command: "npx cdk bootstrap aws://ACCOUNT_ID/REGION",
   },
   {
-    pattern: /Bootstrap stack.*outdated|requires a newer version of the bootstrap/i,
+    pattern:
+      /Bootstrap stack.*outdated|requires a newer version of the bootstrap/i,
     title: "Bootstrap Stack Outdated",
     suggestion:
       "Your CDK bootstrap stack is outdated and needs to be updated. Re-run the bootstrap command to upgrade it.",
@@ -45,8 +43,7 @@ const ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /ExpiredTokenException|ExpiredToken/i,
     title: "Expired AWS Token",
-    suggestion:
-      "Your AWS session token has expired. Refresh your credentials.",
+    suggestion: "Your AWS session token has expired. Refresh your credentials.",
     command: "aws sts get-caller-identity",
   },
   {
@@ -90,18 +87,21 @@ const ERROR_PATTERNS: ErrorPattern[] = [
 ];
 
 function matchErrorPatterns(
-  text: string
+  text: string,
 ): { title: string; suggestion: string; command?: string } | null {
   for (const { pattern, title, suggestion, command } of ERROR_PATTERNS) {
     if (pattern.test(text)) {
       let resolvedCommand = command;
       // Auto-substitute account ID and region if we can parse them from the error
       if (resolvedCommand) {
-        const accountMatch = text.match(/account\s+(\d{12})/i) ||
-          text.match(/aws:\/\/(\d{12})/);
+        const accountMatch =
+          text.match(/account\s+(\d{12})/i) || text.match(/aws:\/\/(\d{12})/);
         const regionMatch = text.match(/(eu|us|ap|sa|ca|me|af)-\w+-\d+/);
         if (accountMatch) {
-          resolvedCommand = resolvedCommand.replace("ACCOUNT_ID", accountMatch[1]);
+          resolvedCommand = resolvedCommand.replace(
+            "ACCOUNT_ID",
+            accountMatch[1],
+          );
         }
         if (regionMatch) {
           resolvedCommand = resolvedCommand.replace("REGION", regionMatch[0]);
@@ -115,7 +115,7 @@ function matchErrorPatterns(
 
 // --- Pre-Deployment Checks ---
 async function runPreChecks(
-  write: (data: Record<string, unknown>) => void
+  write: (data: Record<string, unknown>) => void,
 ): Promise<boolean> {
   write({
     type: "check",
@@ -131,12 +131,13 @@ async function runPreChecks(
       type: "check",
       label: "CDK directory not found at infrastructure/cdk",
       level: "error",
-      suggestion: "Create the CDK project: mkdir -p infrastructure/cdk; cd infrastructure/cdk; npx cdk init app --language typescript",
+      suggestion:
+        "Create the CDK project: mkdir -p infrastructure/cdk; cd infrastructure/cdk; npx cdk init app --language typescript",
     });
     return false;
   }
 
-  // Check if node_modules exist in CDK dir
+  // Check if node_modules exist in CDK dir — auto-install if missing
   try {
     const fs = await import("fs/promises");
     await fs.access(path.join(CDK_DIR, "node_modules"));
@@ -148,9 +149,45 @@ async function runPreChecks(
   } catch {
     write({
       type: "check",
-      label: "CDK dependencies not installed",
+      label: "CDK dependencies not installed — installing…",
       level: "warn",
-      suggestion: "Run: cd infrastructure/cdk; npm install",
+    });
+
+    // Auto-install dependencies
+    const installed = await new Promise<boolean>((resolve) => {
+      const npmInstall = spawn("npm", ["install"], {
+        cwd: CDK_DIR,
+        shell: true,
+        timeout: 120000,
+      });
+
+      npmInstall.stdout?.on("data", (chunk: Buffer) => {
+        const text = chunk.toString().trim();
+        if (text) write({ type: "stdout", message: text, level: "info" });
+      });
+      npmInstall.stderr?.on("data", (chunk: Buffer) => {
+        const text = chunk.toString().trim();
+        if (text) write({ type: "stderr", message: text, level: "warn" });
+      });
+
+      npmInstall.on("close", (code) => resolve(code === 0));
+      npmInstall.on("error", () => resolve(false));
+    });
+
+    if (!installed) {
+      write({
+        type: "check",
+        label: "Failed to install CDK dependencies",
+        level: "error",
+        suggestion: "Run manually: cd infrastructure/cdk && npm install",
+      });
+      return false;
+    }
+
+    write({
+      type: "check",
+      label: "CDK dependencies installed successfully",
+      level: "success",
     });
   }
 
@@ -170,7 +207,7 @@ export async function POST(request: NextRequest) {
     if (!action) {
       return new Response(
         JSON.stringify({ error: "Action is required (synth | deploy)" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        { status: 400, headers: { "Content-Type": "application/json" } },
       );
     }
 
@@ -180,9 +217,7 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         const write = (data: Record<string, unknown>) => {
           try {
-            controller.enqueue(
-              encoder.encode(JSON.stringify(data) + "\n")
-            );
+            controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
           } catch {
             // Stream closed
           }
@@ -312,7 +347,7 @@ export async function POST(request: NextRequest) {
                 const outputsRaw = await fs.readFile(outputsPath, "utf-8");
                 const outputs = JSON.parse(outputsRaw);
                 const stackName = Object.keys(outputs).find((k) =>
-                  k.includes(s3BucketName || "")
+                  k.includes(s3BucketName || ""),
                 );
                 if (stackName && outputs[stackName]) {
                   actuallySucceeded = true;
@@ -351,17 +386,13 @@ export async function POST(request: NextRequest) {
                     | Record<string, string>
                     | undefined;
                   if (stackOutputs) {
-                    await updateInJsonFile<Bucket>(
-                      "buckets.json",
-                      bucketId,
-                      {
-                        status: "active",
-                        s3BucketArn: stackOutputs["BucketArn"] || "",
-                        cloudFrontDomain: stackOutputs["CloudFrontDomain"] || "",
-                        cloudFrontDistributionId:
-                          stackOutputs["DistributionId"] || "",
-                      } as Partial<Bucket>
-                    );
+                    await updateInJsonFile<Bucket>("buckets.json", bucketId, {
+                      status: "active",
+                      s3BucketArn: stackOutputs["BucketArn"] || "",
+                      cloudFrontDomain: stackOutputs["CloudFrontDomain"] || "",
+                      cloudFrontDistributionId:
+                        stackOutputs["DistributionId"] || "",
+                    } as Partial<Bucket>);
                     write({
                       type: "outputs",
                       data: stackOutputs,
@@ -370,11 +401,9 @@ export async function POST(request: NextRequest) {
                     });
                   }
                 } catch {
-                  await updateInJsonFile<Bucket>(
-                    "buckets.json",
-                    bucketId,
-                    { status: "active" } as Partial<Bucket>
-                  );
+                  await updateInJsonFile<Bucket>("buckets.json", bucketId, {
+                    status: "active",
+                  } as Partial<Bucket>);
                 }
               }
             } else {
@@ -401,11 +430,9 @@ export async function POST(request: NextRequest) {
 
               // Update bucket status
               if (action === "deploy" && bucketId) {
-                await updateInJsonFile<Bucket>(
-                  "buckets.json",
-                  bucketId,
-                  { status: "failed" } as Partial<Bucket>
-                );
+                await updateInJsonFile<Bucket>("buckets.json", bucketId, {
+                  status: "failed",
+                } as Partial<Bucket>);
               }
             }
 
@@ -447,10 +474,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "CDK command failed";
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }
 
@@ -489,8 +516,7 @@ export async function GET(request: NextRequest) {
         const isFailed =
           stackStatus.stackStatus.includes("FAILED") ||
           stackStatus.stackStatus.includes("ROLLBACK");
-        const isInProgress =
-          stackStatus.stackStatus.includes("IN_PROGRESS");
+        const isInProgress = stackStatus.stackStatus.includes("IN_PROGRESS");
 
         if (isComplete && bucket.status !== "active") {
           needsSync = true;
@@ -505,7 +531,9 @@ export async function GET(request: NextRequest) {
         // No stack found
         if (bucket.status === "active" || bucket.status === "deploying") {
           needsSync = true;
-          recommendedAction = bucketExists ? "update-to-active" : "update-to-pending";
+          recommendedAction = bucketExists
+            ? "update-to-active"
+            : "update-to-pending";
         }
       }
 
@@ -529,7 +557,7 @@ export async function GET(request: NextRequest) {
     } catch (e) {
       return Response.json(
         { error: e instanceof Error ? e.message : "Failed to check status" },
-        { status: 500 }
+        { status: 500 },
       );
     }
   }
@@ -563,9 +591,11 @@ export async function GET(request: NextRequest) {
             // Auto-sync: update bucket to active with outputs
             await updateInJsonFile<Bucket>("buckets.json", bucket.id, {
               status: "active",
-              s3BucketArn: stackStatus.outputs["BucketArn"] || bucket.s3BucketArn,
+              s3BucketArn:
+                stackStatus.outputs["BucketArn"] || bucket.s3BucketArn,
               cloudFrontDomain:
-                stackStatus.outputs["CloudFrontDomain"] || bucket.cloudFrontDomain,
+                stackStatus.outputs["CloudFrontDomain"] ||
+                bucket.cloudFrontDomain,
               cloudFrontDistributionId:
                 stackStatus.outputs["DistributionId"] ||
                 bucket.cloudFrontDistributionId,
@@ -640,7 +670,10 @@ export async function GET(request: NextRequest) {
 
     try {
       if (syncAction === "update-to-active") {
-        const stackStatus = await describeStack(bucket.s3BucketName, bucket.region);
+        const stackStatus = await describeStack(
+          bucket.s3BucketName,
+          bucket.region,
+        );
         await updateInJsonFile<Bucket>("buckets.json", bucketId, {
           status: "active",
           s3BucketArn: stackStatus?.outputs["BucketArn"] || bucket.s3BucketArn,
@@ -679,10 +712,13 @@ export async function GET(request: NextRequest) {
     } catch (e) {
       return Response.json(
         { error: e instanceof Error ? e.message : "Sync failed" },
-        { status: 500 }
+        { status: 500 },
       );
     }
   }
 
-  return Response.json({ error: "Invalid action. Use check-status, sync-all, or apply-sync." }, { status: 400 });
+  return Response.json(
+    { error: "Invalid action. Use check-status, sync-all, or apply-sync." },
+    { status: 400 },
+  );
 }

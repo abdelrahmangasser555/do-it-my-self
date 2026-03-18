@@ -1,19 +1,22 @@
 [
   {
-    "id": "561f45a6-58a8-4d0e-bea1-935051da401a",
-    "name": "new project",
+    "id": "d6716645-5c35-41a9-9810-81ce702d0d42",
+    "name": "SDR",
     "environment": "dev",
-    "maxFileSizeMB": 10,
+    "maxFileSizeMB": 100,
     "allowedMimeTypes": [
       "image/jpeg",
       "image/png",
       "application/pdf",
-      "image/svg+xml",
-      "text/plain",
+      "image/webp",
+      "video/mp4",
       "audio/mpeg",
-      "video/mp4"
+      "application/json",
+      "text/plain",
+      "text/csv",
+      "application/zip"
     ],
-    "createdAt": "2026-03-18T14:28:58.680Z",
-    "updatedAt": "2026-03-18T14:28:58.680Z"
+    "createdAt": "2026-03-18T22:57:00.569Z",
+    "updatedAt": "2026-03-18T22:57:00.569Z"
   }
 ]

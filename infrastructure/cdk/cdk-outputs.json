@@ -1,1 +1,9 @@
-{}
+{
+  "SCR-scr-testing-sdr-1773874734270": {
+    "BucketArn": "arn:aws:s3:::scr-testing-sdr-1773874734270",
+    "BucketName": "scr-testing-sdr-1773874734270",
+    "DistributionId": "E1AWIS81EF9EIO",
+    "CloudFrontDomain": "d2lptmtp3eizng.cloudfront.net",
+    "UploadPolicyArn": "arn:aws:iam::006545530824:policy/SCR-scr-testing-sdr-1773874734270-UploadPolicy81A9CED6-3G5dSiCsYmmi"
+  }
+}

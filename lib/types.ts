@@ -1,5 +1,19 @@
 // Shared TypeScript types for the entire application
 
+// ── Environments ─────────────────────────────────────────────────────────────
+
+export interface BootstrappedEnvironment {
+  id: string;
+  accountId: string;
+  region: string;
+  alias: string;
+  status: "bootstrapping" | "active" | "failed";
+  bootstrappedAt: string;
+  createdAt: string;
+}
+
+// ── Projects ─────────────────────────────────────────────────────────────────
+
 export interface Project {
   id: string;
   name: string;
@@ -189,5 +203,9 @@ export interface BucketSyncStatus {
   cloudFrontDistributionId?: string;
   resources: StackResourceInfo[];
   needsSync: boolean;
-  recommendedAction?: "update-to-active" | "update-to-failed" | "update-to-pending" | "cleanup";
+  recommendedAction?:
+    | "update-to-active"
+    | "update-to-failed"
+    | "update-to-pending"
+    | "cleanup";
 }

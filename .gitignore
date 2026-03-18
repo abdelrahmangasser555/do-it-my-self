@@ -44,3 +44,7 @@ infrastructure/cdk/node_modules/
 
 # CDK outputs (if you want)
 infrastructure/cdk/cdk.out/
+
+# Local data files (user-specific state)
+data/*.json
+!data/.gitkeep

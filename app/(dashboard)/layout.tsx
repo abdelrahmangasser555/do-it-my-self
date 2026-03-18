@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { Toaster } from "@/components/ui/sonner";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { OnboardingGuard, OnboardingStatusBadge } from "@/features/onboarding/components/onboarding-guard";
+import { GitHubStarsButton } from "@/components/ui/github-stars-button";
 
 export default function DashboardLayout({
   children,
@@ -23,7 +24,11 @@ export default function DashboardLayout({
               <span className="text-sm font-medium text-muted-foreground">
                 Storage Control Room
               </span>
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-2">
+                <GitHubStarsButton
+                  repo="abdelrahmangasser555/do-it-my-self"
+                  size="sm"
+                />
                 <OnboardingStatusBadge />
               </div>
             </header>

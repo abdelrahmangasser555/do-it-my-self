@@ -45,7 +45,7 @@ interface AwsSyncDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   trackedBuckets: Bucket[];
-  onImport: (buckets: AwsBucketInfo[]) => void;
+  onImport: (buckets: AwsBucketInfo[]) => Promise<void>;
 }
 
 export function AwsSyncDialog({
@@ -119,9 +119,12 @@ export function AwsSyncDialog({
     const toImport = awsBuckets.filter((b) => selected.has(b.name));
     if (toImport.length === 0) return;
     setImporting(true);
-    onImport(toImport);
-    setImporting(false);
-    setSelected(new Set());
+    try {
+      await onImport(toImport);
+    } finally {
+      setImporting(false);
+      setSelected(new Set());
+    }
   };
 
   return (
@@ -139,11 +142,11 @@ export function AwsSyncDialog({
         </DialogHeader>
 
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+        <div className="flex items-center rounded-md border border-input bg-transparent shadow-xs">
+          <Search className="ml-3 size-4 text-muted-foreground shrink-0" />
           <Input
             placeholder="Search by bucket name or region…"
-            className="pl-9"
+            className="border-0 shadow-none focus-visible:ring-0"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

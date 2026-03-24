@@ -296,171 +296,232 @@ export async function POST(request: NextRequest) {
           timeout: 300000,
         });
 
-        let stdoutBuffer = "";
-        let stderrBuffer = "";
+        // --- Helper: run a CDK command and collect output ---
+        async function runCdkProcess(
+          cmd: string,
+          cmdArgs: string[],
+          cmdEnv: NodeJS.ProcessEnv,
+        ): Promise<{ code: number | null; stdout: string; stderr: string }> {
+          return new Promise((res) => {
+            const proc = spawn(cmd, cmdArgs, {
+              cwd: CDK_DIR,
+              env: cmdEnv,
+              shell: true,
+              timeout: 300000,
+            });
+            let stdout = "";
+            let stderr = "";
 
-        child.stdout?.on("data", (chunk: Buffer) => {
-          const text = chunk.toString();
-          stdoutBuffer += text;
-          // Stream each line
-          const lines = text.split("\n");
-          for (const line of lines) {
-            if (line.trim()) {
-              write({ type: "stdout", message: line, level: "info" });
-            }
-          }
-        });
-
-        child.stderr?.on("data", (chunk: Buffer) => {
-          const text = chunk.toString();
-          stderrBuffer += text;
-          const lines = text.split("\n");
-          for (const line of lines) {
-            if (line.trim()) {
-              // CDK often writes progress to stderr
-              const isProgress =
-                /\d+\/\d+|⏳|✅|✨|★|⚡/.test(line) ||
-                line.includes("CDK") ||
-                line.includes("Outputs:");
-              write({
-                type: "stderr",
-                message: line,
-                level: isProgress ? "info" : "warn",
-              });
-            }
-          }
-        });
-
-        await new Promise<void>((resolve) => {
-          child.on("close", async (code) => {
-            // On Windows, CDK can exit with code === null even on success.
-            // Use multiple heuristics to determine actual success:
-            //   1. code === 0
-            //   2. CDK outputs file exists with valid stack outputs
-            //   3. stdout/stderr contains the ✅ success marker
-            let actuallySucceeded = code === 0;
-
-            if (!actuallySucceeded && action === "deploy" && bucketId) {
-              try {
-                const fs = await import("fs/promises");
-                const outputsPath = path.join(CDK_DIR, "cdk-outputs.json");
-                const outputsRaw = await fs.readFile(outputsPath, "utf-8");
-                const outputs = JSON.parse(outputsRaw);
-                const stackName = Object.keys(outputs).find((k) =>
-                  k.includes(s3BucketName || ""),
-                );
-                if (stackName && outputs[stackName]) {
-                  actuallySucceeded = true;
-                }
-              } catch {
-                // outputs file doesn't exist or is invalid
+            proc.stdout?.on("data", (chunk: Buffer) => {
+              const text = chunk.toString();
+              stdout += text;
+              for (const line of text.split("\n")) {
+                if (line.trim()) write({ type: "stdout", message: line, level: "info" });
               }
-            }
+            });
 
-            if (
-              !actuallySucceeded &&
-              (stdoutBuffer.includes("✅") || stderrBuffer.includes("✅"))
-            ) {
-              actuallySucceeded = true;
-            }
-
-            if (actuallySucceeded) {
-              write({
-                type: "result",
-                status: "success",
-                message:
-                  code === 0
-                    ? `${action} completed successfully`
-                    : `${action} completed successfully (exit code ${code} — verified via outputs)`,
-                level: "success",
-              });
-
-              // Parse CDK outputs on successful deploy
-              if (action === "deploy" && bucketId) {
-                try {
-                  const fs = await import("fs/promises");
-                  const outputsPath = path.join(CDK_DIR, "cdk-outputs.json");
-                  const outputsRaw = await fs.readFile(outputsPath, "utf-8");
-                  const outputs = JSON.parse(outputsRaw);
-                  const stackOutputs = Object.values(outputs)[0] as
-                    | Record<string, string>
-                    | undefined;
-                  if (stackOutputs) {
-                    await updateInJsonFile<Bucket>("buckets.json", bucketId, {
-                      status: "active",
-                      s3BucketArn: stackOutputs["BucketArn"] || "",
-                      cloudFrontDomain: stackOutputs["CloudFrontDomain"] || "",
-                      cloudFrontDistributionId:
-                        stackOutputs["DistributionId"] || "",
-                    } as Partial<Bucket>);
-                    write({
-                      type: "outputs",
-                      data: stackOutputs,
-                      level: "success",
-                      message: "Stack outputs captured",
-                    });
-                  }
-                } catch {
-                  await updateInJsonFile<Bucket>("buckets.json", bucketId, {
-                    status: "active",
-                  } as Partial<Bucket>);
+            proc.stderr?.on("data", (chunk: Buffer) => {
+              const text = chunk.toString();
+              stderr += text;
+              for (const line of text.split("\n")) {
+                if (line.trim()) {
+                  const isProgress =
+                    /\d+\/\d+|⏳|✅|✨|★|⚡/.test(line) ||
+                    line.includes("CDK") ||
+                    line.includes("Outputs:");
+                  write({ type: "stderr", message: line, level: isProgress ? "info" : "warn" });
                 }
               }
-            } else {
-              // Check error patterns
-              const combined = stdoutBuffer + stderrBuffer;
-              const errorHint = matchErrorPatterns(combined);
+            });
 
-              write({
-                type: "result",
-                status: "error",
-                message: `${action} failed with exit code ${code}`,
-                level: "error",
-              });
+            proc.on("close", (code: number | null) => res({ code, stdout, stderr }));
+            proc.on("error", (err: Error) => res({ code: 1, stdout, stderr: stderr + err.message }));
+          });
+        }
 
-              if (errorHint) {
-                write({
-                  type: "error-intelligence",
-                  title: errorHint.title,
-                  suggestion: errorHint.suggestion,
-                  command: errorHint.command || null,
-                  level: "warn",
+        // --- Helper: check if deploy succeeded ---
+        async function checkDeploySuccess(
+          code: number | null,
+          stdout: string,
+          stderr: string,
+        ): Promise<boolean> {
+          if (code === 0) return true;
+          // Check CDK outputs file
+          if (action === "deploy" && bucketId) {
+            try {
+              const fs = await import("fs/promises");
+              const outputsPath = path.join(CDK_DIR, "cdk-outputs.json");
+              const outputsRaw = await fs.readFile(outputsPath, "utf-8");
+              const outputs = JSON.parse(outputsRaw);
+              const stackName = Object.keys(outputs).find((k) =>
+                k.includes(s3BucketName || ""),
+              );
+              if (stackName && outputs[stackName]) return true;
+            } catch { /* */ }
+          }
+          if (stdout.includes("✅") || stderr.includes("✅")) return true;
+          return false;
+        }
+
+        // --- Helper: detect bootstrap-needed error ---
+        function needsBootstrap(combined: string): boolean {
+          return /Is account \d+ bootstrapped|Has the environment been bootstrapped|No bucket named 'cdk-hnb659fds-assets|No bucket named cdk-hnb659fds-assets/i.test(combined);
+        }
+
+        // --- Helper: run auto-bootstrap ---
+        async function autoBootstrap(): Promise<boolean> {
+          // Resolve account ID from env, region, or STS
+          let accountId = "";
+          try {
+            const { getCallerIdentity } = await import("@/lib/aws");
+            const identity = await getCallerIdentity();
+            accountId = identity.account;
+          } catch { /* */ }
+
+          if (!accountId) {
+            write({ type: "stderr", message: "Could not determine AWS account ID for auto-bootstrap", level: "error" });
+            return false;
+          }
+
+          const bootstrapRegion = region || "us-east-1";
+          write({
+            type: "command",
+            label: `Auto-bootstrapping region ${bootstrapRegion} (account ${accountId})…`,
+            level: "command",
+          });
+
+          const bsResult = await runCdkProcess(
+            "npx",
+            ["cdk", "bootstrap", `aws://${accountId}/${bootstrapRegion}`],
+            env,
+          );
+
+          if (bsResult.code === 0 || bsResult.stdout.includes("✅") || bsResult.stderr.includes("✅")) {
+            write({ type: "result", status: "success", message: "Bootstrap completed — retrying deploy…", level: "success" });
+
+            // Also persist the environment record so the UI stays in sync
+            try {
+              const { readJsonFile: readJson } = await import("@/lib/filesystem");
+              const { appendToJsonFile } = await import("@/lib/filesystem");
+              const envs: { region: string }[] = await readJson("environments.json");
+              if (!envs.some((e) => e.region === bootstrapRegion)) {
+                await appendToJsonFile("environments.json", {
+                  id: crypto.randomUUID(),
+                  region: bootstrapRegion,
+                  accountId,
+                  alias: bootstrapRegion,
+                  status: "active",
+                  bootstrappedAt: new Date().toISOString(),
+                  createdAt: new Date().toISOString(),
                 });
               }
+            } catch { /* best-effort */ }
 
-              // Update bucket status
-              if (action === "deploy" && bucketId) {
-                await updateInJsonFile<Bucket>("buckets.json", bucketId, {
-                  status: "failed",
-                } as Partial<Bucket>);
-              }
-            }
+            return true;
+          }
 
-            controller.close();
-            resolve();
-          });
+          write({ type: "result", status: "error", message: "Auto-bootstrap failed — deploy aborted", level: "error" });
+          return false;
+        }
 
-          child.on("error", (err) => {
-            const errorHint = matchErrorPatterns(err.message);
+        // === Run the main CDK command ===
+        const { code: exitCode, stdout: stdoutBuffer, stderr: stderrBuffer } =
+          await runCdkProcess(command, args, env);
+
+        let actuallySucceeded = await checkDeploySuccess(exitCode, stdoutBuffer, stderrBuffer);
+
+        // --- Auto-bootstrap & retry if needed ---
+        if (!actuallySucceeded && action === "deploy") {
+          const combined = stdoutBuffer + stderrBuffer;
+          if (needsBootstrap(combined)) {
             write({
-              type: "result",
-              status: "error",
-              message: err.message,
-              level: "error",
+              type: "error-intelligence",
+              title: "CDK Bootstrap Required — auto-recovering",
+              suggestion: "Detected that this region is not bootstrapped. Running bootstrap automatically before retrying deploy.",
+              level: "warn",
             });
-            if (errorHint) {
-              write({
-                type: "error-intelligence",
-                title: errorHint.title,
-                suggestion: errorHint.suggestion,
-                command: errorHint.command || null,
-                level: "warn",
-              });
+
+            const bootstrapped = await autoBootstrap();
+            if (bootstrapped) {
+              // Retry the deploy
+              write({ type: "command", label: `Retrying: ${command} ${args.join(" ")}`, level: "command" });
+              const retry = await runCdkProcess(command, args, env);
+              actuallySucceeded = await checkDeploySuccess(retry.code, retry.stdout, retry.stderr);
             }
-            controller.close();
-            resolve();
+          }
+        }
+
+        // === Handle final result ===
+        if (actuallySucceeded) {
+          write({
+            type: "result",
+            status: "success",
+            message: `${action} completed successfully`,
+            level: "success",
           });
-        });
+
+          // Parse CDK outputs on successful deploy
+          if (action === "deploy" && bucketId) {
+            try {
+              const fs = await import("fs/promises");
+              const outputsPath = path.join(CDK_DIR, "cdk-outputs.json");
+              const outputsRaw = await fs.readFile(outputsPath, "utf-8");
+              const outputs = JSON.parse(outputsRaw);
+              const stackOutputs = Object.values(outputs)[0] as
+                | Record<string, string>
+                | undefined;
+              if (stackOutputs) {
+                await updateInJsonFile<Bucket>("buckets.json", bucketId, {
+                  status: "active",
+                  s3BucketArn: stackOutputs["BucketArn"] || "",
+                  cloudFrontDomain: stackOutputs["CloudFrontDomain"] || "",
+                  cloudFrontDistributionId:
+                    stackOutputs["DistributionId"] || "",
+                } as Partial<Bucket>);
+                write({
+                  type: "outputs",
+                  data: stackOutputs,
+                  level: "success",
+                  message: "Stack outputs captured",
+                });
+              }
+            } catch {
+              await updateInJsonFile<Bucket>("buckets.json", bucketId, {
+                status: "active",
+              } as Partial<Bucket>);
+            }
+          }
+        } else {
+          // Check error patterns for user-friendly messaging
+          const combined = stdoutBuffer + stderrBuffer;
+          const errorHint = matchErrorPatterns(combined);
+
+          write({
+            type: "result",
+            status: "error",
+            message: `${action} failed with exit code ${exitCode}`,
+            level: "error",
+          });
+
+          if (errorHint) {
+            write({
+              type: "error-intelligence",
+              title: errorHint.title,
+              suggestion: errorHint.suggestion,
+              command: errorHint.command || null,
+              level: "warn",
+            });
+          }
+
+          // Update bucket status
+          if (action === "deploy" && bucketId) {
+            await updateInJsonFile<Bucket>("buckets.json", bucketId, {
+              status: "failed",
+            } as Partial<Bucket>);
+          }
+        }
+
+        controller.close();
       },
     });
 

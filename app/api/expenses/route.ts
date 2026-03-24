@@ -50,44 +50,68 @@ export async function GET(request: NextRequest) {
     filteredBuckets = buckets.filter((b) => b.projectId === projectId);
   }
 
-  // Build per-bucket expenses
-  const bucketExpenses: BucketExpense[] = filteredBuckets.map((bucket) => {
-    const bucketFiles = files.filter(
-      (f) => f.bucketName === bucket.s3BucketName
-    );
-    const totalSizeBytes = bucketFiles.reduce((acc, f) => acc + f.size, 0);
-    // Simulate request counts based on file activity
-    const readRequests = bucketFiles.length * 12;
-    const writeRequests = bucketFiles.length * 3;
-    const deleteRequests = Math.floor(bucketFiles.length * 0.5);
-    const listRequests = Math.floor(bucketFiles.length * 2);
-    const dataTransferBytes = Math.floor(totalSizeBytes * 0.15); // ~15% egress estimate
+  // Build per-bucket expenses — use actual S3 data when available
+  const bucketExpenses: BucketExpense[] = await Promise.all(
+    filteredBuckets.map(async (bucket) => {
+      const bucketFiles = files.filter(
+        (f) => f.bucketName === bucket.s3BucketName
+      );
 
-    const costBreakdown = calculateCostBreakdown(
-      totalSizeBytes,
-      writeRequests,
-      readRequests,
-      deleteRequests,
-      listRequests,
-      dataTransferBytes
-    );
+      // Try to get real size data from S3
+      let totalSizeBytes = 0;
+      let realFileCount = 0;
+      try {
+        if (bucket.status === "active" && bucket.s3BucketName) {
+          const s3Objects = await listS3Objects(
+            bucket.s3BucketName,
+            bucket.region,
+          );
+          totalSizeBytes = s3Objects.reduce((acc, o) => acc + o.size, 0);
+          realFileCount = s3Objects.length;
+        }
+      } catch {
+        // Fall back to metadata if S3 is unreachable
+      }
 
-    return {
-      bucketId: bucket.id,
-      bucketName: bucket.s3BucketName,
-      displayName: bucket.name,
-      region: bucket.region,
-      status: bucket.status,
-      fileCount: bucketFiles.length,
-      totalSizeBytes,
-      readRequests,
-      writeRequests,
-      deleteRequests,
-      listRequests,
-      dataTransferBytes,
-      costBreakdown,
-    };
-  });
+      // If S3 gave us nothing, fall back to local metadata
+      if (totalSizeBytes === 0) {
+        totalSizeBytes = bucketFiles.reduce((acc, f) => acc + f.size, 0);
+        realFileCount = bucketFiles.length;
+      }
+
+      // Simulate request counts based on file activity
+      const readRequests = realFileCount * 12;
+      const writeRequests = realFileCount * 3;
+      const deleteRequests = Math.floor(realFileCount * 0.5);
+      const listRequests = Math.floor(realFileCount * 2);
+      const dataTransferBytes = Math.floor(totalSizeBytes * 0.15); // ~15% egress estimate
+
+      const costBreakdown = calculateCostBreakdown(
+        totalSizeBytes,
+        writeRequests,
+        readRequests,
+        deleteRequests,
+        listRequests,
+        dataTransferBytes
+      );
+
+      return {
+        bucketId: bucket.id,
+        bucketName: bucket.s3BucketName,
+        displayName: bucket.name,
+        region: bucket.region,
+        status: bucket.status,
+        fileCount: realFileCount,
+        totalSizeBytes,
+        readRequests,
+        writeRequests,
+        deleteRequests,
+        listRequests,
+        dataTransferBytes,
+        costBreakdown,
+      };
+    })
+  );
 
   // Build per-project expenses
   const filteredProjects = projectId

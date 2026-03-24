@@ -29,8 +29,12 @@ import {
   Loader2,
   Shield,
   Eye,
+  Copy,
+  Check,
 } from "lucide-react";
 import type { Bucket } from "@/lib/types";
+import { useState } from "react";
+import { toast } from "sonner";
 
 interface BucketsTableProps {
   buckets: Bucket[];
@@ -52,6 +56,15 @@ const statusIcons: Partial<Record<Bucket["status"], React.ReactNode>> = {
 };
 
 export function BucketsTable({ buckets, onDelete, onFullDelete, onDeploy }: BucketsTableProps) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    toast.success("Copied to clipboard");
+    setTimeout(() => setCopiedId(null), 1500);
+  };
+
   if (buckets.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -78,19 +91,46 @@ export function BucketsTable({ buckets, onDelete, onFullDelete, onDeploy }: Buck
       <TableBody>
         {buckets.map((bucket) => (
           <TableRow key={bucket.id} className={bucket.status === "deleting" ? "opacity-50" : ""}>
-            <TableCell>
-              <Link
-                href={`/buckets/${bucket.id}`}
-                className="font-medium text-primary hover:underline"
-              >
-                {bucket.name}
-              </Link>
+            <TableCell className="max-w-45">
+              <div className="flex items-center gap-1.5 group">
+                <Link
+                  href={`/buckets/${bucket.id}`}
+                  className="font-medium text-primary hover:underline truncate"
+                  title={bucket.name}
+                >
+                  {bucket.name}
+                </Link>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleCopy(bucket.name, `name-${bucket.id}`); }}
+                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  {copiedId === `name-${bucket.id}` ? (
+                    <Check className="size-3 text-green-500" />
+                  ) : (
+                    <Copy className="size-3 text-muted-foreground hover:text-primary" />
+                  )}
+                </button>
+              </div>
             </TableCell>
-            <TableCell className="font-mono text-xs">
-              {bucket.s3BucketName}
+            <TableCell className="max-w-50">
+              <div className="flex items-center gap-1.5 group">
+                <span className="font-mono text-xs truncate" title={bucket.s3BucketName}>
+                  {bucket.s3BucketName}
+                </span>
+                <button
+                  onClick={() => handleCopy(bucket.s3BucketName, `s3-${bucket.id}`)}
+                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  {copiedId === `s3-${bucket.id}` ? (
+                    <Check className="size-3 text-green-500" />
+                  ) : (
+                    <Copy className="size-3 text-muted-foreground hover:text-primary" />
+                  )}
+                </button>
+              </div>
             </TableCell>
             <TableCell>{bucket.region}</TableCell>
-            <TableCell className="max-w-[200px] truncate font-mono text-xs">
+            <TableCell className="max-w-50 truncate font-mono text-xs">
               {bucket.cloudFrontDomain || "—"}
             </TableCell>
             <TableCell>

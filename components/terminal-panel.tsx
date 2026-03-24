@@ -18,7 +18,11 @@ import {
   Loader2,
   Square,
 } from "lucide-react";
-import { useTerminal, type LogLevel, type TerminalLine } from "@/lib/terminal-context";
+import {
+  useTerminal,
+  type LogLevel,
+  type TerminalLine,
+} from "@/lib/terminal-context";
 import { cn } from "@/lib/utils";
 
 const LEVEL_STYLES: Record<LogLevel, { color: string; label: string }> = {
@@ -39,13 +43,15 @@ function TerminalLineRow({ line }: { line: TerminalLine }) {
   });
 
   return (
-    <div className="flex gap-2 px-4 py-0.5 font-mono text-xs leading-5 hover:bg-white/5">
-      <span className="select-none text-white/30">{time}</span>
+    <div className="flex gap-2 px-4 py-0.5 font-mono text-xs leading-5 hover:bg-muted/50">
+      <span className="select-none text-muted-foreground/60">{time}</span>
       <span className={cn("w-10 select-none font-bold", style.color)}>
         [{style.label}]
       </span>
       {line.source && (
-        <span className="select-none text-white/40">[{line.source}]</span>
+        <span className="select-none text-muted-foreground/70">
+          [{line.source}]
+        </span>
       )}
       <span
         className={cn(
@@ -54,7 +60,7 @@ function TerminalLineRow({ line }: { line: TerminalLine }) {
           line.level === "success" && "text-green-300",
           line.level === "warn" && "text-yellow-300",
           line.level === "command" && "text-purple-300",
-          line.level === "info" && "text-white/80"
+          line.level === "info" && "text-white/80",
         )}
       >
         {line.message}
@@ -64,7 +70,16 @@ function TerminalLineRow({ line }: { line: TerminalLine }) {
 }
 
 export function TerminalPanel() {
-  const { lines, isOpen, setIsOpen, clear, runCommand, killCommand, isRunning, commandHistory } = useTerminal();
+  const {
+    lines,
+    isOpen,
+    setIsOpen,
+    clear,
+    runCommand,
+    killCommand,
+    isRunning,
+    commandHistory,
+  } = useTerminal();
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState(false);
@@ -75,7 +90,9 @@ export function TerminalPanel() {
   // Auto-scroll to bottom on new log lines
   useEffect(() => {
     if (scrollRef.current) {
-      const el = scrollRef.current.querySelector("[data-radix-scroll-area-viewport]");
+      const el = scrollRef.current.querySelector(
+        "[data-radix-scroll-area-viewport]",
+      );
       if (el) {
         el.scrollTop = el.scrollHeight;
       }
@@ -108,7 +125,10 @@ export function TerminalPanel() {
     if (e.key === "ArrowUp") {
       e.preventDefault();
       if (commandHistory.length > 0) {
-        const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
+        const newIndex =
+          historyIndex < commandHistory.length - 1
+            ? historyIndex + 1
+            : historyIndex;
         setHistoryIndex(newIndex);
         setCommand(commandHistory[commandHistory.length - 1 - newIndex] || "");
       }
@@ -139,7 +159,7 @@ export function TerminalPanel() {
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 bg-[#181825] text-white border-white/10 hover:bg-[#1e1e2e] hover:text-white shadow-lg"
+              className="gap-2 bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground shadow-lg"
               onClick={() => setIsOpen(true)}
             >
               <Terminal className="size-4" />
@@ -166,7 +186,7 @@ export function TerminalPanel() {
           <Button
             variant="outline"
             size="sm"
-            className="gap-2 bg-[#181825] text-white border-white/10 hover:bg-[#1e1e2e] hover:text-white shadow-lg"
+            className="gap-2 bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground shadow-lg"
             onClick={() => setIsOpen(true)}
           >
             <Terminal className="size-4" />
@@ -184,20 +204,20 @@ export function TerminalPanel() {
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
             className={cn(
-              "fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-[#1e1e2e] shadow-2xl flex flex-col",
-              expanded ? "top-0" : "h-96"
+              "fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card shadow-2xl flex flex-col",
+              expanded ? "top-0" : "h-96",
             )}
           >
             {/* Header bar */}
-            <div className="flex items-center justify-between border-b border-white/10 bg-[#181825] px-4 py-2 shrink-0">
+            <div className="flex items-center justify-between border-b border-border bg-muted px-4 py-2 shrink-0">
               <div className="flex items-center gap-3">
-                <Terminal className="size-4 text-white/60" />
-                <span className="text-sm font-medium text-white/80">
+                <Terminal className="size-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-foreground">
                   Terminal
                 </span>
                 <Badge
                   variant="outline"
-                  className="text-xs text-white/40 border-white/10"
+                  className="text-xs text-muted-foreground border-border"
                 >
                   {lines.length} lines
                 </Badge>
@@ -226,28 +246,37 @@ export function TerminalPanel() {
               <div className="flex items-center gap-1">
                 {/* Filter dropdown */}
                 <div className="flex items-center gap-0.5 mr-2">
-                  <Filter className="size-3 text-white/40 mr-1" />
-                  {(["all", "info", "warn", "error", "success", "command"] as const).map(
-                    (level) => (
-                      <Button
-                        key={level}
-                        variant="ghost"
-                        size="sm"
-                        className={cn(
-                          "h-6 px-2 text-xs text-white/40 hover:text-white hover:bg-white/10",
-                          filter === level && "bg-white/10 text-white"
-                        )}
-                        onClick={() => setFilter(level)}
-                      >
-                        {level === "all" ? "All" : level.charAt(0).toUpperCase() + level.slice(1)}
-                      </Button>
-                    )
-                  )}
+                  <Filter className="size-3 text-muted-foreground mr-1" />
+                  {(
+                    [
+                      "all",
+                      "info",
+                      "warn",
+                      "error",
+                      "success",
+                      "command",
+                    ] as const
+                  ).map((level) => (
+                    <Button
+                      key={level}
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-6 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent",
+                        filter === level && "bg-accent text-foreground",
+                      )}
+                      onClick={() => setFilter(level)}
+                    >
+                      {level === "all"
+                        ? "All"
+                        : level.charAt(0).toUpperCase() + level.slice(1)}
+                    </Button>
+                  ))}
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-6 p-0 text-white/40 hover:text-white hover:bg-white/10"
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-accent"
                   onClick={clear}
                   title="Clear"
                 >
@@ -256,7 +285,7 @@ export function TerminalPanel() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-6 p-0 text-white/40 hover:text-white hover:bg-white/10"
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-accent"
                   onClick={() => setExpanded(!expanded)}
                   title={expanded ? "Minimize" : "Maximize"}
                 >
@@ -269,7 +298,7 @@ export function TerminalPanel() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-6 p-0 text-white/40 hover:text-white hover:bg-white/10"
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-accent"
                   onClick={() => setIsOpen(false)}
                   title="Close"
                 >
@@ -281,7 +310,7 @@ export function TerminalPanel() {
             {/* Log lines */}
             <ScrollArea className="flex-1 min-h-0" ref={scrollRef}>
               {filteredLines.length === 0 ? (
-                <div className="flex items-center justify-center py-12 text-sm text-white/30">
+                <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
                   {lines.length === 0
                     ? "Type a command below, or deploy/run an action to see output here."
                     : `No ${filter} logs.`}
@@ -298,18 +327,24 @@ export function TerminalPanel() {
             {/* Command input */}
             <form
               onSubmit={handleSubmit}
-              className="flex items-center gap-2 border-t border-white/10 bg-[#181825] px-4 py-2 shrink-0"
+              className="flex items-center gap-2 border-t border-border bg-muted px-4 py-2 shrink-0"
             >
-              <span className="text-sm font-mono text-green-400 select-none">$</span>
+              <span className="text-sm font-mono text-green-400 select-none">
+                $
+              </span>
               <input
                 ref={inputRef}
                 type="text"
                 value={command}
                 onChange={(e) => setCommand(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={isRunning ? "Waiting for command to finish..." : "Type a command and press Enter..."}
+                placeholder={
+                  isRunning
+                    ? "Waiting for command to finish..."
+                    : "Type a command and press Enter..."
+                }
                 disabled={isRunning}
-                className="flex-1 bg-transparent text-sm font-mono text-white/90 placeholder:text-white/30 outline-none disabled:opacity-50"
+                className="flex-1 bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground outline-none disabled:opacity-50"
                 autoComplete="off"
                 spellCheck={false}
               />
@@ -318,10 +353,10 @@ export function TerminalPanel() {
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "h-7 w-7 p-0 hover:bg-white/10",
+                  "h-7 w-7 p-0 hover:bg-accent",
                   isRunning
                     ? "text-red-400 hover:text-red-300"
-                    : "text-white/40 hover:text-white"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 disabled={!isRunning && !command.trim()}
                 onClick={isRunning ? killCommand : undefined}

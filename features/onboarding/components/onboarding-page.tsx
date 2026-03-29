@@ -60,6 +60,8 @@ export function OnboardingPage() {
     bootstrapEnvironment,
     loading: bootstrapLoading,
     error: bootstrapError,
+    lastErrorOutput: bootstrapErrorOutput,
+    progress: bootstrapProgress,
   } = useBootstrapEnvironment();
 
   // Persist step results to system.json
@@ -257,7 +259,7 @@ export function OnboardingPage() {
                 />
               </motion.div>
 
-              {/* Step 2 — AWS Connection (without CDK bootstrap - moved to step 3) */}
+              {/* Step 2 — AWS Connection & IAM Permissions */}
               <motion.div
                 custom={1}
                 variants={stepVariants}
@@ -266,7 +268,6 @@ export function OnboardingPage() {
               >
                 <AwsStep
                   identity={awsHook.identity}
-                  cdkStacks={awsHook.cdkStacks}
                   awsLoading={awsHook.loading}
                   awsError={awsHook.error}
                   awsChecked={awsHook.checked || state.awsValidated}
@@ -278,16 +279,14 @@ export function OnboardingPage() {
                       await updateState({ awsValidated: true });
                     }
                   }}
-                  cdkLoading={false}
-                  cdkError={null}
-                  cdkSuccess={
-                    activeEnvironments.length > 0 || state.cdkBootstrapped
-                  }
-                  cdkChecked={
-                    activeEnvironments.length > 0 || state.cdkBootstrapped
-                  }
-                  cdkTerminalOutput={[]}
-                  onBootstrapCdk={() => {}}
+                  iamPolicies={awsHook.iamPolicies}
+                  iamPermissions={awsHook.iamPermissions}
+                  hasAdminPolicy={awsHook.hasAdminPolicy}
+                  allPermissionsGranted={awsHook.allPermissionsGranted}
+                  iamLoading={awsHook.iamLoading}
+                  onCheckPermissions={awsHook.checkPermissions}
+                  onUpdateCredentials={awsHook.updateCredentials}
+                  credentialUpdating={awsHook.credentialUpdating}
                 />
               </motion.div>
 
@@ -303,6 +302,8 @@ export function OnboardingPage() {
                   accountId={awsHook.identity?.account || ""}
                   loading={bootstrapLoading}
                   error={bootstrapError}
+                  lastErrorOutput={bootstrapErrorOutput}
+                  progress={bootstrapProgress}
                   hasAnyActive={
                     activeEnvironments.length > 0 || state.cdkBootstrapped
                   }

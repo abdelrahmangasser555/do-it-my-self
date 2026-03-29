@@ -4,5 +4,5 @@
   "cdkBootstrapped": true,
   "aiConfigured": true,
   "onboardingComplete": true,
-  "tourCompleted": true
+  "tourCompleted": false
 }

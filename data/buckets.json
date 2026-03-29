@@ -1,6 +1,6 @@
 [
   {
-    "id": "a0db990c-bbc7-4fd3-af2d-d7bd7ea30f9f",
+    "id": "45daad2a-273a-4e25-a5b2-ca9ea98b2ce8",
     "projectId": "",
     "name": "cdk-hnb659fds-assets-006545530824-eu-north-1",
     "s3BucketName": "cdk-hnb659fds-assets-006545530824-eu-north-1",
@@ -16,10 +16,29 @@
       "maxFileSizeMB": 100
     },
     "createdAt": "2026-02-23T07:27:06.000Z",
-    "updatedAt": "2026-03-18T14:38:15.595Z"
+    "updatedAt": "2026-03-29T02:37:25.033Z"
   },
   {
-    "id": "985e5833-e977-414d-9cf8-98034dccb800",
+    "id": "a63f78ca-0e0b-49dd-860e-884b2d087c37",
+    "projectId": "",
+    "name": "cdk-hnb659fds-assets-006545530824-us-east-1",
+    "s3BucketName": "cdk-hnb659fds-assets-006545530824-us-east-1",
+    "s3BucketArn": "arn:aws:s3:::cdk-hnb659fds-assets-006545530824-us-east-1",
+    "cloudFrontDomain": "",
+    "cloudFrontDistributionId": "",
+    "region": "us-east-1",
+    "status": "active",
+    "config": {
+      "versioning": false,
+      "encryption": "s3",
+      "backupEnabled": false,
+      "maxFileSizeMB": 100
+    },
+    "createdAt": "2026-03-29T02:32:42.000Z",
+    "updatedAt": "2026-03-29T02:37:25.043Z"
+  },
+  {
+    "id": "78823d46-6db5-4b3c-aa43-6181f85fb16a",
     "projectId": "",
     "name": "cdk-hnb659fds-assets-006545530824-us-west-1",
     "s3BucketName": "cdk-hnb659fds-assets-006545530824-us-west-1",
@@ -35,29 +54,10 @@
       "maxFileSizeMB": 100
     },
     "createdAt": "2026-03-18T14:00:01.000Z",
-    "updatedAt": "2026-03-18T14:38:17.310Z"
+    "updatedAt": "2026-03-29T02:37:25.071Z"
   },
   {
-    "id": "6d449f33-e84a-49c7-9086-e8b7fd4bd7e3",
-    "projectId": "",
-    "name": "risk-assesment",
-    "s3BucketName": "risk-assesment",
-    "s3BucketArn": "arn:aws:s3:::risk-assesment",
-    "cloudFrontDomain": "",
-    "cloudFrontDistributionId": "",
-    "region": "eu-north-1",
-    "status": "active",
-    "config": {
-      "versioning": false,
-      "encryption": "s3",
-      "backupEnabled": false,
-      "maxFileSizeMB": 100
-    },
-    "createdAt": "2024-08-09T11:46:06.000Z",
-    "updatedAt": "2026-03-18T22:53:28.320Z"
-  },
-  {
-    "id": "4cbfae1c-5e38-44ef-b1bc-949d682c35a0",
+    "id": "9955606f-d8b7-4d71-8455-f346bea26cb6",
     "projectId": "",
     "name": "dr-pie-images",
     "s3BucketName": "dr-pie-images",
@@ -73,10 +73,10 @@
       "maxFileSizeMB": 100
     },
     "createdAt": "2024-04-21T06:16:42.000Z",
-    "updatedAt": "2026-03-18T22:53:07.079Z"
+    "updatedAt": "2026-03-29T02:37:25.100Z"
   },
   {
-    "id": "e26ae309-c662-40b0-85e9-2609569969da",
+    "id": "8562326a-b8a5-4739-af67-5b072d7e94ba",
     "projectId": "",
     "name": "northlambdatest",
     "s3BucketName": "northlambdatest",
@@ -92,10 +92,10 @@
       "maxFileSizeMB": 100
     },
     "createdAt": "2023-11-11T17:59:08.000Z",
-    "updatedAt": "2026-03-18T22:53:07.084Z"
+    "updatedAt": "2026-03-29T02:37:25.129Z"
   },
   {
-    "id": "4d6a8a87-62ab-45d2-afc4-0e38658348ea",
+    "id": "1ea26547-2c46-4c53-a50a-9dd866c33269",
     "projectId": "",
     "name": "pcr-moc",
     "s3BucketName": "pcr-moc",
@@ -111,16 +111,35 @@
       "maxFileSizeMB": 100
     },
     "createdAt": "2024-11-18T14:23:44.000Z",
-    "updatedAt": "2026-03-18T23:15:03.399Z"
+    "updatedAt": "2026-03-29T02:37:25.157Z"
   },
   {
-    "id": "f47076ab-a08d-4866-bbda-15e019aaf9a9",
-    "projectId": "d6716645-5c35-41a9-9810-81ce702d0d42",
-    "name": "testing-sdr",
+    "id": "d01935b2-87e9-4aaf-bbce-afcb1b48af1e",
+    "projectId": "",
+    "name": "risk-assesment",
+    "s3BucketName": "risk-assesment",
+    "s3BucketArn": "arn:aws:s3:::risk-assesment",
+    "cloudFrontDomain": "",
+    "cloudFrontDistributionId": "",
+    "region": "eu-north-1",
+    "status": "active",
+    "config": {
+      "versioning": false,
+      "encryption": "s3",
+      "backupEnabled": false,
+      "maxFileSizeMB": 100
+    },
+    "createdAt": "2024-08-09T11:46:06.000Z",
+    "updatedAt": "2026-03-29T02:37:25.183Z"
+  },
+  {
+    "id": "7705648a-4f36-4d86-bb75-a13a431b2dca",
+    "projectId": "",
+    "name": "scr-testing-sdr-1773874734270",
     "s3BucketName": "scr-testing-sdr-1773874734270",
     "s3BucketArn": "arn:aws:s3:::scr-testing-sdr-1773874734270",
-    "cloudFrontDomain": "d2lptmtp3eizng.cloudfront.net",
-    "cloudFrontDistributionId": "E1AWIS81EF9EIO",
+    "cloudFrontDomain": "",
+    "cloudFrontDistributionId": "",
     "region": "us-west-1",
     "status": "active",
     "config": {
@@ -129,7 +148,7 @@
       "backupEnabled": false,
       "maxFileSizeMB": 100
     },
-    "createdAt": "2026-03-18T22:58:54.270Z",
-    "updatedAt": "2026-03-18T22:58:54.270Z"
+    "createdAt": "2026-03-18T22:59:27.000Z",
+    "updatedAt": "2026-03-29T02:37:25.206Z"
   }
 ]

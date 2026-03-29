@@ -14,6 +14,7 @@ import {
   Box,
   Cloud,
   Layers,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -155,7 +156,37 @@ export function EnvironmentStep({
 
             <Separator />
 
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-wrap gap-3">
+                <span className="text-xs text-muted-foreground">Need help?</span>
+                <a
+                  href="https://nodejs.org/en/download"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  <ExternalLink className="size-3" />
+                  Node.js
+                </a>
+                <a
+                  href="https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  <ExternalLink className="size-3" />
+                  AWS CLI
+                </a>
+                <a
+                  href="https://www.youtube.com/results?search_query=install+nodejs+aws+cli+aws+cdk+tutorial"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  <ExternalLink className="size-3" />
+                  Video Tutorials
+                </a>
+              </div>
               <Button variant="outline" size="sm" onClick={onRecheck} disabled={loading}>
                 <RefreshCw className="mr-2 size-3.5" />
                 Recheck

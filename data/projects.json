@@ -1,22 +1,17 @@
 [
   {
-    "id": "d6716645-5c35-41a9-9810-81ce702d0d42",
-    "name": "SDR",
+    "id": "728f3071-0793-4805-a07b-78a7c6eb9430",
+    "name": "hamada",
     "environment": "dev",
-    "maxFileSizeMB": 100,
+    "maxFileSizeMB": 10,
     "allowedMimeTypes": [
       "image/jpeg",
       "image/png",
       "application/pdf",
-      "image/webp",
       "video/mp4",
-      "audio/mpeg",
-      "application/json",
-      "text/plain",
-      "text/csv",
-      "application/zip"
+      "audio/mpeg"
     ],
-    "createdAt": "2026-03-18T22:57:00.569Z",
-    "updatedAt": "2026-03-18T22:57:00.569Z"
+    "createdAt": "2026-03-29T02:36:35.520Z",
+    "updatedAt": "2026-03-29T02:36:35.520Z"
   }
 ]

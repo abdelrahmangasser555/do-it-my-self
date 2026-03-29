@@ -1,4 +1,4 @@
-// Step 2 — AWS Connection Validation: sts identity, cdk list, cdk bootstrap
+// Step 2 — AWS Connection & IAM Permissions
 "use client";
 
 import { useState } from "react";
@@ -11,21 +11,50 @@ import {
   Copy,
   Check,
   Shield,
-  Server,
-  Rocket,
+  ExternalLink,
+  KeyRound,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  Save,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TerminalOutput } from "./terminal-output";
-import type { AwsIdentity, CdkStack, TerminalLine } from "../hooks/use-aws-validation";
+import { AWS_REGIONS } from "@/lib/validations";
+import { motion, AnimatePresence } from "framer-motion";
+import type { AwsIdentity, TerminalLine } from "../hooks/use-aws-validation";
+
+export interface IamPolicy {
+  name: string;
+  arn: string;
+  source: string;
+}
+
+export interface IamPermissionResult {
+  action: string;
+  service: string;
+  allowed: boolean;
+}
 
 interface AwsStepProps {
   // AWS identity check
   identity: AwsIdentity | null;
-  cdkStacks: CdkStack[];
   awsLoading: boolean;
   awsError: string | null;
   awsChecked: boolean;
@@ -33,13 +62,21 @@ interface AwsStepProps {
   awsPassed: boolean;
   onRecheckAws: () => void;
 
-  // CDK bootstrap
-  cdkLoading: boolean;
-  cdkError: string | null;
-  cdkSuccess: boolean;
-  cdkChecked: boolean;
-  cdkTerminalOutput: TerminalLine[];
-  onBootstrapCdk: () => void;
+  // IAM permissions
+  iamPolicies: IamPolicy[];
+  iamPermissions: IamPermissionResult[];
+  hasAdminPolicy: boolean;
+  allPermissionsGranted: boolean;
+  iamLoading: boolean;
+  onCheckPermissions: () => void;
+
+  // Credential switching
+  onUpdateCredentials: (
+    accessKeyId: string,
+    secretAccessKey: string,
+    region: string,
+  ) => Promise<boolean>;
+  credentialUpdating: boolean;
 }
 
 function CopySnippet({ text }: { text: string }) {
@@ -60,29 +97,63 @@ function CopySnippet({ text }: { text: string }) {
           setTimeout(() => setCopied(false), 1500);
         }}
       >
-        {copied ? <Check className="size-3 text-green-500" /> : <Copy className="size-3" />}
+        {copied ? (
+          <Check className="size-3 text-green-500" />
+        ) : (
+          <Copy className="size-3" />
+        )}
       </Button>
     </div>
   );
 }
 
+// Group permissions by service
+function groupByService(permissions: IamPermissionResult[]) {
+  const groups: Record<string, IamPermissionResult[]> = {};
+  for (const p of permissions) {
+    if (!groups[p.service]) groups[p.service] = [];
+    groups[p.service].push(p);
+  }
+  return groups;
+}
+
 export function AwsStep({
   identity,
-  cdkStacks,
   awsLoading,
   awsError,
   awsChecked,
   awsTerminalOutput,
   awsPassed,
   onRecheckAws,
-  cdkLoading,
-  cdkError,
-  cdkSuccess,
-  cdkChecked,
-  cdkTerminalOutput,
-  onBootstrapCdk,
+  iamPolicies,
+  iamPermissions,
+  hasAdminPolicy,
+  allPermissionsGranted,
+  iamLoading,
+  onCheckPermissions,
+  onUpdateCredentials,
+  credentialUpdating,
 }: AwsStepProps) {
-  const overallPassed = awsPassed && cdkSuccess;
+  const [showCredentialForm, setShowCredentialForm] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+  const [accessKeyId, setAccessKeyId] = useState("");
+  const [secretAccessKey, setSecretAccessKey] = useState("");
+  const [credentialRegion, setCredentialRegion] = useState("us-east-1");
+
+  const handleSaveCredentials = async () => {
+    const success = await onUpdateCredentials(
+      accessKeyId,
+      secretAccessKey,
+      credentialRegion,
+    );
+    if (success) {
+      setAccessKeyId("");
+      setSecretAccessKey("");
+      setShowCredentialForm(false);
+    }
+  };
+
+  const permissionGroups = groupByService(iamPermissions);
 
   return (
     <Card className="rounded-xl border-border bg-card">
@@ -92,26 +163,36 @@ export function AwsStep({
             2
           </div>
           <div>
-            <CardTitle className="text-base">AWS Connection</CardTitle>
+            <CardTitle className="text-base">AWS Connection & IAM</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Verify credentials and bootstrap CDK
+              Verify credentials and check permissions
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {(awsChecked || cdkChecked) && (
+          {awsChecked && (
             <Badge
-              variant={overallPassed ? "default" : awsPassed ? "secondary" : "destructive"}
+              variant={
+                awsPassed && allPermissionsGranted
+                  ? "default"
+                  : awsPassed
+                    ? "secondary"
+                    : "destructive"
+              }
               className="text-xs"
             >
-              {overallPassed ? "Connected" : awsPassed ? "Bootstrap Required" : "Not Connected"}
+              {awsPassed && allPermissionsGranted
+                ? "Connected"
+                : awsPassed
+                  ? "Limited Permissions"
+                  : "Not Connected"}
             </Badge>
           )}
-          {awsLoading || cdkLoading ? (
+          {awsLoading || iamLoading ? (
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          ) : overallPassed ? (
+          ) : awsPassed && allPermissionsGranted ? (
             <CheckCircle className="size-5 text-green-500" />
-          ) : awsChecked || cdkChecked ? (
+          ) : awsChecked ? (
             <XCircle className="size-5 text-red-500" />
           ) : (
             <Circle className="size-5 text-muted-foreground" />
@@ -132,7 +213,7 @@ export function AwsStep({
           {!awsChecked && !awsLoading && (
             <div className="flex flex-col items-center gap-3 py-4">
               <p className="text-sm text-muted-foreground">
-                Verify your AWS credentials and connection.
+                Verify your AWS credentials and check IAM permissions.
               </p>
               <Button onClick={onRecheckAws} size="sm">
                 <RefreshCw className="mr-2 size-3.5" />
@@ -144,7 +225,9 @@ export function AwsStep({
           {awsLoading && (
             <div className="flex items-center gap-2 py-2">
               <Loader2 className="size-4 animate-spin" />
-              <span className="text-sm text-muted-foreground">Verifying AWS credentials...</span>
+              <span className="text-sm text-muted-foreground">
+                Verifying AWS credentials...
+              </span>
             </div>
           )}
 
@@ -168,7 +251,9 @@ export function AwsStep({
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">ARN</span>
-                <span className="font-mono truncate max-w-75">{identity.arn}</span>
+                <span className="font-mono truncate max-w-75">
+                  {identity.arn}
+                </span>
               </div>
             </div>
           )}
@@ -178,65 +263,306 @@ export function AwsStep({
           )}
         </div>
 
-        {/* CDK Stacks */}
-        {awsPassed && cdkStacks.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Server className="size-4 text-muted-foreground" />
-              <span className="text-sm font-medium">CDK Stacks Found</span>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {cdkStacks.map((stack) => (
-                <Badge key={stack.name} variant="secondary" className="font-mono text-xs">
-                  {stack.name}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* CDK Bootstrap Section */}
+        {/* IAM Permissions Section */}
         {awsPassed && (
           <>
             <Separator />
 
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Rocket className="size-4 text-muted-foreground" />
-                <span className="text-sm font-medium">CDK Bootstrap</span>
-                {cdkSuccess && <CheckCircle className="size-4 text-green-500" />}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="size-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">IAM Permissions</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onCheckPermissions}
+                  disabled={iamLoading}
+                >
+                  {iamLoading ? (
+                    <Loader2 className="mr-2 size-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-2 size-3.5" />
+                  )}
+                  {iamPermissions.length > 0 ? "Recheck" : "Check Permissions"}
+                </Button>
               </div>
 
-              {!cdkChecked && !cdkLoading && (
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    CDK needs a one-time bootstrap to deploy resources in your AWS account.
-                  </p>
-                  <Button onClick={onBootstrapCdk} size="sm" className="w-fit">
-                    <Rocket className="mr-2 size-3.5" />
-                    Bootstrap CDK
-                  </Button>
-                </div>
-              )}
-
-              {cdkLoading && (
+              {iamLoading && (
                 <div className="flex items-center gap-2 py-2">
                   <Loader2 className="size-4 animate-spin" />
                   <span className="text-sm text-muted-foreground">
-                    Bootstrapping CDK... This may take a minute.
+                    Checking IAM permissions...
                   </span>
                 </div>
               )}
 
-              {cdkError && (
-                <Alert variant="destructive">
-                  <AlertDescription className="text-sm">{cdkError}</AlertDescription>
+              {/* Admin policy alert */}
+              {hasAdminPolicy && (
+                <Alert className="border-green-500/30 bg-green-500/5">
+                  <ShieldCheck className="size-4 text-green-500" />
+                  <AlertDescription className="text-sm text-green-700 dark:text-green-400">
+                    Administrator access detected. All permissions are granted.
+                  </AlertDescription>
                 </Alert>
               )}
 
-              {cdkTerminalOutput.length > 0 && (
-                <TerminalOutput lines={cdkTerminalOutput} maxHeight="200px" />
+              {/* Attached policies */}
+              {iamPolicies.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Attached Policies
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {iamPolicies.map((p, i) => (
+                      <Badge
+                        key={i}
+                        variant="secondary"
+                        className="text-xs font-mono"
+                      >
+                        {p.name}
+                        {p.source !== "user" && (
+                          <span className="ml-1 opacity-60">
+                            ({p.source})
+                          </span>
+                        )}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
               )}
+
+              {/* Permission simulation results */}
+              {iamPermissions.length > 0 && !hasAdminPolicy && (
+                <div className="space-y-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Permission Check Results
+                  </p>
+                  <div className="space-y-2">
+                    {Object.entries(permissionGroups).map(
+                      ([service, perms]) => (
+                        <div
+                          key={service}
+                          className="rounded-md border border-border p-3 space-y-1.5"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium">
+                              {service}
+                            </span>
+                            {perms.every((p) => p.allowed) ? (
+                              <CheckCircle className="size-3.5 text-green-500" />
+                            ) : (
+                              <XCircle className="size-3.5 text-red-500" />
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1">
+                            {perms.map((p) => (
+                              <div
+                                key={p.action}
+                                className="flex items-center gap-1.5 text-xs"
+                              >
+                                <div
+                                  className={`size-1.5 rounded-full ${
+                                    p.allowed ? "bg-green-500" : "bg-red-500"
+                                  }`}
+                                />
+                                <span className="text-muted-foreground font-mono">
+                                  {p.action.split(":")[1]}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+
+                  {!allPermissionsGranted && (
+                    <Alert variant="destructive">
+                      <ShieldAlert className="size-4" />
+                      <AlertDescription className="space-y-1">
+                        <p className="text-sm font-medium">
+                          Missing required permissions
+                        </p>
+                        <p className="text-xs opacity-90">
+                          Your IAM user is missing some permissions needed for
+                          CDK bootstrap and resource management. Attach the{" "}
+                          <span className="font-medium">
+                            AdministratorAccess
+                          </span>{" "}
+                          policy or add the specific missing permissions.
+                        </p>
+                        <div className="flex flex-wrap gap-3 pt-1">
+                          <a
+                            href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_change-permissions.html"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs underline inline-flex items-center gap-1 opacity-90 hover:opacity-100"
+                          >
+                            <ExternalLink className="size-3" />
+                            Manage IAM Permissions
+                          </a>
+                          <a
+                            href="https://www.youtube.com/results?search_query=add+iam+policy+to+user+aws+tutorial"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs underline inline-flex items-center gap-1 opacity-90 hover:opacity-100"
+                          >
+                            <ExternalLink className="size-3" />
+                            Video Tutorial
+                          </a>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
+
+              {/* Empty state if no permissions checked yet and not loading */}
+              {iamPermissions.length === 0 && !iamLoading && (
+                <p className="text-xs text-muted-foreground py-1">
+                  Click &quot;Check Permissions&quot; to see what your IAM user
+                  can access.
+                </p>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Switch IAM User / Credentials Form */}
+        {(awsChecked || awsError) && (
+          <>
+            <Separator />
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setShowCredentialForm(!showCredentialForm)}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <KeyRound className="size-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">
+                    Switch IAM User / Update Credentials
+                  </span>
+                </div>
+                {showCredentialForm ? (
+                  <ChevronUp className="size-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="size-4 text-muted-foreground" />
+                )}
+              </button>
+
+              <AnimatePresence>
+                {showCredentialForm && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="space-y-4 pt-2">
+                      <p className="text-xs text-muted-foreground">
+                        Enter new AWS credentials to switch IAM user. This will
+                        update your local AWS CLI configuration.
+                      </p>
+
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="accessKeyId" className="text-xs">
+                            Access Key ID
+                          </Label>
+                          <Input
+                            id="accessKeyId"
+                            placeholder="AKIAIOSFODNN7EXAMPLE"
+                            value={accessKeyId}
+                            onChange={(e) => setAccessKeyId(e.target.value)}
+                            className="font-mono text-xs"
+                            autoComplete="off"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="secretAccessKey" className="text-xs">
+                            Secret Access Key
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              id="secretAccessKey"
+                              type={showSecret ? "text" : "password"}
+                              placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                              value={secretAccessKey}
+                              onChange={(e) =>
+                                setSecretAccessKey(e.target.value)
+                              }
+                              className="font-mono text-xs pr-10"
+                              autoComplete="off"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 size-7"
+                              onClick={() => setShowSecret(!showSecret)}
+                            >
+                              {showSecret ? (
+                                <EyeOff className="size-3.5" />
+                              ) : (
+                                <Eye className="size-3.5" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="credRegion" className="text-xs">
+                            Default Region
+                          </Label>
+                          <Select
+                            value={credentialRegion}
+                            onValueChange={setCredentialRegion}
+                          >
+                            <SelectTrigger id="credRegion" className="text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {AWS_REGIONS.map((r) => (
+                                <SelectItem
+                                  key={r.value}
+                                  value={r.value}
+                                  className="text-xs"
+                                >
+                                  {r.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={handleSaveCredentials}
+                        disabled={
+                          !accessKeyId ||
+                          !secretAccessKey ||
+                          credentialUpdating
+                        }
+                        size="sm"
+                        className="w-full"
+                      >
+                        {credentialUpdating ? (
+                          <Loader2 className="mr-2 size-3.5 animate-spin" />
+                        ) : (
+                          <Save className="mr-2 size-3.5" />
+                        )}
+                        Save & Verify Credentials
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </>
         )}
@@ -248,7 +574,7 @@ export function AwsStep({
               variant="outline"
               size="sm"
               onClick={onRecheckAws}
-              disabled={awsLoading || cdkLoading}
+              disabled={awsLoading || iamLoading}
             >
               <RefreshCw className="mr-2 size-3.5" />
               Recheck

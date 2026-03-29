@@ -140,7 +140,23 @@ export function SetupTab({ bucket }: SetupTabProps) {
           </Tabs>
         </CardContent>
       </Card>
-
+<Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Delete API Route</CardTitle>
+          <CardDescription>
+            Remove objects from S3
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CodeBlock
+            title="app/api/delete-file/route.ts"
+            language="typescript"
+            code={generateDeleteSnippet(bucket)}
+            collapsible
+            defaultCollapsed
+          />
+        </CardContent>
+      </Card>
       {/* Frontend Component */}
       <Card>
         <CardHeader className="pb-3">
@@ -160,23 +176,7 @@ export function SetupTab({ bucket }: SetupTabProps) {
       </Card>
 
       {/* Delete */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Delete API Route</CardTitle>
-          <CardDescription>
-            Remove objects from S3
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CodeBlock
-            title="app/api/delete-file/route.ts"
-            language="typescript"
-            code={generateDeleteSnippet(bucket)}
-            collapsible
-            defaultCollapsed
-          />
-        </CardContent>
-      </Card>
+      
     </div>
   );
 }

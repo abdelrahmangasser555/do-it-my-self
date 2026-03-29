@@ -1,8 +1,10 @@
-// Hook for validating AWS connection (sts get-caller-identity) and listing CDK stacks
+// Hook for validating AWS connection (sts get-caller-identity) and checking IAM permissions
 "use client";
 
 import { useState, useCallback } from "react";
+import { toast } from "sonner";
 import { executeCommand, executeCommandStreaming } from "../utils/commands";
+import type { IamPolicy, IamPermissionResult } from "../components/aws-step";
 
 export interface AwsIdentity {
   account: string;
@@ -29,6 +31,22 @@ interface UseAwsValidationReturn {
   terminalOutput: TerminalLine[];
   allPassed: boolean;
   recheck: () => Promise<boolean>;
+
+  // IAM permissions
+  iamPolicies: IamPolicy[];
+  iamPermissions: IamPermissionResult[];
+  hasAdminPolicy: boolean;
+  allPermissionsGranted: boolean;
+  iamLoading: boolean;
+  checkPermissions: () => Promise<void>;
+
+  // Credential switching
+  updateCredentials: (
+    accessKeyId: string,
+    secretAccessKey: string,
+    region: string,
+  ) => Promise<boolean>;
+  credentialUpdating: boolean;
 }
 
 export function useAwsValidation(): UseAwsValidationReturn {
@@ -38,6 +56,16 @@ export function useAwsValidation(): UseAwsValidationReturn {
   const [error, setError] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState<TerminalLine[]>([]);
+
+  // IAM state
+  const [iamPolicies, setIamPolicies] = useState<IamPolicy[]>([]);
+  const [iamPermissions, setIamPermissions] = useState<IamPermissionResult[]>(
+    [],
+  );
+  const [hasAdminPolicy, setHasAdminPolicy] = useState(false);
+  const [allPermissionsGranted, setAllPermissionsGranted] = useState(false);
+  const [iamLoading, setIamLoading] = useState(false);
+  const [credentialUpdating, setCredentialUpdating] = useState(false);
 
   const recheck = useCallback(async (): Promise<boolean> => {
     setLoading(true);
@@ -50,16 +78,22 @@ export function useAwsValidation(): UseAwsValidationReturn {
       // Step 1: Verify AWS identity
       setTerminalOutput((prev) => [
         ...prev,
-        { type: "command", message: "$ aws sts get-caller-identity", level: "command" },
+        {
+          type: "command",
+          message: "$ aws sts get-caller-identity",
+          level: "command",
+        },
       ]);
 
       const stsResult = await executeCommandStreaming(
         "aws sts get-caller-identity",
-        (line) => setTerminalOutput((prev) => [...prev, line])
+        (line) => setTerminalOutput((prev) => [...prev, line]),
       );
 
       if (!stsResult.success) {
-        setError("AWS CLI not configured. Run 'aws configure' to set up credentials.");
+        setError(
+          "AWS CLI not configured. Run 'aws configure' to set up credentials.",
+        );
         setChecked(true);
         return false;
       }
@@ -80,12 +114,16 @@ export function useAwsValidation(): UseAwsValidationReturn {
       // Step 2: List CDK stacks
       setTerminalOutput((prev) => [
         ...prev,
-        { type: "command", message: "$ cd infrastructure/cdk; npx cdk list", level: "command" },
+        {
+          type: "command",
+          message: "$ cd infrastructure/cdk; npx cdk list",
+          level: "command",
+        },
       ]);
 
       const cdkResult = await executeCommandStreaming(
         "cd infrastructure/cdk; npx cdk list",
-        (line) => setTerminalOutput((prev) => [...prev, line])
+        (line) => setTerminalOutput((prev) => [...prev, line]),
       );
 
       if (cdkResult.success && cdkResult.stdout.trim()) {
@@ -108,7 +146,119 @@ export function useAwsValidation(): UseAwsValidationReturn {
     }
   }, []);
 
+  const checkPermissions = useCallback(async () => {
+    setIamLoading(true);
+    try {
+      const res = await fetch("/api/aws-identity/permissions");
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error("Failed to check permissions", {
+          description: data.error || "Unknown error",
+        });
+        return;
+      }
+      const data = await res.json();
+      setIamPolicies(data.policies || []);
+      setIamPermissions(data.permissionResults || []);
+      setHasAdminPolicy(data.hasAdminPolicy || false);
+      setAllPermissionsGranted(data.allPermissionsGranted || false);
+
+      // Update identity if we got richer data
+      if (data.identity) {
+        setIdentity((prev) => ({
+          account: data.identity.account || prev?.account || "",
+          arn: data.identity.arn || prev?.arn || "",
+          userId: data.identity.userId || prev?.userId || "",
+        }));
+      }
+    } catch (err) {
+      toast.error("Failed to check IAM permissions", {
+        description:
+          err instanceof Error ? err.message : "Network error",
+      });
+    } finally {
+      setIamLoading(false);
+    }
+  }, []);
+
+  const updateCredentials = useCallback(
+    async (
+      accessKeyId: string,
+      secretAccessKey: string,
+      region: string,
+    ): Promise<boolean> => {
+      setCredentialUpdating(true);
+      const toastId = toast.loading("Updating AWS credentials...");
+      try {
+        const res = await fetch("/api/aws-identity/credentials", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accessKeyId, secretAccessKey, region }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          toast.error("Failed to update credentials", {
+            id: toastId,
+            description: data.error,
+          });
+          return false;
+        }
+
+        // Update identity with new info
+        if (data.identity) {
+          setIdentity({
+            account: data.identity.account || "",
+            arn: data.identity.arn || "",
+            userId: "",
+          });
+        }
+
+        // Reset permission state since user changed
+        setIamPolicies([]);
+        setIamPermissions([]);
+        setHasAdminPolicy(false);
+        setAllPermissionsGranted(false);
+        setChecked(true);
+        setError(null);
+
+        toast.success("Credentials updated successfully!", {
+          id: toastId,
+          description: `Connected as ${data.identity?.arn || "new user"}`,
+        });
+        return true;
+      } catch (err) {
+        toast.error("Failed to update credentials", {
+          id: toastId,
+          description:
+            err instanceof Error ? err.message : "Network error",
+        });
+        return false;
+      } finally {
+        setCredentialUpdating(false);
+      }
+    },
+    [],
+  );
+
   const allPassed = identity !== null;
 
-  return { identity, cdkStacks, loading, error, checked, terminalOutput, allPassed, recheck };
+  return {
+    identity,
+    cdkStacks,
+    loading,
+    error,
+    checked,
+    terminalOutput,
+    allPassed,
+    recheck,
+    iamPolicies,
+    iamPermissions,
+    hasAdminPolicy,
+    allPermissionsGranted,
+    iamLoading,
+    checkPermissions,
+    updateCredentials,
+    credentialUpdating,
+  };
 }

@@ -1,8 +1,8 @@
 // Presentational component for analytics overview cards with cost estimates
-"use client";
+'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AnimatedCard } from "@/components/animated-card";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AnimatedCard } from '@/components/animated-card';
 import {
   Database,
   FileUp,
@@ -12,8 +12,8 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-} from "lucide-react";
-import type { AnalyticsSummary } from "@/lib/types";
+} from 'lucide-react';
+import type { AnalyticsSummary } from '@/lib/types';
 
 interface AnalyticsCardsProps {
   summary: AnalyticsSummary | null;
@@ -21,55 +21,51 @@ interface AnalyticsCardsProps {
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
+  if (bytes === 0) return '0 B';
   const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
 function TrendIndicator({ current, projected }: { current: number; projected: number }) {
   const diff = projected - current;
-  if (Math.abs(diff) < 0.01)
-    return <Minus className="size-3.5 text-muted-foreground" />;
-  if (diff > 0)
-    return <TrendingUp className="size-3.5 text-orange-500" />;
+  if (Math.abs(diff) < 0.01) return <Minus className="size-3.5 text-muted-foreground" />;
+  if (diff > 0) return <TrendingUp className="size-3.5 text-orange-500" />;
   return <TrendingDown className="size-3.5 text-green-500" />;
 }
 
 export function AnalyticsCards({ summary, loading }: AnalyticsCardsProps) {
   const cards = [
     {
-      title: "Total Projects",
+      title: 'Total Projects',
       value: summary?.totalProjects ?? 0,
       icon: FolderKanban,
       subtitle: null,
     },
     {
-      title: "Total Buckets",
+      title: 'Total Buckets',
       value: summary?.totalBuckets ?? 0,
       icon: Database,
       subtitle: null,
     },
     {
-      title: "Total Files",
+      title: 'Total Files',
       value: summary?.totalFiles ?? 0,
       icon: FileUp,
       subtitle: null,
     },
     {
-      title: "Storage Used",
-      value: summary ? formatBytes(summary.totalStorageBytes) : "0 B",
+      title: 'Storage Used',
+      value: summary ? formatBytes(summary.totalStorageBytes) : '0 B',
       icon: HardDrive,
       subtitle: null,
     },
     {
-      title: "Est. Monthly Cost",
-      value: summary ? `$${summary.estimatedMonthlyCost.toFixed(2)}` : "$0.00",
+      title: 'Est. Monthly Cost',
+      value: summary ? `$${summary.estimatedMonthlyCost.toFixed(2)}` : '$0.00',
       icon: DollarSign,
-      subtitle: summary
-        ? `Projected: $${summary.projectedMonthlyCost.toFixed(2)}`
-        : null,
+      subtitle: summary ? null : null,
       trend: summary
         ? { current: summary.estimatedMonthlyCost, projected: summary.projectedMonthlyCost }
         : null,
@@ -93,16 +89,11 @@ export function AnalyticsCards({ summary, loading }: AnalyticsCardsProps) {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold">{card.value}</p>
-                  {"trend" in card && card.trend && (
-                    <TrendIndicator
-                      current={card.trend.current}
-                      projected={card.trend.projected}
-                    />
+                  {'trend' in card && card.trend && (
+                    <TrendIndicator current={card.trend.current} projected={card.trend.projected} />
                   )}
                 </div>
-                {card.subtitle && (
-                  <p className="text-xs text-muted-foreground">{card.subtitle}</p>
-                )}
+                {card.subtitle && <p className="text-xs text-muted-foreground">{card.subtitle}</p>}
               </div>
             )}
           </CardContent>

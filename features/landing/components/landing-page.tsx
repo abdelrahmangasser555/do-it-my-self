@@ -1,24 +1,25 @@
 // Fireship-inspired landing page — full-viewport scroll-snap sections
 // Uses Space Grotesk for display text, JetBrains Mono for accents
-"use client";
+'use client';
 
-import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
-import { ArrowDown, Play, Github } from "lucide-react";
-import Link from "next/link";
-import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
-import { PricingSection } from "./pricing-section";
+import { useRef } from 'react';
+import { motion, useInView } from 'framer-motion';
+import { ArrowDown, Play, Github } from 'lucide-react';
+import Link from 'next/link';
+import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
+import { PricingSection } from './pricing-section';
+import { TiltButton } from '@/components/tilt-button';
 
 const display = Space_Grotesk({
-  subsets: ["latin"],
-  weight: ["700"],
-  variable: "--font-display",
+  subsets: ['latin'],
+  weight: ['700'],
+  variable: '--font-display',
 });
 
 const mono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-mono",
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  variable: '--font-mono',
 });
 
 /* ── Fade-in wrapper ── */
@@ -53,7 +54,7 @@ export function LandingPage() {
   const scrollDown = () =>
     containerRef.current?.scrollBy({
       top: window.innerHeight,
-      behavior: "smooth",
+      behavior: 'smooth',
     });
 
   return (
@@ -106,10 +107,8 @@ export function LandingPage() {
           </h2>
 
           <p className="mt-10 text-lg md:text-xl text-neutral-500 leading-relaxed max-w-xl mx-auto">
-            A dashboard to self-host your files on{" "}
-            <span className="text-black font-semibold">
-              your own AWS account
-            </span>
+            A dashboard to self-host your files on{' '}
+            <span className="text-black font-semibold">your own AWS account</span>
             .
             <br />
             No middleman. No surprise bills. Just S3 + a nice UI.
@@ -160,9 +159,7 @@ export function LandingPage() {
           </h2>
 
           <p className="mt-8 text-2xl md:text-3xl text-neutral-400 font-light leading-snug">
-            Are you{" "}
-            <span className="text-yellow-500 font-bold italic">still</span> not
-            convinced?
+            Are you <span className="text-yellow-500 font-bold italic">still</span> not convinced?
           </p>
 
           <p className="mt-6 font-(family-name:--font-mono) text-neutral-300 text-sm">
@@ -195,11 +192,12 @@ export function LandingPage() {
 
           {/* CTA */}
           <div className="mt-20 text-center space-y-8">
-            <Link
-              href="/onboarding"
-              className="inline-block px-10 py-5 bg-white text-black font-(family-name:--font-display) font-bold text-xl rounded-full hover:bg-neutral-200 transition-colors"
-            >
-              Get Started — It&apos;s Free
+            <Link href="/onboarding">
+              <TiltButton variant="solid" width={280} height={60} elevation={10} radius={100}>
+                <span className="font-(family-name:--font-display) font-bold text-xl">
+                  Get Started — It&apos;s Free
+                </span>
+              </TiltButton>
             </Link>
 
             <div className="flex items-center justify-center gap-6">
@@ -207,10 +205,13 @@ export function LandingPage() {
                 href="https://github.com/abdelrahmangasser555/do-it-my-self"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-neutral-500 hover:text-white transition-colors font-(family-name:--font-mono) text-sm"
               >
-                <Github className="size-4" />
-                Star on GitHub
+                <TiltButton variant="outline" width={160} height={40} elevation={6} radius={10}>
+                  <span className="flex items-center gap-2 font-(family-name:--font-mono) text-sm">
+                    <Github className="size-4" />
+                    Star on GitHub
+                  </span>
+                </TiltButton>
               </a>
             </div>
 

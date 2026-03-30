@@ -148,7 +148,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t px-4 py-3 space-y-3">
         {/* Icon row */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-center gap-1">
           {footerActions.map((item) => (
             <Tooltip key={item.label} delayDuration={300}>
               <TooltipTrigger asChild>
@@ -186,7 +186,9 @@ export function AppSidebar() {
         </div>
 
         {/* GitHub stars */}
-        <GitHubStarsButton repo={APP_CONFIG.githubRepo} size="sm" />
+        <span className="flex items-center justify-center">
+          <GitHubStarsButton repo={APP_CONFIG.githubRepo} size="sm" />
+        </span>
       </SidebarFooter>
 
       {/* Reset confirmation dialog */}

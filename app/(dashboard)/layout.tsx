@@ -25,7 +25,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <OnboardingStatusBadge />
               </div>
             </header>
-            <main className="flex-1 overflow-y-auto overflow-x-hidden p-6 pb-24 min-w-0">{children}</main>
+            <main className="flex-1 overflow-y-auto overflow-x-hidden p-6 pb-24 min-w-0">
+              {children}
+            </main>
           </SidebarInset>
           <Toaster />
         </SidebarProvider>

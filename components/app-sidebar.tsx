@@ -1,8 +1,9 @@
 // Dashboard sidebar navigation component
-"use client";
+'use client';
 
-import { usePathname } from "next/navigation";
-import Link from "next/link";
+import { type ElementType } from 'react';
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import {
   Sidebar,
   SidebarContent,
@@ -14,33 +15,30 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
-} from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
+} from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   FolderKanban,
   Database,
   FileUp,
   BarChart3,
-  Code2,
-  Server,
-  HardDrive,
-  BookOpen,
-  Layers,
-  FileCode2,
-  Terminal,
-  Zap,
   Globe,
-  Compass,
   MapPin,
   RotateCcw,
   Loader2,
-  Settings2,
-} from "lucide-react";
-import { useTour } from "@/components/ui/tour";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { APP_CONFIG } from "@/lib/config";
-import { toast } from "sonner";
+  Settings,
+  BookOpen,
+  Zap,
+  Compass,
+  HardDrive,
+} from 'lucide-react';
+import { useTour } from '@/components/ui/tour';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { APP_CONFIG } from '@/lib/config';
+import { toast } from 'sonner';
+import { GitHubStarsButton } from '@/components/ui/github-stars-button';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -48,41 +46,35 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from '@/components/ui/alert-dialog';
 
 const navItems = [
   {
-    title: "Overview",
-    items: [{ label: "Dashboard", href: "/", icon: BarChart3 }],
+    title: 'Overview',
+    items: [{ label: 'Dashboard', href: '/', icon: BarChart3 }],
   },
   {
-    title: "Management",
+    title: 'Management',
     items: [
-      { label: "Projects", href: "/projects", icon: FolderKanban },
-      { label: "Buckets", href: "/buckets", icon: Database },
-      { label: "Files", href: "/files", icon: FileUp },
-      { label: "Distributions", href: "/distributions", icon: Globe },
-      { label: "Environments", href: "/environments", icon: MapPin },
+      { label: 'Projects', href: '/projects', icon: FolderKanban },
+      { label: 'Buckets', href: '/buckets', icon: Database },
+      { label: 'Files', href: '/files', icon: FileUp },
+      { label: 'Distributions', href: '/distributions', icon: Globe },
+      { label: 'Environments', href: '/environments', icon: MapPin },
     ],
   },
-  {
-    title: "Tools",
-    items: [
-      { label: "Infrastructure", href: "/infrastructure", icon: Server },
-      { label: "Code Snippets", href: "/snippets", icon: Code2 },
-      { label: "Commands", href: "/commands", icon: Zap },
-      { label: "Settings", href: "/settings", icon: Settings2 },
-    ],
-  },
-  {
-    title: "Documentation",
-    items: [
-      { label: "Setup Guide", href: "/docs/setup-guide", icon: Terminal },
-      { label: "User Guide", href: "/docs/user-guide", icon: BookOpen },
-      { label: "Architecture", href: "/docs/architecture-short", icon: Layers },
-      { label: "Full Docs", href: "/docs/architecture-full", icon: FileCode2 },
-    ],
-  },
+];
+
+type FooterLink = { label: string; icon: ElementType; href: string };
+type FooterAction = { label: string; icon: ElementType; action: 'tour' | 'reset' };
+type FooterItem = FooterLink | FooterAction;
+
+const footerActions: FooterItem[] = [
+  { label: 'Settings', icon: Settings, href: '/settings' },
+  { label: 'Documentation', icon: BookOpen, href: '/docs/setup-guide' },
+  { label: 'Commands', icon: Zap, href: '/commands' },
+  { label: 'Start Tour', icon: Compass, action: 'tour' },
+  { label: 'Reset Local Data', icon: RotateCcw, action: 'reset' },
 ];
 
 export function AppSidebar() {
@@ -95,20 +87,25 @@ export function AppSidebar() {
   const handleReset = async () => {
     setResetting(true);
     try {
-      const res = await fetch("/api/system/reset", { method: "POST" });
+      const res = await fetch('/api/system/reset', { method: 'POST' });
       if (res.ok) {
-        toast.success("All local data has been reset");
+        toast.success('All local data has been reset');
         setResetOpen(false);
-        router.push("/onboarding");
+        router.push('/onboarding');
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to reset");
+        toast.error(data.error || 'Failed to reset');
       }
     } catch {
-      toast.error("Failed to reset data");
+      toast.error('Failed to reset data');
     } finally {
       setResetting(false);
     }
+  };
+
+  const handleFooterClick = (action: 'tour' | 'reset') => {
+    if (action === 'tour') tour.start('product-tour');
+    if (action === 'reset') setResetOpen(true);
   };
 
   return (
@@ -116,12 +113,11 @@ export function AppSidebar() {
       <SidebarHeader className="border-b px-6 py-4">
         <Link href="/" className="flex items-center gap-2">
           <HardDrive className="size-5 text-primary" />
-          <span className="text-base font-semibold tracking-tight">
-            {APP_CONFIG.name}
-          </span>
+          <span className="text-base font-semibold tracking-tight">{APP_CONFIG.name}</span>
         </Link>
       </SidebarHeader>
-      <SidebarContent className=" no-scrollbar">
+
+      <SidebarContent className="no-scrollbar">
         {navItems.map((group) => (
           <SidebarGroup key={group.title}>
             <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
@@ -132,10 +128,9 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       isActive={
-                        item.href === "/"
-                          ? pathname === "/"
-                          : pathname === item.href ||
-                            pathname.startsWith(item.href + "/")
+                        item.href === '/'
+                          ? pathname === '/'
+                          : pathname === item.href || pathname.startsWith(item.href + '/')
                       }
                     >
                       <Link href={item.href}>
@@ -150,26 +145,48 @@ export function AppSidebar() {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter className="border-t px-6 py-3 space-y-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 text-xs text-muted-foreground hover:text-primary"
-          onClick={() => tour.start("product-tour")}
-        >
-          <Compass className="size-3.5" />
-          Start Tour
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 text-xs text-muted-foreground hover:text-destructive"
-          onClick={() => setResetOpen(true)}
-        >
-          <RotateCcw className="size-3.5" />
-          Reset Local Data
-        </Button>
-        <p className="text-xs text-muted-foreground">{APP_CONFIG.tagline}</p>
+
+      <SidebarFooter className="border-t px-4 py-3 space-y-3">
+        {/* Icon row */}
+        <div className="flex items-center gap-1">
+          {footerActions.map((item) => (
+            <Tooltip key={item.label} delayDuration={300}>
+              <TooltipTrigger asChild>
+                {'href' in item ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-accent"
+                    asChild
+                  >
+                    <Link href={(item as FooterLink).href}>
+                      <item.icon className="size-4" />
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-8 w-8 p-0 text-muted-foreground hover:bg-accent ${
+                      (item as FooterAction).action === 'reset'
+                        ? 'hover:text-destructive'
+                        : 'hover:text-foreground'
+                    }`}
+                    onClick={() => handleFooterClick((item as FooterAction).action)}
+                  >
+                    <item.icon className="size-4" />
+                  </Button>
+                )}
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                {item.label}
+              </TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
+
+        {/* GitHub stars */}
+        <GitHubStarsButton repo={APP_CONFIG.githubRepo} size="sm" />
       </SidebarFooter>
 
       {/* Reset confirmation dialog */}
@@ -178,28 +195,23 @@ export function AppSidebar() {
           <AlertDialogHeader>
             <AlertDialogTitle>Reset All Local Data?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will delete all local data (buckets, projects, files,
-              environments, and system state) and redirect you to the onboarding
-              flow. This does <strong>not</strong> delete anything from AWS — only
-              the local JSON metadata is cleared.
+              This will delete all local data (buckets, projects, files, environments, and system
+              state) and redirect you to the onboarding flow. This does <strong>not</strong> delete
+              anything from AWS — only the local JSON metadata is cleared.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <Button variant="outline" onClick={() => setResetOpen(false)}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReset}
-              disabled={resetting}
-            >
+            <Button variant="destructive" onClick={handleReset} disabled={resetting}>
               {resetting ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
                   Resetting…
                 </>
               ) : (
-                "Reset Everything"
+                'Reset Everything'
               )}
             </Button>
           </AlertDialogFooter>

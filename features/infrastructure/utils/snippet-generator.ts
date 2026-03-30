@@ -1,11 +1,53 @@
 // Utility to generate framework-aware code snippets for bucket integration
-import type { Bucket } from "@/lib/types";
+import type { Bucket } from '@/lib/types';
+
+// --- Install Commands ---
+export function generateInstallSnippet(framework: 'nextjs' | 'node' | 'python' | 'java'): string {
+  switch (framework) {
+    case 'nextjs':
+      return `# Install AWS SDK v3 packages + UUID helper
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner uuid
+
+# Or with pnpm / yarn
+pnpm add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner uuid
+yarn add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner uuid`;
+    case 'node':
+      return `# Install AWS SDK v3 packages + Express + UUID
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner express uuid
+
+# Or with pnpm / yarn
+pnpm add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner express uuid
+yarn add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner express uuid`;
+    case 'python':
+      return `# Install boto3 (AWS SDK for Python) + Flask
+pip install boto3 flask
+
+# Or with a requirements.txt
+echo "boto3\\nflask" >> requirements.txt
+pip install -r requirements.txt`;
+    case 'java':
+      return `<!-- Add to pom.xml (Maven) -->
+<dependency>
+  <groupId>software.amazon.awssdk</groupId>
+  <artifactId>s3</artifactId>
+  <version>2.25.0</version>
+</dependency>
+<dependency>
+  <groupId>software.amazon.awssdk</groupId>
+  <artifactId>s3-transfer-manager</artifactId>
+  <version>2.25.0</version>
+</dependency>
+
+# Or with Gradle (build.gradle)
+# implementation 'software.amazon.awssdk:s3:2.25.0'`;
+  }
+}
 
 // --- Environment ---
 export function generateEnvSnippet(bucket: Bucket): string {
   return `# Environment variables for ${bucket.name}
 NEXT_PUBLIC_S3_BUCKET=${bucket.s3BucketName}
-NEXT_PUBLIC_CLOUDFRONT_DOMAIN=${bucket.cloudFrontDomain || "your-distribution.cloudfront.net"}
+NEXT_PUBLIC_CLOUDFRONT_DOMAIN=${bucket.cloudFrontDomain || 'your-distribution.cloudfront.net'}
 AWS_REGION=${bucket.region}
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key`;
@@ -13,7 +55,7 @@ AWS_SECRET_ACCESS_KEY=your-secret-key`;
 
 // --- Upload API Snippets ---
 export function generateNextjsUploadApi(bucket: Bucket): string {
-  const cf = bucket.cloudFrontDomain || "your-distribution.cloudfront.net";
+  const cf = bucket.cloudFrontDomain || 'your-distribution.cloudfront.net';
   return `// app/api/upload/route.ts — Next.js App Router presigned upload
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -51,7 +93,7 @@ export async function POST(request: NextRequest) {
 }
 
 export function generateNodeExpressUploadApi(bucket: Bucket): string {
-  const cf = bucket.cloudFrontDomain || "your-distribution.cloudfront.net";
+  const cf = bucket.cloudFrontDomain || 'your-distribution.cloudfront.net';
   return `// routes/upload.js — Express.js presigned upload endpoint
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
@@ -94,7 +136,7 @@ module.exports = router;`;
 }
 
 export function generatePythonUploadApi(bucket: Bucket): string {
-  const cf = bucket.cloudFrontDomain || "your-distribution.cloudfront.net";
+  const cf = bucket.cloudFrontDomain || 'your-distribution.cloudfront.net';
   return `# upload.py — Python (Flask / FastAPI) presigned upload
 import boto3
 import uuid
@@ -133,7 +175,7 @@ def upload():
 }
 
 export function generateJavaUploadApi(bucket: Bucket): string {
-  const cf = bucket.cloudFrontDomain || "your-distribution.cloudfront.net";
+  const cf = bucket.cloudFrontDomain || 'your-distribution.cloudfront.net';
   return `// UploadController.java — Spring Boot presigned upload
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
@@ -190,26 +232,62 @@ public class UploadController {
 
 // --- Frontend Upload Snippet ---
 export function generateFrontendUploadSnippet(bucket: Bucket): string {
-  return `// components/file-upload.tsx — React client-side direct upload to S3
+  return `// components/file-upload.tsx — Drag & drop upload with progress + file list
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
+import { Upload, X, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
+
+interface UploadedFile {
+  id: string;
+  name: string;
+  size: number;
+  progress: number;
+  status: "uploading" | "complete" | "error";
+  cdnUrl?: string;
+  error?: string;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
 
 export function FileUpload() {
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [cdnUrl, setCdnUrl] = useState("");
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const MAX_SIZE = ${bucket.config?.maxFileSizeMB ?? 100} * 1024 * 1024;
 
-  const handleUpload = useCallback(async (file: File) => {
-    // Client-side size check (bucket limit: ${bucket.config?.maxFileSizeMB ?? 100} MB)
-    const MAX_SIZE = ${bucket.config?.maxFileSizeMB ?? 100} * 1024 * 1024;
+  const uploadFile = useCallback(async (file: File) => {
     if (file.size > MAX_SIZE) {
-      alert(\`File is too large. Max size: ${bucket.config?.maxFileSizeMB ?? 100} MB\`);
+      const entry: UploadedFile = {
+        id: crypto.randomUUID(),
+        name: file.name,
+        size: file.size,
+        progress: 0,
+        status: "error",
+        error: "File exceeds ${bucket.config?.maxFileSizeMB ?? 100} MB limit",
+      };
+      setFiles((prev) => [...prev, entry]);
       return;
     }
 
-    setUploading(true);
-    setProgress(0);
+    const id = crypto.randomUUID();
+    const entry: UploadedFile = {
+      id,
+      name: file.name,
+      size: file.size,
+      progress: 0,
+      status: "uploading",
+    };
+    setFiles((prev) => [...prev, entry]);
 
     try {
       // Step 1: Get presigned URL from your API
@@ -222,59 +300,150 @@ export function FileUpload() {
           fileSize: file.size,
         }),
       });
-      const { uploadUrl, cdnUrl: url } = await res.json();
+      const { uploadUrl, cdnUrl } = await res.json();
 
-      // Step 2: Upload with progress tracking
-      const xhr = new XMLHttpRequest();
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          setProgress(Math.round((e.loaded / e.total) * 100));
-        }
-      };
-      xhr.onload = () => {
-        setCdnUrl(url);
-        setUploading(false);
-      };
-      xhr.onerror = () => setUploading(false);
-      xhr.open("PUT", uploadUrl);
-      xhr.setRequestHeader("Content-Type", file.type);
-      xhr.send(file);
-    } catch (error) {
-      console.error("Upload failed:", error);
-      setUploading(false);
+      // Step 2: Upload directly to S3 with progress
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const progress = Math.round((e.loaded / e.total) * 100);
+            setFiles((prev) =>
+              prev.map((f) => (f.id === id ? { ...f, progress } : f))
+            );
+          }
+        };
+        xhr.onload = () => {
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.id === id ? { ...f, progress: 100, status: "complete", cdnUrl } : f
+            )
+          );
+          resolve();
+        };
+        xhr.onerror = () => reject(new Error("Upload failed"));
+        xhr.open("PUT", uploadUrl);
+        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.send(file);
+      });
+    } catch (err) {
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === id
+            ? { ...f, status: "error", error: err instanceof Error ? err.message : "Upload failed" }
+            : f
+        )
+      );
     }
   }, []);
 
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+      const dropped = Array.from(e.dataTransfer.files);
+      dropped.forEach(uploadFile);
+    },
+    [uploadFile]
+  );
+
+  const handleSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selected = Array.from(e.target.files || []);
+      selected.forEach(uploadFile);
+      e.target.value = "";
+    },
+    [uploadFile]
+  );
+
+  const removeFile = (id: string) => {
+    setFiles((prev) => prev.filter((f) => f.id !== id));
+  };
+
   return (
-    <div
-      onDrop={(e) => {
-        e.preventDefault();
-        const file = e.dataTransfer.files[0];
-        if (file) handleUpload(file);
-      }}
-      onDragOver={(e) => e.preventDefault()}
-      className="rounded-lg border-2 border-dashed p-8 text-center transition-colors hover:border-primary/50"
-    >
-      <input
-        type="file"
-        onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
-        className="hidden"
-        id="file-input"
-        disabled={uploading}
-      />
-      <label htmlFor="file-input" className="cursor-pointer">
-        {uploading
-          ? \`Uploading... \${progress}%\`
-          : "Drop a file here or click to upload"}
-      </label>
-      {cdnUrl && (
-        <p className="mt-2 text-sm text-green-600">
-          Available at: <a href={cdnUrl}>{cdnUrl}</a>
-        </p>
+    <div className="space-y-4">
+      {/* Drop zone */}
+      <div
+        onDrop={handleDrop}
+        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+        onDragLeave={() => setIsDragOver(false)}
+        onClick={() => inputRef.current?.click()}
+        className={cn(
+          "flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 cursor-pointer transition-colors",
+          isDragOver
+            ? "border-primary bg-primary/5"
+            : "border-muted-foreground/25 hover:border-muted-foreground/50"
+        )}
+      >
+        <div className="rounded-full bg-muted p-3">
+          <Upload className="size-5 text-muted-foreground" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium">
+            Drop files here or click to browse
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Max file size: ${bucket.config?.maxFileSizeMB ?? 100} MB
+          </p>
+        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          onChange={handleSelect}
+          className="hidden"
+        />
+      </div>
+
+      {/* File list */}
+      {files.length > 0 && (
+        <div className="space-y-2">
+          {files.map((file) => (
+            <div
+              key={file.id}
+              className="flex items-center gap-3 rounded-lg border bg-card p-3"
+            >
+              <FileText className="size-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium truncate">{file.name}</p>
+                  <span className="text-xs text-muted-foreground ml-2 shrink-0">
+                    {formatBytes(file.size)}
+                  </span>
+                </div>
+                {file.status === "uploading" && (
+                  <Progress value={file.progress} className="mt-1.5 h-1" />
+                )}
+                {file.status === "error" && (
+                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                    <AlertCircle className="size-3" /> {file.error}
+                  </p>
+                )}
+                {file.status === "complete" && (
+                  <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
+                    <CheckCircle2 className="size-3" /> Uploaded
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 shrink-0"
+                onClick={(e) => { e.stopPropagation(); removeFile(file.id); }}
+              >
+                <X className="size-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
-}`;
+}
+
+// Usage example:
+// import { FileUpload } from "@/components/file-upload";
+// <FileUpload />`;
 }
 
 // --- Delete Snippet ---
@@ -339,7 +508,7 @@ const response = await fetch("/api/files", {
 const { uploadUrl, objectKey, cloudFrontUrl } = await response.json();
 // uploadUrl → presigned S3 PUT URL (expires in 1 hour)
 // objectKey → e.g., "your-project-id/abc123-profile-photo.jpg"
-// cloudFrontUrl → e.g., "https://${bucket.cloudFrontDomain || "xxx.cloudfront.net"}/your-project-id/abc123-profile-photo.jpg"
+// cloudFrontUrl → e.g., "https://${bucket.cloudFrontDomain || 'xxx.cloudfront.net'}/your-project-id/abc123-profile-photo.jpg"
 
 // Step 2: Upload the actual file to S3 using the presigned URL
 await fetch(uploadUrl, {

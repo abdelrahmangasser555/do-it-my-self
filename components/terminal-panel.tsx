@@ -1,11 +1,11 @@
-// Integrated terminal panel — collapsible log viewer with command input
-"use client";
+// Integrated terminal panel — collapsible log viewer with command input and resize
+'use client';
 
-import { useRef, useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Terminal,
   X,
@@ -17,50 +17,42 @@ import {
   Send,
   Loader2,
   Square,
-} from "lucide-react";
-import {
-  useTerminal,
-  type LogLevel,
-  type TerminalLine,
-} from "@/lib/terminal-context";
-import { cn } from "@/lib/utils";
+  GripHorizontal,
+} from 'lucide-react';
+import { useTerminal, type LogLevel, type TerminalLine } from '@/lib/terminal-context';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const LEVEL_STYLES: Record<LogLevel, { color: string; label: string }> = {
-  info: { color: "text-blue-400", label: "INFO" },
-  warn: { color: "text-yellow-400", label: "WARN" },
-  error: { color: "text-red-400", label: "ERR " },
-  success: { color: "text-green-400", label: " OK " },
-  command: { color: "text-purple-400", label: "CMD " },
+  info: { color: 'text-blue-400', label: 'INFO' },
+  warn: { color: 'text-yellow-400', label: 'WARN' },
+  error: { color: 'text-red-400', label: 'ERR ' },
+  success: { color: 'text-green-400', label: ' OK ' },
+  command: { color: 'text-purple-400', label: 'CMD ' },
 };
 
 function TerminalLineRow({ line }: { line: TerminalLine }) {
   const style = LEVEL_STYLES[line.level];
-  const time = new Date(line.timestamp).toLocaleTimeString("en-US", {
+  const time = new Date(line.timestamp).toLocaleTimeString('en-US', {
     hour12: false,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   });
 
   return (
     <div className="flex gap-2 px-4 py-0.5 font-mono text-xs leading-5 hover:bg-muted/50">
       <span className="select-none text-muted-foreground/60">{time}</span>
-      <span className={cn("w-10 select-none font-bold", style.color)}>
-        [{style.label}]
-      </span>
-      {line.source && (
-        <span className="select-none text-muted-foreground/70">
-          [{line.source}]
-        </span>
-      )}
+      <span className={cn('w-10 select-none font-bold', style.color)}>[{style.label}]</span>
+      {line.source && <span className="select-none text-muted-foreground/70">[{line.source}]</span>}
       <span
         className={cn(
-          "whitespace-pre-wrap break-all",
-          line.level === "error" && "text-red-300",
-          line.level === "success" && "text-green-300",
-          line.level === "warn" && "text-yellow-300",
-          line.level === "command" && "text-purple-300",
-          line.level === "info" && "text-white/80",
+          'whitespace-pre-wrap break-all',
+          line.level === 'error' && 'text-red-300',
+          line.level === 'success' && 'text-green-300',
+          line.level === 'warn' && 'text-yellow-300',
+          line.level === 'command' && 'text-purple-300',
+          line.level === 'info' && 'text-white/80',
         )}
       >
         {line.message}
@@ -70,29 +62,66 @@ function TerminalLineRow({ line }: { line: TerminalLine }) {
 }
 
 export function TerminalPanel() {
-  const {
-    lines,
-    isOpen,
-    setIsOpen,
-    clear,
-    runCommand,
-    killCommand,
-    isRunning,
-    commandHistory,
-  } = useTerminal();
+  const { lines, isOpen, setIsOpen, clear, runCommand, killCommand, isRunning, commandHistory } =
+    useTerminal();
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState(false);
-  const [filter, setFilter] = useState<LogLevel | "all">("all");
-  const [command, setCommand] = useState("");
+  const [filter, setFilter] = useState<LogLevel | 'all'>('all');
+  const [command, setCommand] = useState('');
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [panelHeight, setPanelHeight] = useState(384); // default h-96 = 24rem = 384px
+  const isDraggingRef = useRef(false);
+  const prevIsRunningRef = useRef(false);
+
+  // Toast on command completion
+  useEffect(() => {
+    if (prevIsRunningRef.current && !isRunning) {
+      const hasErrors = lines.some((l) => l.level === 'error');
+      if (hasErrors) {
+        toast.error('Command finished with errors');
+      } else {
+        toast.success('Command completed');
+      }
+    }
+    prevIsRunningRef.current = isRunning;
+  }, [isRunning, lines]);
+
+  // Drag-to-resize handler
+  const handleDragStart = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      e.preventDefault();
+      isDraggingRef.current = true;
+      const startY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const startH = panelHeight;
+
+      const onMove = (ev: MouseEvent | TouchEvent) => {
+        const currentY = 'touches' in ev ? ev.touches[0].clientY : ev.clientY;
+        const delta = startY - currentY;
+        const next = Math.max(200, Math.min(window.innerHeight - 40, startH + delta));
+        setPanelHeight(next);
+      };
+
+      const onUp = () => {
+        isDraggingRef.current = false;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onUp);
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.addEventListener('touchmove', onMove);
+      document.addEventListener('touchend', onUp);
+    },
+    [panelHeight],
+  );
 
   // Auto-scroll to bottom on new log lines
   useEffect(() => {
     if (scrollRef.current) {
-      const el = scrollRef.current.querySelector(
-        "[data-radix-scroll-area-viewport]",
-      );
+      const el = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
       if (el) {
         el.scrollTop = el.scrollHeight;
       }
@@ -106,41 +135,37 @@ export function TerminalPanel() {
     }
   }, [isOpen]);
 
-  const filteredLines =
-    filter === "all" ? lines : lines.filter((l) => l.level === filter);
+  const filteredLines = filter === 'all' ? lines : lines.filter((l) => l.level === filter);
 
-  const errorCount = lines.filter((l) => l.level === "error").length;
-  const warnCount = lines.filter((l) => l.level === "warn").length;
+  const errorCount = lines.filter((l) => l.level === 'error').length;
+  const warnCount = lines.filter((l) => l.level === 'warn').length;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = command.trim();
     if (!trimmed || isRunning) return;
-    setCommand("");
+    setCommand('');
     setHistoryIndex(-1);
     runCommand(trimmed);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowUp") {
+    if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (commandHistory.length > 0) {
-        const newIndex =
-          historyIndex < commandHistory.length - 1
-            ? historyIndex + 1
-            : historyIndex;
+        const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
         setHistoryIndex(newIndex);
-        setCommand(commandHistory[commandHistory.length - 1 - newIndex] || "");
+        setCommand(commandHistory[commandHistory.length - 1 - newIndex] || '');
       }
-    } else if (e.key === "ArrowDown") {
+    } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (historyIndex > 0) {
         const newIndex = historyIndex - 1;
         setHistoryIndex(newIndex);
-        setCommand(commandHistory[commandHistory.length - 1 - newIndex] || "");
+        setCommand(commandHistory[commandHistory.length - 1 - newIndex] || '');
       } else {
         setHistoryIndex(-1);
-        setCommand("");
+        setCommand('');
       }
     }
   };
@@ -199,26 +224,29 @@ export function TerminalPanel() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ y: "100%" }}
+            initial={{ y: '100%' }}
             animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className={cn(
-              "fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card shadow-2xl flex flex-col",
-              expanded ? "top-0" : "h-96",
-            )}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card shadow-2xl flex flex-col"
+            style={expanded ? { top: 0 } : { height: panelHeight }}
           >
+            {/* Resize handle */}
+            {!expanded && (
+              <div
+                onMouseDown={handleDragStart}
+                onTouchStart={handleDragStart}
+                className="flex items-center justify-center h-2 cursor-ns-resize hover:bg-muted/50 shrink-0 group"
+              >
+                <GripHorizontal className="size-4 text-muted-foreground/40 group-hover:text-muted-foreground/80 transition-colors" />
+              </div>
+            )}
             {/* Header bar */}
             <div className="flex items-center justify-between border-b border-border bg-muted px-4 py-2 shrink-0">
               <div className="flex items-center gap-3">
                 <Terminal className="size-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground">
-                  Terminal
-                </span>
-                <Badge
-                  variant="outline"
-                  className="text-xs text-muted-foreground border-border"
-                >
+                <span className="text-sm font-medium text-foreground">Terminal</span>
+                <Badge variant="outline" className="text-xs text-muted-foreground border-border">
                   {lines.length} lines
                 </Badge>
                 {isRunning && (
@@ -247,31 +275,22 @@ export function TerminalPanel() {
                 {/* Filter dropdown */}
                 <div className="flex items-center gap-0.5 mr-2">
                   <Filter className="size-3 text-muted-foreground mr-1" />
-                  {(
-                    [
-                      "all",
-                      "info",
-                      "warn",
-                      "error",
-                      "success",
-                      "command",
-                    ] as const
-                  ).map((level) => (
-                    <Button
-                      key={level}
-                      variant="ghost"
-                      size="sm"
-                      className={cn(
-                        "h-6 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent",
-                        filter === level && "bg-accent text-foreground",
-                      )}
-                      onClick={() => setFilter(level)}
-                    >
-                      {level === "all"
-                        ? "All"
-                        : level.charAt(0).toUpperCase() + level.slice(1)}
-                    </Button>
-                  ))}
+                  {(['all', 'info', 'warn', 'error', 'success', 'command'] as const).map(
+                    (level) => (
+                      <Button
+                        key={level}
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          'h-6 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent',
+                          filter === level && 'bg-accent text-foreground',
+                        )}
+                        onClick={() => setFilter(level)}
+                      >
+                        {level === 'all' ? 'All' : level.charAt(0).toUpperCase() + level.slice(1)}
+                      </Button>
+                    ),
+                  )}
                 </div>
                 <Button
                   variant="ghost"
@@ -287,7 +306,7 @@ export function TerminalPanel() {
                   size="sm"
                   className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-accent"
                   onClick={() => setExpanded(!expanded)}
-                  title={expanded ? "Minimize" : "Maximize"}
+                  title={expanded ? 'Minimize' : 'Maximize'}
                 >
                   {expanded ? (
                     <Minimize2 className="size-3.5" />
@@ -312,7 +331,7 @@ export function TerminalPanel() {
               {filteredLines.length === 0 ? (
                 <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
                   {lines.length === 0
-                    ? "Type a command below, or deploy/run an action to see output here."
+                    ? 'Type a command below, or deploy/run an action to see output here.'
                     : `No ${filter} logs.`}
                 </div>
               ) : (
@@ -329,9 +348,7 @@ export function TerminalPanel() {
               onSubmit={handleSubmit}
               className="flex items-center gap-2 border-t border-border bg-muted px-4 py-2 shrink-0"
             >
-              <span className="text-sm font-mono text-green-400 select-none">
-                $
-              </span>
+              <span className="text-sm font-mono text-green-400 select-none">$</span>
               <input
                 ref={inputRef}
                 type="text"
@@ -340,8 +357,8 @@ export function TerminalPanel() {
                 onKeyDown={handleKeyDown}
                 placeholder={
                   isRunning
-                    ? "Waiting for command to finish..."
-                    : "Type a command and press Enter..."
+                    ? 'Waiting for command to finish...'
+                    : 'Type a command and press Enter...'
                 }
                 disabled={isRunning}
                 className="flex-1 bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground outline-none disabled:opacity-50"
@@ -349,24 +366,20 @@ export function TerminalPanel() {
                 spellCheck={false}
               />
               <Button
-                type={isRunning ? "button" : "submit"}
+                type={isRunning ? 'button' : 'submit'}
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "h-7 w-7 p-0 hover:bg-accent",
+                  'h-7 w-7 p-0 hover:bg-accent',
                   isRunning
-                    ? "text-red-400 hover:text-red-300"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? 'text-red-400 hover:text-red-300'
+                    : 'text-muted-foreground hover:text-foreground',
                 )}
                 disabled={!isRunning && !command.trim()}
                 onClick={isRunning ? killCommand : undefined}
-                title={isRunning ? "Kill process" : "Run command"}
+                title={isRunning ? 'Kill process' : 'Run command'}
               >
-                {isRunning ? (
-                  <Square className="size-3.5" />
-                ) : (
-                  <Send className="size-3.5" />
-                )}
+                {isRunning ? <Square className="size-3.5" /> : <Send className="size-3.5" />}
               </Button>
             </form>
           </motion.div>

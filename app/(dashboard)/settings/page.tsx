@@ -16,10 +16,19 @@ import {
   Save,
   Bot,
   MapPin,
+  Moon,
+  Sun,
+  Monitor,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,9 +40,9 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { PageTransition } from "@/components/page-transition";
 import { APP_CONFIG } from "@/lib/config";
+import { useTheme, type Theme } from "@/lib/theme-context";
 import { AWS_REGIONS } from "@/lib/validations";
 
 interface SettingsData {
@@ -42,7 +51,7 @@ interface SettingsData {
   awsDefaultRegion: string;
   openaiApiKey: string;
   defaultEnvironment: string;
-  theme: "dark" | "light" | "system";
+  theme: Theme;
   hasAwsCredentials: boolean;
   hasOpenaiKey: boolean;
 }
@@ -54,7 +63,14 @@ interface Environment {
   status: string;
 }
 
+const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Moon }[] = [
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "light", label: "Light", icon: Sun },
+  { value: "system", label: "System", icon: Monitor },
+];
+
 export default function SettingsPage() {
+  const { theme, setTheme } = useTheme();
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +82,6 @@ export default function SettingsPage() {
   const [awsRegion, setAwsRegion] = useState("us-east-1");
   const [openaiKey, setOpenaiKey] = useState("");
   const [defaultEnv, setDefaultEnv] = useState("");
-  const [theme, setTheme] = useState<"dark" | "light" | "system">("dark");
 
   // Visibility toggles
   const [showAwsKey, setShowAwsKey] = useState(false);
@@ -77,18 +92,17 @@ export default function SettingsPage() {
     try {
       setLoading(true);
       const [settingsRes, envsRes] = await Promise.all([
-        fetch("/api/settings"),
+        fetch("/api/settings?raw=true"),
         fetch("/api/environments"),
       ]);
       if (settingsRes.ok) {
         const data = await settingsRes.json();
         setSettings(data);
-        setAwsKeyId(data.awsAccessKeyId);
-        setAwsSecret(data.awsSecretAccessKey);
-        setAwsRegion(data.awsDefaultRegion);
-        setOpenaiKey(data.openaiApiKey);
-        setDefaultEnv(data.defaultEnvironment);
-        setTheme(data.theme);
+        setAwsKeyId(data.awsAccessKeyId || "");
+        setAwsSecret(data.awsSecretAccessKey || "");
+        setAwsRegion(data.awsDefaultRegion || "us-east-1");
+        setOpenaiKey(data.openaiApiKey || "");
+        setDefaultEnv(data.defaultEnvironment || "");
       }
       if (envsRes.ok) {
         setEnvironments(await envsRes.json());
@@ -104,16 +118,16 @@ export default function SettingsPage() {
     fetchSettings();
   }, [fetchSettings]);
 
-  // Apply theme on change
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "system") {
-      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      root.classList.toggle("dark", isDark);
-    } else {
-      root.classList.toggle("dark", theme === "dark");
-    }
-  }, [theme]);
+  // Sync theme changes to server settings
+  const handleThemeChange = (t: Theme) => {
+    setTheme(t);
+    // Fire-and-forget save to server
+    fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ theme: t }),
+    });
+  };
 
   const handleSaveAws = async () => {
     setSaving(true);
@@ -128,11 +142,8 @@ export default function SettingsPage() {
         }),
       });
       if (res.ok) {
-        const data = await res.json();
-        setSettings(data);
-        setAwsKeyId(data.awsAccessKeyId);
-        setAwsSecret(data.awsSecretAccessKey);
         toast.success("AWS credentials updated");
+        await fetchSettings();
       } else {
         toast.error("Failed to save AWS settings");
       }
@@ -152,10 +163,8 @@ export default function SettingsPage() {
         body: JSON.stringify({ openaiApiKey: openaiKey }),
       });
       if (res.ok) {
-        const data = await res.json();
-        setSettings(data);
-        setOpenaiKey(data.openaiApiKey);
         toast.success("OpenAI API key updated");
+        await fetchSettings();
       } else {
         toast.error("Failed to save OpenAI key");
       }
@@ -175,8 +184,6 @@ export default function SettingsPage() {
         body: JSON.stringify({ defaultEnvironment: defaultEnv, theme }),
       });
       if (res.ok) {
-        const data = await res.json();
-        setSettings(data);
         toast.success("Preferences saved");
       } else {
         toast.error("Failed to save preferences");
@@ -202,10 +209,10 @@ export default function SettingsPage() {
 
   return (
     <PageTransition>
-      <div className="space-y-8 max-w-2xl">
+      <div className="mx-auto max-w-2xl space-y-8">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold tracking-tight flex items-center justify-center gap-2">
             <Settings2 className="size-6" />
             Settings
           </h1>
@@ -231,19 +238,25 @@ export default function SettingsPage() {
                   <Label className="text-sm font-medium">Theme</Label>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Choose how {APP_CONFIG.name} looks across the app.
+                  Choose how {APP_CONFIG.name} looks.
                 </p>
               </div>
-              <Select value={theme} onValueChange={(v) => setTheme(v as "dark" | "light" | "system")}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dark">Dark</SelectItem>
-                  <SelectItem value="light">Light</SelectItem>
-                  <SelectItem value="system">System</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-1 rounded-lg border p-1">
+                {THEME_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => handleThemeChange(opt.value)}
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      theme === opt.value
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <opt.icon className="size-3.5" />
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Default Environment */}
@@ -254,17 +267,22 @@ export default function SettingsPage() {
                   <Label className="text-sm font-medium">Default Environment</Label>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Default region for new buckets and deployments.
+                  Default region for new buckets.
                 </p>
               </div>
-              <Select value={defaultEnv || "none"} onValueChange={(v) => setDefaultEnv(v === "none" ? "" : v)}>
-                <SelectTrigger className="w-[200px]">
+              <Select
+                value={defaultEnv || "none"}
+                onValueChange={(v) => setDefaultEnv(v === "none" ? "" : v)}
+              >
+                <SelectTrigger className="w-50">
                   <SelectValue placeholder="Select region" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No default</SelectItem>
                   {activeEnvironments.map((env) => {
-                    const regionLabel = AWS_REGIONS.find((r) => r.value === env.region)?.label ?? env.region;
+                    const regionLabel =
+                      AWS_REGIONS.find((r) => r.value === env.region)?.label ??
+                      env.region;
                     return (
                       <SelectItem key={env.id} value={env.region}>
                         {regionLabel}
@@ -279,7 +297,11 @@ export default function SettingsPage() {
 
         <div className="flex justify-end">
           <Button size="sm" onClick={handleSavePreferences} disabled={saving}>
-            {saving ? <Loader2 className="size-3.5 mr-1.5 animate-spin" /> : <Save className="size-3.5 mr-1.5" />}
+            {saving ? (
+              <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Save className="size-3.5 mr-1.5" />
+            )}
             Save Preferences
           </Button>
         </div>
@@ -306,14 +328,17 @@ export default function SettingsPage() {
                   Configured
                 </Badge>
               ) : (
-                <Badge variant="outline" className="gap-1 text-yellow-500 border-yellow-500/20">
+                <Badge
+                  variant="outline"
+                  className="gap-1 text-yellow-500 border-yellow-500/20"
+                >
                   <AlertCircle className="size-3" />
                   Not Set
                 </Badge>
               )}
             </div>
             <CardDescription>
-              AWS credentials used for S3, CloudFront, and CDK operations. These are stored locally and never sent externally.
+              Stored locally — never sent externally.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -326,14 +351,18 @@ export default function SettingsPage() {
                   value={awsKeyId}
                   onChange={(e) => setAwsKeyId(e.target.value)}
                   placeholder="AKIA..."
-                  className="pr-10"
+                  className="pr-10 font-mono text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowAwsKey(!showAwsKey)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showAwsKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  {showAwsKey ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -347,14 +376,18 @@ export default function SettingsPage() {
                   value={awsSecret}
                   onChange={(e) => setAwsSecret(e.target.value)}
                   placeholder="Enter secret access key"
-                  className="pr-10"
+                  className="pr-10 font-mono text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowAwsSecret(!showAwsSecret)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showAwsSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  {showAwsSecret ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -377,7 +410,11 @@ export default function SettingsPage() {
 
             <div className="flex justify-end pt-2">
               <Button onClick={handleSaveAws} disabled={saving} size="sm">
-                {saving ? <Loader2 className="size-3.5 mr-1.5 animate-spin" /> : <Shield className="size-3.5 mr-1.5" />}
+                {saving ? (
+                  <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Shield className="size-3.5 mr-1.5" />
+                )}
                 Update AWS Credentials
               </Button>
             </div>
@@ -412,7 +449,7 @@ export default function SettingsPage() {
               )}
             </div>
             <CardDescription>
-              Used for AI-powered command generation and error debugging. Optional — the dashboard works without it.
+              Used for AI-powered command generation. Optional.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -425,21 +462,29 @@ export default function SettingsPage() {
                   value={openaiKey}
                   onChange={(e) => setOpenaiKey(e.target.value)}
                   placeholder="sk-..."
-                  className="pr-10"
+                  className="pr-10 font-mono text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowOpenaiKey(!showOpenaiKey)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showOpenaiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  {showOpenaiKey ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
                 </button>
               </div>
             </div>
 
             <div className="flex justify-end pt-2">
               <Button onClick={handleSaveOpenai} disabled={saving} size="sm">
-                {saving ? <Loader2 className="size-3.5 mr-1.5 animate-spin" /> : <Key className="size-3.5 mr-1.5" />}
+                {saving ? (
+                  <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Key className="size-3.5 mr-1.5" />
+                )}
                 Update API Key
               </Button>
             </div>
@@ -463,11 +508,15 @@ export default function SettingsPage() {
               </div>
               <div>
                 <p className="font-semibold">{APP_CONFIG.name}</p>
-                <p className="text-xs text-muted-foreground">{APP_CONFIG.description}</p>
+                <p className="text-xs text-muted-foreground">
+                  {APP_CONFIG.description}
+                </p>
               </div>
             </div>
             <p className="mt-4 text-xs text-muted-foreground">
-              All data is stored locally on your machine. No information is sent to external servers except direct AWS API calls and optional OpenAI requests.
+              All data is stored locally on your machine. No information is sent
+              to external servers except direct AWS API calls and optional
+              OpenAI requests.
             </p>
           </CardContent>
         </Card>

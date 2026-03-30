@@ -1,37 +1,36 @@
 // Card-based project grid with context menu actions
-"use client";
+'use client';
 
-import { useState } from "react";
-import Link from "next/link";
-import { motion } from "framer-motion";
+import { useState } from 'react';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
 import {
   FolderKanban,
   Database,
   Calendar,
-  Shield,
-  FileUp,
   Trash2,
   ExternalLink,
   MoreHorizontal,
   AlertTriangle,
-} from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+  Zap,
+  CircleDot,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+} from '@/components/ui/context-menu';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -39,8 +38,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import type { Project, Bucket } from "@/lib/types";
+} from '@/components/ui/alert-dialog';
+import type { Project, Bucket } from '@/lib/types';
 
 interface ProjectCardsProps {
   projects: Project[];
@@ -49,14 +48,13 @@ interface ProjectCardsProps {
 }
 
 const cardVariants = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: 12 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
     transition: {
-      duration: 0.35,
-      delay: i * 0.06,
-      ease: [0.25, 0.1, 0.25, 1] as const,
+      duration: 0.3,
+      delay: i * 0.05,
     },
   }),
 };
@@ -88,13 +86,13 @@ export function ProjectCards({ projects, buckets, onDelete }: ProjectCardsProps)
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {projects.map((project, i) => {
           const projectBuckets = getBucketsForProject(project.id);
-          const activeBuckets = projectBuckets.filter((b) => b.status === "active");
-          const pendingBuckets = projectBuckets.filter((b) => b.status === "pending");
-          const totalFiles = projectBuckets.reduce(() => 0, 0); // Files would need a separate count
+          const activeBuckets = projectBuckets.filter((b) => b.status === 'active');
+          const pendingBuckets = projectBuckets.filter((b) => b.status === 'pending');
           const hasBuckets = projectBuckets.length > 0;
+          const isProd = project.environment === 'prod';
 
           return (
             <ContextMenu key={project.id}>
@@ -104,130 +102,114 @@ export function ProjectCards({ projects, buckets, onDelete }: ProjectCardsProps)
                   initial="hidden"
                   animate="visible"
                   variants={cardVariants}
+                  className="group relative"
                 >
-                  <Link href={`/projects/${project.id}`} className="block group">
-                    <Card className="relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20 group-focus-visible:ring-2 group-focus-visible:ring-ring">
-                      {/* Top gradient accent */}
-                      <div
-                        className={`absolute inset-x-0 top-0 h-1 ${
-                          project.environment === "prod"
-                            ? "bg-gradient-to-r from-blue-500 to-blue-600"
-                            : "bg-gradient-to-r from-emerald-500 to-emerald-600"
-                        }`}
-                      />
+                  {/* Green base layer — stays fixed */}
+                  <div className="absolute inset-0 rounded-lg bg-emerald-500/80 translate-x-0.5 translate-y-0.5" />
 
-                      <CardContent className="pt-5 pb-4 px-5">
-                        {/* Header row */}
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div
-                              className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
-                                project.environment === "prod"
-                                  ? "bg-blue-500/10 text-blue-500"
-                                  : "bg-emerald-500/10 text-emerald-500"
+                  {/* Top card layer — shifts on hover */}
+                  <Link href={`/projects/${project.id}`} className="block relative">
+                    <div className="relative rounded-lg border border-border bg-card p-4 transition-transform duration-200 ease-out group-hover:-translate-y-0.5 group-hover:translate-x-0.5">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
+                            <FolderKanban className="size-4 text-foreground" />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-semibold text-sm truncate">{project.name}</h3>
+                            <Badge
+                              variant="outline"
+                              className={`mt-0.5 text-[10px] px-1.5 py-0 ${
+                                isProd
+                                  ? 'border-blue-500/30 text-blue-400'
+                                  : 'border-emerald-500/30 text-emerald-400'
                               }`}
                             >
-                              <FolderKanban className="size-4.5" />
-                            </div>
-                            <div className="min-w-0">
-                              <h3 className="font-semibold text-sm truncate group-hover:text-primary transition-colors">
-                                {project.name}
-                              </h3>
-                              <Badge
-                                variant={project.environment === "prod" ? "default" : "secondary"}
-                                className="mt-0.5 text-[10px] px-1.5 py-0"
-                              >
-                                {project.environment}
-                              </Badge>
-                            </div>
-                          </div>
-
-                          {/* Dropdown for clicking (stops link navigation) */}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={(e) => e.preventDefault()}
-                              >
-                                <MoreHorizontal className="size-3.5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`/projects/${project.id}`}>
-                                  <ExternalLink className="mr-2 size-3.5" />
-                                  Open Project
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive"
-                                disabled={hasBuckets}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  handleDeleteAttempt(project);
-                                }}
-                              >
-                                <Trash2 className="mr-2 size-3.5" />
-                                {hasBuckets ? "Has buckets — can't delete" : "Delete Project"}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-
-                        {/* Stats row */}
-                        <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-border/50">
-                          <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5">
-                              <Database className="size-3" />
-                            </div>
-                            <p className="text-lg font-bold tabular-nums">{projectBuckets.length}</p>
-                            <p className="text-[10px] text-muted-foreground">Buckets</p>
-                          </div>
-                          <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5">
-                              <Shield className="size-3" />
-                            </div>
-                            <p className="text-lg font-bold tabular-nums text-green-500">
-                              {activeBuckets.length}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">Active</p>
-                          </div>
-                          <div className="text-center">
-                            <div className="flex items-center justify-center gap-1 text-muted-foreground mb-0.5">
-                              <FileUp className="size-3" />
-                            </div>
-                            <p className="text-lg font-bold tabular-nums">{project.maxFileSizeMB}</p>
-                            <p className="text-[10px] text-muted-foreground">MB Max</p>
+                              {project.environment}
+                            </Badge>
                           </div>
                         </div>
 
-                        {/* Pending indicator */}
-                        {pendingBuckets.length > 0 && (
-                          <div className="mt-3 flex items-center gap-1.5 text-yellow-500">
-                            <div className="size-1.5 rounded-full bg-yellow-500 animate-pulse" />
-                            <span className="text-[10px] font-medium">
-                              {pendingBuckets.length} pending deployment{pendingBuckets.length > 1 ? "s" : ""}
-                            </span>
-                          </div>
-                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => e.preventDefault()}
+                            >
+                              <MoreHorizontal className="size-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/projects/${project.id}`}>
+                                <ExternalLink className="mr-2 size-3.5" />
+                                Open Project
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              disabled={hasBuckets}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleDeleteAttempt(project);
+                              }}
+                            >
+                              <Trash2 className="mr-2 size-3.5" />
+                              {hasBuckets ? 'Has buckets' : 'Delete'}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
 
-                        {/* Footer */}
-                        <div className="mt-3 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                          <Calendar className="size-2.5" />
-                          {new Date(project.createdAt).toLocaleDateString()}
-                          <span className="mx-1">·</span>
-                          {project.allowedMimeTypes.length} file type{project.allowedMimeTypes.length !== 1 ? "s" : ""}
+                      {/* Stats — compact horizontal row */}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground border-t border-border/50 pt-3">
+                        <span className="flex items-center gap-1">
+                          <Database className="size-3" />
+                          <span className="font-medium text-foreground">
+                            {projectBuckets.length}
+                          </span>
+                          bucket{projectBuckets.length !== 1 ? 's' : ''}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <CircleDot className="size-3 text-green-500" />
+                          <span className="font-medium text-foreground">
+                            {activeBuckets.length}
+                          </span>
+                          active
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Zap className="size-3" />
+                          {project.maxFileSizeMB} MB
+                        </span>
+                      </div>
+
+                      {/* Pending indicator */}
+                      {pendingBuckets.length > 0 && (
+                        <div className="mt-2 flex items-center gap-1.5 text-yellow-500">
+                          <div className="size-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                          <span className="text-[10px] font-medium">
+                            {pendingBuckets.length} pending
+                          </span>
                         </div>
-                      </CardContent>
-                    </Card>
+                      )}
+
+                      {/* Footer */}
+                      <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <Calendar className="size-2.5" />
+                        {new Date(project.createdAt).toLocaleDateString()}
+                        <span className="mx-0.5">·</span>
+                        {project.allowedMimeTypes.length} type
+                        {project.allowedMimeTypes.length !== 1 ? 's' : ''}
+                      </div>
+                    </div>
                   </Link>
                 </motion.div>
               </ContextMenuTrigger>
 
-              {/* Right-click context menu */}
               <ContextMenuContent className="w-48">
                 <ContextMenuItem asChild>
                   <Link href={`/projects/${project.id}`}>
@@ -242,7 +224,7 @@ export function ProjectCards({ projects, buckets, onDelete }: ProjectCardsProps)
                   onClick={() => handleDeleteAttempt(project)}
                 >
                   <Trash2 className="mr-2 size-3.5" />
-                  {hasBuckets ? "Has buckets — can't delete" : "Delete Project"}
+                  {hasBuckets ? "Has buckets — can't delete" : 'Delete Project'}
                 </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
@@ -259,9 +241,9 @@ export function ProjectCards({ projects, buckets, onDelete }: ProjectCardsProps)
               Cannot Delete Project
             </AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{deleteTarget?.name}</strong> has{" "}
-              {deleteTarget ? getBucketsForProject(deleteTarget.id).length : 0} bucket(s) inside it.
-              You must delete all buckets before you can remove the project.
+              <strong>{deleteTarget?.name}</strong> has{' '}
+              {deleteTarget ? getBucketsForProject(deleteTarget.id).length : 0} bucket(s). Delete
+              all buckets first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -270,9 +252,7 @@ export function ProjectCards({ projects, buckets, onDelete }: ProjectCardsProps)
             </Button>
             {deleteTarget && (
               <Button asChild>
-                <Link href={`/projects/${deleteTarget.id}`}>
-                  Go to Project
-                </Link>
+                <Link href={`/projects/${deleteTarget.id}`}>Go to Project</Link>
               </Button>
             )}
           </AlertDialogFooter>

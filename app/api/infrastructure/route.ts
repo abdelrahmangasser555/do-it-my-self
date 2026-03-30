@@ -191,6 +191,39 @@ async function runPreChecks(
     });
   }
 
+  // Clean up stale synth.lock files (Windows EPERM fix)
+  try {
+    const fs = await import("fs/promises");
+    const cdkOutDir = path.join(CDK_DIR, "cdk.out");
+    try {
+      const files = await fs.readdir(cdkOutDir);
+      const lockFiles = files.filter((f) => f.startsWith("synth.lock"));
+      if (lockFiles.length > 0) {
+        write({
+          type: "check",
+          label: `Cleaning ${lockFiles.length} stale CDK lock file(s)…`,
+          level: "warn",
+        });
+        for (const lockFile of lockFiles) {
+          try {
+            await fs.unlink(path.join(cdkOutDir, lockFile));
+          } catch {
+            // best-effort — file may already be gone
+          }
+        }
+        write({
+          type: "check",
+          label: "Stale lock files removed",
+          level: "success",
+        });
+      }
+    } catch {
+      // cdk.out may not exist yet — that's fine
+    }
+  } catch {
+    // fs import fail — ignore
+  }
+
   write({
     type: "check",
     label: "Pre-checks complete",

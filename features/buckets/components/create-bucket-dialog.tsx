@@ -29,15 +29,18 @@ import {
   AWS_REGIONS,
 } from "@/lib/validations";
 import type { Project, BootstrappedEnvironment } from "@/lib/types";
+import { Rocket } from "lucide-react";
 import { AnimatedDialog } from "@/components/animated-dialog";
 
 interface CreateBucketDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: BucketFormValues) => Promise<void>;
+  onSubmit: (data: BucketFormValues, deploy?: boolean) => Promise<void>;
   projects: Project[];
   loading?: boolean;
   environments?: BootstrappedEnvironment[];
+  /** Pre-select a project ID (e.g. when opening from project detail) */
+  defaultProjectId?: string;
 }
 
 export function CreateBucketDialog({
@@ -47,6 +50,7 @@ export function CreateBucketDialog({
   projects,
   loading,
   environments,
+  defaultProjectId,
 }: CreateBucketDialogProps) {
   const {
     register,
@@ -58,7 +62,7 @@ export function CreateBucketDialog({
   } = useForm<BucketFormValues>({
     resolver: zodResolver(bucketSchema),
     defaultValues: {
-      projectId: "",
+      projectId: defaultProjectId || "",
       name: "",
       region: "us-east-1",
       versioning: false,
@@ -71,8 +75,8 @@ export function CreateBucketDialog({
   const versioning = watch("versioning");
   const backupEnabled = watch("backupEnabled");
 
-  const handleFormSubmit = async (data: BucketFormValues) => {
-    await onSubmit(data);
+  const handleFormSubmit = async (data: BucketFormValues, deploy?: boolean) => {
+    await onSubmit(data, deploy);
     reset();
   };
 
@@ -86,7 +90,7 @@ export function CreateBucketDialog({
               Provision an S3 bucket with CloudFront distribution.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit((data) => handleFormSubmit(data))} className="space-y-4">
             {/* Project */}
             <div className="space-y-2">
               <Label>Project</Label>
@@ -264,8 +268,27 @@ export function CreateBucketDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Creating..." : "Create Bucket"}
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={loading}
+                onClick={handleSubmit((data) => handleFormSubmit(data, false))}
+              >
+                {loading ? "Creating..." : "Save as Draft"}
+              </Button>
+              <Button
+                type="button"
+                disabled={loading}
+                onClick={handleSubmit((data) => handleFormSubmit(data, true))}
+              >
+                {loading ? (
+                  "Deploying..."
+                ) : (
+                  <>
+                    <Rocket className="mr-1.5 size-3.5" />
+                    Create & Deploy
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </form>

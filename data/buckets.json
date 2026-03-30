@@ -150,24 +150,5 @@
     },
     "createdAt": "2026-03-18T22:59:27.000Z",
     "updatedAt": "2026-03-29T02:37:25.206Z"
-  },
-  {
-    "id": "d81945f2-4ea3-4920-a723-75f5de50aac1",
-    "projectId": "728f3071-0793-4805-a07b-78a7c6eb9430",
-    "name": "sssss",
-    "s3BucketName": "scr-sssss-1774847568809",
-    "s3BucketArn": "arn:aws:s3:::scr-sssss-1774847568809",
-    "cloudFrontDomain": "d8jvi4u0hp3k2.cloudfront.net",
-    "cloudFrontDistributionId": "E38N2ZACFA11AY",
-    "region": "us-east-1",
-    "status": "active",
-    "config": {
-      "versioning": false,
-      "encryption": "s3",
-      "backupEnabled": false,
-      "maxFileSizeMB": 100
-    },
-    "createdAt": "2026-03-30T05:12:48.811Z",
-    "updatedAt": "2026-03-30T05:12:48.811Z"
   }
 ]

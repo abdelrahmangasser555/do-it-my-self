@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "cd infrastructure/cdk && pnpm install",
-    "setup": "pnpm install && cd infrastructure/cdk && pnpm install"
+    "postinstall": "npm install --prefix infrastructure/cdk",
+    "setup": "npm install && npm install --prefix infrastructure/cdk"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.30",

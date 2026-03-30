@@ -34,10 +34,12 @@ import {
   MapPin,
   RotateCcw,
   Loader2,
+  Settings2,
 } from "lucide-react";
 import { useTour } from "@/components/ui/tour";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { APP_CONFIG } from "@/lib/config";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -69,6 +71,7 @@ const navItems = [
       { label: "Infrastructure", href: "/infrastructure", icon: Server },
       { label: "Code Snippets", href: "/snippets", icon: Code2 },
       { label: "Commands", href: "/commands", icon: Zap },
+      { label: "Settings", href: "/settings", icon: Settings2 },
     ],
   },
   {
@@ -114,7 +117,7 @@ export function AppSidebar() {
         <Link href="/" className="flex items-center gap-2">
           <HardDrive className="size-5 text-primary" />
           <span className="text-base font-semibold tracking-tight">
-            Storage Control Room
+            {APP_CONFIG.name}
           </span>
         </Link>
       </SidebarHeader>
@@ -166,7 +169,7 @@ export function AppSidebar() {
           <RotateCcw className="size-3.5" />
           Reset Local Data
         </Button>
-        <p className="text-xs text-muted-foreground">Local-only · No hosting</p>
+        <p className="text-xs text-muted-foreground">{APP_CONFIG.tagline}</p>
       </SidebarFooter>
 
       {/* Reset confirmation dialog */}

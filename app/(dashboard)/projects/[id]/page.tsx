@@ -1,9 +1,9 @@
 // Project detail page showing buckets and files for a specific project
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, DollarSign, RefreshCw } from "lucide-react";
+import { ArrowLeft, DollarSign, RefreshCw, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,14 +19,17 @@ import {
   CostBreakdownTable,
   CostByServiceBreakdown,
 } from "@/features/infrastructure/components/cost-tables";
-import { useBuckets, useDeleteBucket } from "@/features/buckets/hooks/use-buckets";
+import { useBuckets, useDeleteBucket, useCreateBucket } from "@/features/buckets/hooks/use-buckets";
 import { useFiles, useDeleteFile } from "@/features/files/hooks/use-files";
 import { useAnalytics } from "@/features/infrastructure/hooks/use-analytics";
 import { useDeployBucket } from "@/features/infrastructure/hooks/use-deploy-bucket";
 import { useExpenses } from "@/features/infrastructure/hooks/use-expenses";
 import { useProjects } from "@/features/projects/hooks/use-projects";
+import { CreateBucketDialog } from "@/features/buckets/components/create-bucket-dialog";
+import { useEnvironments } from "@/features/environments/hooks/use-environments";
 import { toast } from "sonner";
 import type { Bucket } from "@/lib/types";
+import type { BucketFormValues } from "@/lib/validations";
 
 export default function ProjectDetailPage({
   params,
@@ -47,8 +50,32 @@ export default function ProjectDetailPage({
     refetch: refetchExpenses,
   } = useExpenses(id);
   const { deleteBucket } = useDeleteBucket();
+  const { createBucket, loading: creatingBucket } = useCreateBucket();
   const { deleteFile } = useDeleteFile();
   const { deploy } = useDeployBucket();
+  const { environments } = useEnvironments();
+  const [bucketDialogOpen, setBucketDialogOpen] = useState(false);
+
+  const handleCreateBucket = async (data: BucketFormValues, shouldDeploy?: boolean) => {
+    const bucket = await createBucket({ ...data, projectId: id });
+    if (bucket) {
+      toast.success(`Bucket "${bucket.name}" created`);
+      setBucketDialogOpen(false);
+      refetchBuckets();
+      if (shouldDeploy) {
+        toast.info(`Deploying ${bucket.name}...`);
+        const result = await deploy(bucket.id, bucket.s3BucketName, bucket.region);
+        if (result.success) {
+          toast.success("Deployment complete!");
+          refetchBuckets();
+        } else {
+          toast.error(`Deployment failed: ${result.error}`);
+        }
+      }
+    } else {
+      toast.error("Failed to create bucket");
+    }
+  };
 
   const handleDeleteBucket = async (bucketId: string) => {
     const success = await deleteBucket(bucketId);
@@ -122,8 +149,12 @@ export default function ProjectDetailPage({
           </TabsList>
           <TabsContent value="buckets">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Project Buckets</CardTitle>
+                <Button size="sm" onClick={() => setBucketDialogOpen(true)}>
+                  <Plus className="mr-1.5 size-3.5" />
+                  Add Bucket
+                </Button>
               </CardHeader>
               <CardContent>
                 <BucketsTable
@@ -285,6 +316,16 @@ export default function ProjectDetailPage({
             )}
           </TabsContent>
         </Tabs>
+
+        <CreateBucketDialog
+          open={bucketDialogOpen}
+          onOpenChange={setBucketDialogOpen}
+          onSubmit={handleCreateBucket}
+          projects={projects}
+          loading={creatingBucket}
+          environments={environments}
+          defaultProjectId={id}
+        />
       </div>
     </PageTransition>
   );

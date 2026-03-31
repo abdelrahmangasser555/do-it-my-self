@@ -1,12 +1,12 @@
 // Next.js API route for CDK infrastructure deployment with streaming output
-import { NextRequest } from "next/server";
-import { spawn } from "child_process";
-import path from "path";
-import { updateInJsonFile, readJsonFile } from "@/lib/filesystem";
-import { describeStack, deleteStack, checkBucketExists } from "@/lib/aws";
-import type { Bucket, Project, BucketSyncStatus } from "@/lib/types";
+import { NextRequest } from 'next/server';
+import { spawn } from 'child_process';
+import path from 'path';
+import { updateInJsonFile, readJsonFile } from '@/lib/filesystem';
+import { describeStack, deleteStack, checkBucketExists } from '@/lib/aws';
+import type { Bucket, Project, BucketSyncStatus } from '@/lib/types';
 
-const CDK_DIR = path.join(process.cwd(), "infrastructure", "cdk");
+const CDK_DIR = path.join(process.cwd(), 'infrastructure', 'cdk');
 
 // --- Known CDK Error Patterns & Suggested Fixes ---
 interface ErrorPattern {
@@ -20,69 +20,65 @@ const ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern:
       /Is account \d+ bootstrapped|Has the environment been bootstrapped|No bucket named 'cdk-hnb659fds-assets/i,
-    title: "CDK Bootstrap Required",
+    title: 'CDK Bootstrap Required',
     suggestion:
-      "Your AWS account/region has not been bootstrapped for CDK. The CDK needs a bootstrap stack to store assets. Run the bootstrap command with your account ID and region.",
-    command: "npx cdk bootstrap aws://ACCOUNT_ID/REGION",
+      'Your AWS account/region has not been bootstrapped for CDK. The CDK needs a bootstrap stack to store assets. Run the bootstrap command with your account ID and region.',
+    command: 'npx cdk bootstrap aws://ACCOUNT_ID/REGION',
   },
   {
-    pattern:
-      /Bootstrap stack.*outdated|requires a newer version of the bootstrap/i,
-    title: "Bootstrap Stack Outdated",
+    pattern: /Bootstrap stack.*outdated|requires a newer version of the bootstrap/i,
+    title: 'Bootstrap Stack Outdated',
     suggestion:
-      "Your CDK bootstrap stack is outdated and needs to be updated. Re-run the bootstrap command to upgrade it.",
-    command: "npx cdk bootstrap aws://ACCOUNT_ID/REGION",
+      'Your CDK bootstrap stack is outdated and needs to be updated. Re-run the bootstrap command to upgrade it.',
+    command: 'npx cdk bootstrap aws://ACCOUNT_ID/REGION',
   },
   {
     pattern: /Unable to resolve AWS account/i,
-    title: "AWS Credentials Missing",
+    title: 'AWS Credentials Missing',
     suggestion:
-      "No valid AWS credentials found. Configure credentials via environment variables or AWS CLI.",
-    command: "aws configure",
+      'No valid AWS credentials found. Configure credentials via environment variables or AWS CLI.',
+    command: 'aws configure',
   },
   {
     pattern: /ExpiredTokenException|ExpiredToken/i,
-    title: "Expired AWS Token",
-    suggestion: "Your AWS session token has expired. Refresh your credentials.",
-    command: "aws sts get-caller-identity",
+    title: 'Expired AWS Token',
+    suggestion: 'Your AWS session token has expired. Refresh your credentials.',
+    command: 'aws sts get-caller-identity',
   },
   {
     pattern: /AccessDenied|is not authorized/i,
-    title: "Permission Denied",
+    title: 'Permission Denied',
     suggestion:
-      "The IAM identity does not have permission for this operation. Check your IAM policies.",
+      'The IAM identity does not have permission for this operation. Check your IAM policies.',
   },
   {
     pattern: /BucketAlreadyExists|BucketAlreadyOwnedByYou/i,
-    title: "S3 Bucket Name Conflict",
-    suggestion:
-      "This bucket name is already taken globally. Choose a different bucket name.",
+    title: 'S3 Bucket Name Conflict',
+    suggestion: 'This bucket name is already taken globally. Choose a different bucket name.',
   },
   {
     pattern: /CREATE_FAILED|UPDATE_FAILED|ROLLBACK/i,
-    title: "CloudFormation Stack Failure",
+    title: 'CloudFormation Stack Failure',
     suggestion:
-      "The stack deployment failed. Check the CloudFormation console for details, or run with verbose flag.",
-    command: "npx cdk deploy --verbose --require-approval never",
+      'The stack deployment failed. Check the CloudFormation console for details, or run with verbose flag.',
+    command: 'npx cdk deploy --verbose --require-approval never',
   },
   {
     pattern: /ENOENT|Cannot find module|Module not found/i,
-    title: "Missing Dependencies",
-    suggestion:
-      "CDK dependencies are missing. Install them in the infrastructure directory.",
-    command: "cd infrastructure/cdk; npm install",
+    title: 'Missing Dependencies',
+    suggestion: 'CDK dependencies are missing. Install them in the infrastructure directory.',
+    command: 'cd infrastructure/cdk; npm install',
   },
   {
     pattern: /SyntaxError|TypeError|ReferenceError/i,
-    title: "Code Error in CDK Stack",
-    suggestion:
-      "There is a code error in your CDK stack. Run synth to check for issues.",
-    command: "npx cdk synth",
+    title: 'Code Error in CDK Stack',
+    suggestion: 'There is a code error in your CDK stack. Run synth to check for issues.',
+    command: 'npx cdk synth',
   },
   {
     pattern: /rate exceeded|Throttling/i,
-    title: "AWS Rate Limit",
-    suggestion: "AWS API rate limit hit. Wait a moment and try again.",
+    title: 'AWS Rate Limit',
+    suggestion: 'AWS API rate limit hit. Wait a moment and try again.',
   },
 ];
 
@@ -94,17 +90,13 @@ function matchErrorPatterns(
       let resolvedCommand = command;
       // Auto-substitute account ID and region if we can parse them from the error
       if (resolvedCommand) {
-        const accountMatch =
-          text.match(/account\s+(\d{12})/i) || text.match(/aws:\/\/(\d{12})/);
+        const accountMatch = text.match(/account\s+(\d{12})/i) || text.match(/aws:\/\/(\d{12})/);
         const regionMatch = text.match(/(eu|us|ap|sa|ca|me|af)-\w+-\d+/);
         if (accountMatch) {
-          resolvedCommand = resolvedCommand.replace(
-            "ACCOUNT_ID",
-            accountMatch[1],
-          );
+          resolvedCommand = resolvedCommand.replace('ACCOUNT_ID', accountMatch[1]);
         }
         if (regionMatch) {
-          resolvedCommand = resolvedCommand.replace("REGION", regionMatch[0]);
+          resolvedCommand = resolvedCommand.replace('REGION', regionMatch[0]);
         }
       }
       return { title, suggestion, command: resolvedCommand };
@@ -114,95 +106,93 @@ function matchErrorPatterns(
 }
 
 // --- Pre-Deployment Checks ---
-async function runPreChecks(
-  write: (data: Record<string, unknown>) => void,
-): Promise<boolean> {
+async function runPreChecks(write: (data: Record<string, unknown>) => void): Promise<boolean> {
   write({
-    type: "check",
-    label: "Checking CDK directory...",
-    level: "info",
+    type: 'check',
+    label: 'Checking CDK directory...',
+    level: 'info',
   });
 
   try {
-    const fs = await import("fs/promises");
+    const fs = await import('fs/promises');
     await fs.access(CDK_DIR);
   } catch {
     write({
-      type: "check",
-      label: "CDK directory not found at infrastructure/cdk",
-      level: "error",
+      type: 'check',
+      label: 'CDK directory not found at infrastructure/cdk',
+      level: 'error',
       suggestion:
-        "Create the CDK project: mkdir -p infrastructure/cdk; cd infrastructure/cdk; npx cdk init app --language typescript",
+        'Create the CDK project: mkdir -p infrastructure/cdk; cd infrastructure/cdk; npx cdk init app --language typescript',
     });
     return false;
   }
 
   // Check if node_modules exist in CDK dir — auto-install if missing
   try {
-    const fs = await import("fs/promises");
-    await fs.access(path.join(CDK_DIR, "node_modules"));
+    const fs = await import('fs/promises');
+    await fs.access(path.join(CDK_DIR, 'node_modules'));
     write({
-      type: "check",
-      label: "CDK dependencies found",
-      level: "success",
+      type: 'check',
+      label: 'CDK dependencies found',
+      level: 'success',
     });
   } catch {
     write({
-      type: "check",
-      label: "CDK dependencies not installed — installing…",
-      level: "warn",
+      type: 'check',
+      label: 'CDK dependencies not installed — installing…',
+      level: 'warn',
     });
 
     // Auto-install dependencies
     const installed = await new Promise<boolean>((resolve) => {
-      const npmInstall = spawn("npm", ["install"], {
+      const npmInstall = spawn('npm', ['install'], {
         cwd: CDK_DIR,
         shell: true,
         timeout: 120000,
       });
 
-      npmInstall.stdout?.on("data", (chunk: Buffer) => {
+      npmInstall.stdout?.on('data', (chunk: Buffer) => {
         const text = chunk.toString().trim();
-        if (text) write({ type: "stdout", message: text, level: "info" });
+        if (text) write({ type: 'stdout', message: text, level: 'info' });
       });
-      npmInstall.stderr?.on("data", (chunk: Buffer) => {
+      npmInstall.stderr?.on('data', (chunk: Buffer) => {
         const text = chunk.toString().trim();
-        if (text) write({ type: "stderr", message: text, level: "warn" });
+        if (text) write({ type: 'stderr', message: text, level: 'warn' });
       });
 
-      npmInstall.on("close", (code) => resolve(code === 0));
-      npmInstall.on("error", () => resolve(false));
+      npmInstall.on('close', (code) => resolve(code === 0));
+      npmInstall.on('error', () => resolve(false));
     });
 
     if (!installed) {
       write({
-        type: "check",
-        label: "Failed to install CDK dependencies",
-        level: "error",
-        suggestion: "Run manually: cd infrastructure/cdk && npm install",
+        type: 'check',
+        label: 'Failed to install CDK dependencies',
+        level: 'error',
+        suggestion: 'Run manually: cd infrastructure/cdk && npm install',
       });
       return false;
     }
 
     write({
-      type: "check",
-      label: "CDK dependencies installed successfully",
-      level: "success",
+      type: 'check',
+      label: 'CDK dependencies installed successfully',
+      level: 'success',
     });
   }
 
   // Clean up stale synth.lock files (Windows EPERM fix)
   try {
-    const fs = await import("fs/promises");
-    const cdkOutDir = path.join(CDK_DIR, "cdk.out");
+    const fs = await import('fs/promises');
+    const cdkOutDir = path.join(CDK_DIR, 'cdk.out');
     try {
       const files = await fs.readdir(cdkOutDir);
-      const lockFiles = files.filter((f) => f.startsWith("synth.lock"));
+      const lockFiles = files.filter((f) => f.startsWith('synth.lock'));
       if (lockFiles.length > 0) {
         write({
-          type: "check",
+          type: 'check',
           label: `Cleaning ${lockFiles.length} stale CDK lock file(s)…`,
-          level: "warn",
+          level: 'warn',
         });
         for (const lockFile of lockFiles) {
           try {
@@ -212,9 +202,9 @@ async function runPreChecks(
           }
         }
         write({
-          type: "check",
-          label: "Stale lock files removed",
-          level: "success",
+          type: 'check',
+          label: 'Stale lock files removed',
+          level: 'success',
         });
       }
     } catch {
@@ -225,9 +215,9 @@ async function runPreChecks(
   }
 
   write({
-    type: "check",
-    label: "Pre-checks complete",
-    level: "success",
+    type: 'check',
+    label: 'Pre-checks complete',
+    level: 'success',
   });
 
   return true;
@@ -235,12 +225,33 @@ async function runPreChecks(
 
 export async function POST(request: NextRequest) {
   try {
-    const { action, bucketId, s3BucketName, region } = await request.json();
+    const body = await request.json();
+    const {
+      action,
+      bucketId,
+      s3BucketName,
+      region,
+      accountId,
+      // New bucket config fields
+      access,
+      versioning,
+      encryptionType,
+      kmsKeyId,
+      enableCDN,
+      enableAccessLogs,
+      autoDelete,
+      autoDeleteDays,
+      lifecycleTransitionDays,
+      lifecycleDeleteIncompleteUploads,
+      corsOrigins,
+      corsMethods,
+      cacheControl,
+    } = body;
 
     if (!action) {
       return new Response(
-        JSON.stringify({ error: "Action is required (synth | deploy)" }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
+        JSON.stringify({ error: 'Action is required (synth | deploy | bootstrap-update)' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
       );
     }
 
@@ -250,7 +261,7 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         const write = (data: Record<string, unknown>) => {
           try {
-            controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
+            controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'));
           } catch {
             // Stream closed
           }
@@ -260,65 +271,161 @@ export async function POST(request: NextRequest) {
         const checksOk = await runPreChecks(write);
         if (!checksOk) {
           write({
-            type: "result",
-            status: "error",
-            message: "Pre-deployment checks failed",
+            type: 'result',
+            status: 'error',
+            message: 'Pre-deployment checks failed',
           });
           controller.close();
           return;
         }
 
         // Update bucket status
-        if (action === "deploy" && bucketId) {
-          await updateInJsonFile<Bucket>("buckets.json", bucketId, {
-            status: "deploying",
+        if (action === 'deploy' && bucketId) {
+          await updateInJsonFile<Bucket>('buckets.json', bucketId, {
+            status: 'deploying',
           } as Partial<Bucket>);
           write({
-            type: "status",
+            type: 'status',
             label: `Bucket status set to "deploying"`,
-            level: "info",
+            level: 'info',
           });
+        }
+
+        // Handle bootstrap-update action separately (no bucket needed)
+        if (action === 'bootstrap-update') {
+          if (!accountId || !region) {
+            write({
+              type: 'result',
+              status: 'error',
+              message: 'accountId and region are required for bootstrap-update',
+            });
+            controller.close();
+            return;
+          }
+          write({
+            type: 'command',
+            label: `Updating CDK bootstrap for aws://${accountId}/${region}…`,
+            level: 'command',
+          });
+          const bsResult = await new Promise<{
+            code: number | null;
+            stdout: string;
+            stderr: string;
+          }>((res) => {
+            const proc = spawn('npx', ['cdk', 'bootstrap', `aws://${accountId}/${region}`], {
+              cwd: CDK_DIR,
+              env: { ...process.env },
+              shell: true,
+              timeout: 300000,
+            });
+            let stdout = '';
+            let stderr = '';
+            proc.stdout?.on('data', (c: Buffer) => {
+              const t = c.toString();
+              stdout += t;
+              t.split('\n')
+                .filter(Boolean)
+                .forEach((l) => write({ type: 'stdout', message: l, level: 'info' }));
+            });
+            proc.stderr?.on('data', (c: Buffer) => {
+              const t = c.toString();
+              stderr += t;
+              t.split('\n')
+                .filter(Boolean)
+                .forEach((l) => write({ type: 'stderr', message: l, level: 'info' }));
+            });
+            proc.on('close', (code) => res({ code, stdout, stderr }));
+            proc.on('error', (e) => res({ code: 1, stdout, stderr: e.message }));
+          });
+          const ok =
+            bsResult.code === 0 || bsResult.stdout.includes('✅') || bsResult.stderr.includes('✅');
+          write({
+            type: 'result',
+            status: ok ? 'success' : 'error',
+            message: ok ? 'Bootstrap updated successfully' : 'Bootstrap update failed',
+          });
+          // Update environment record cdkVersion
+          try {
+            const { readJsonFile: rj } = await import('@/lib/filesystem');
+            const { updateInJsonFile: uj } = await import('@/lib/filesystem');
+            const envs: Array<{ id: string; region: string; accountId: string }> =
+              await rj('environments.json');
+            const env2 = envs.find((e) => e.region === region && e.accountId === accountId);
+            if (env2) {
+              await uj('environments.json', env2.id, {
+                cdkBootstrapUpdatedAt: new Date().toISOString(),
+              } as object);
+            }
+          } catch {
+            /* best-effort */
+          }
+          controller.close();
+          return;
         }
 
         // Build command
         const env = {
           ...process.env,
-          SCR_BUCKET_NAME: s3BucketName || "",
-          SCR_REGION: region || "us-east-1",
+          SCR_BUCKET_NAME: s3BucketName || '',
+          SCR_REGION: region || 'us-east-1',
+          // New config fields
+          ...(access !== undefined && { SCR_ACCESS: access }),
+          ...(versioning !== undefined && { SCR_VERSIONING: String(versioning) }),
+          ...(encryptionType !== undefined && { SCR_ENCRYPTION_TYPE: encryptionType }),
+          ...(kmsKeyId && { SCR_KMS_KEY_ID: kmsKeyId }),
+          ...(enableCDN !== undefined && { SCR_ENABLE_CDN: String(enableCDN) }),
+          ...(enableAccessLogs !== undefined && {
+            SCR_ENABLE_ACCESS_LOGS: String(enableAccessLogs),
+          }),
+          ...(autoDelete !== undefined && { SCR_AUTO_DELETE: String(autoDelete) }),
+          ...(autoDeleteDays !== undefined && { SCR_AUTO_DELETE_DAYS: String(autoDeleteDays) }),
+          ...(lifecycleTransitionDays !== undefined && {
+            SCR_LIFECYCLE_TRANSITION_DAYS: String(lifecycleTransitionDays),
+          }),
+          ...(lifecycleDeleteIncompleteUploads !== undefined && {
+            SCR_LIFECYCLE_DELETE_INCOMPLETE: String(lifecycleDeleteIncompleteUploads),
+          }),
+          ...(corsOrigins && {
+            SCR_CORS_ORIGINS: Array.isArray(corsOrigins) ? corsOrigins.join(',') : corsOrigins,
+          }),
+          ...(corsMethods && {
+            SCR_CORS_METHODS: Array.isArray(corsMethods) ? corsMethods.join(',') : corsMethods,
+          }),
+          ...(cacheControl && { SCR_CACHE_CONTROL: cacheControl }),
         };
 
         let command: string;
         let args: string[];
         switch (action) {
-          case "synth":
-            command = "npx";
-            args = ["cdk", "synth"];
+          case 'synth':
+            command = 'npx';
+            args = ['cdk', 'synth'];
             break;
-          case "deploy":
-            command = "npx";
+          case 'deploy':
+            command = 'npx';
             args = [
-              "cdk",
-              "deploy",
-              "--require-approval",
-              "never",
-              "--outputs-file",
-              "cdk-outputs.json",
+              'cdk',
+              'deploy',
+              '--require-approval',
+              'never',
+              '--outputs-file',
+              'cdk-outputs.json',
             ];
             break;
           default:
             write({
-              type: "result",
-              status: "error",
-              message: "Invalid action. Use synth or deploy.",
+              type: 'result',
+              status: 'error',
+              message: 'Invalid action. Use synth or deploy.',
             });
             controller.close();
             return;
         }
 
         write({
-          type: "command",
-          label: `Running: ${command} ${args.join(" ")}`,
-          level: "command",
+          type: 'command',
+          label: `Running: ${command} ${args.join(' ')}`,
+          level: 'command',
         });
 
         // Spawn process with streaming
@@ -342,33 +449,35 @@ export async function POST(request: NextRequest) {
               shell: true,
               timeout: 300000,
             });
-            let stdout = "";
-            let stderr = "";
+            let stdout = '';
+            let stderr = '';
 
-            proc.stdout?.on("data", (chunk: Buffer) => {
+            proc.stdout?.on('data', (chunk: Buffer) => {
               const text = chunk.toString();
               stdout += text;
-              for (const line of text.split("\n")) {
-                if (line.trim()) write({ type: "stdout", message: line, level: "info" });
+              for (const line of text.split('\n')) {
+                if (line.trim()) write({ type: 'stdout', message: line, level: 'info' });
               }
             });
 
-            proc.stderr?.on("data", (chunk: Buffer) => {
+            proc.stderr?.on('data', (chunk: Buffer) => {
               const text = chunk.toString();
               stderr += text;
-              for (const line of text.split("\n")) {
+              for (const line of text.split('\n')) {
                 if (line.trim()) {
                   const isProgress =
                     /\d+\/\d+|⏳|✅|✨|★|⚡/.test(line) ||
-                    line.includes("CDK") ||
-                    line.includes("Outputs:");
-                  write({ type: "stderr", message: line, level: isProgress ? "info" : "warn" });
+                    line.includes('CDK') ||
+                    line.includes('Outputs:');
+                  write({ type: 'stderr', message: line, level: isProgress ? 'info' : 'warn' });
                 }
               }
             });
 
-            proc.on("close", (code: number | null) => res({ code, stdout, stderr }));
-            proc.on("error", (err: Error) => res({ code: 1, stdout, stderr: stderr + err.message }));
+            proc.on('close', (code: number | null) => res({ code, stdout, stderr }));
+            proc.on('error', (err: Error) =>
+              res({ code: 1, stdout, stderr: stderr + err.message }),
+            );
           });
         }
 
@@ -380,104 +489,136 @@ export async function POST(request: NextRequest) {
         ): Promise<boolean> {
           if (code === 0) return true;
           // Check CDK outputs file
-          if (action === "deploy" && bucketId) {
+          if (action === 'deploy' && bucketId) {
             try {
-              const fs = await import("fs/promises");
-              const outputsPath = path.join(CDK_DIR, "cdk-outputs.json");
-              const outputsRaw = await fs.readFile(outputsPath, "utf-8");
+              const fs = await import('fs/promises');
+              const outputsPath = path.join(CDK_DIR, 'cdk-outputs.json');
+              const outputsRaw = await fs.readFile(outputsPath, 'utf-8');
               const outputs = JSON.parse(outputsRaw);
-              const stackName = Object.keys(outputs).find((k) =>
-                k.includes(s3BucketName || ""),
-              );
+              const stackName = Object.keys(outputs).find((k) => k.includes(s3BucketName || ''));
               if (stackName && outputs[stackName]) return true;
-            } catch { /* */ }
+            } catch {
+              /* */
+            }
           }
-          if (stdout.includes("✅") || stderr.includes("✅")) return true;
+          if (stdout.includes('✅') || stderr.includes('✅')) return true;
           return false;
         }
 
         // --- Helper: detect bootstrap-needed error ---
         function needsBootstrap(combined: string): boolean {
-          return /Is account \d+ bootstrapped|Has the environment been bootstrapped|No bucket named 'cdk-hnb659fds-assets|No bucket named cdk-hnb659fds-assets/i.test(combined);
+          return /Is account \d+ bootstrapped|Has the environment been bootstrapped|No bucket named 'cdk-hnb659fds-assets|No bucket named cdk-hnb659fds-assets/i.test(
+            combined,
+          );
         }
 
         // --- Helper: run auto-bootstrap ---
         async function autoBootstrap(): Promise<boolean> {
           // Resolve account ID from env, region, or STS
-          let accountId = "";
+          let accountId = '';
           try {
-            const { getCallerIdentity } = await import("@/lib/aws");
+            const { getCallerIdentity } = await import('@/lib/aws');
             const identity = await getCallerIdentity();
             accountId = identity.account;
-          } catch { /* */ }
+          } catch {
+            /* */
+          }
 
           if (!accountId) {
-            write({ type: "stderr", message: "Could not determine AWS account ID for auto-bootstrap", level: "error" });
+            write({
+              type: 'stderr',
+              message: 'Could not determine AWS account ID for auto-bootstrap',
+              level: 'error',
+            });
             return false;
           }
 
-          const bootstrapRegion = region || "us-east-1";
+          const bootstrapRegion = region || 'us-east-1';
           write({
-            type: "command",
+            type: 'command',
             label: `Auto-bootstrapping region ${bootstrapRegion} (account ${accountId})…`,
-            level: "command",
+            level: 'command',
           });
 
           const bsResult = await runCdkProcess(
-            "npx",
-            ["cdk", "bootstrap", `aws://${accountId}/${bootstrapRegion}`],
+            'npx',
+            ['cdk', 'bootstrap', `aws://${accountId}/${bootstrapRegion}`],
             env,
           );
 
-          if (bsResult.code === 0 || bsResult.stdout.includes("✅") || bsResult.stderr.includes("✅")) {
-            write({ type: "result", status: "success", message: "Bootstrap completed — retrying deploy…", level: "success" });
+          if (
+            bsResult.code === 0 ||
+            bsResult.stdout.includes('✅') ||
+            bsResult.stderr.includes('✅')
+          ) {
+            write({
+              type: 'result',
+              status: 'success',
+              message: 'Bootstrap completed — retrying deploy…',
+              level: 'success',
+            });
 
             // Also persist the environment record so the UI stays in sync
             try {
-              const { readJsonFile: readJson } = await import("@/lib/filesystem");
-              const { appendToJsonFile } = await import("@/lib/filesystem");
-              const envs: { region: string }[] = await readJson("environments.json");
+              const { readJsonFile: readJson } = await import('@/lib/filesystem');
+              const { appendToJsonFile } = await import('@/lib/filesystem');
+              const envs: { region: string }[] = await readJson('environments.json');
               if (!envs.some((e) => e.region === bootstrapRegion)) {
-                await appendToJsonFile("environments.json", {
+                await appendToJsonFile('environments.json', {
                   id: crypto.randomUUID(),
                   region: bootstrapRegion,
                   accountId,
                   alias: bootstrapRegion,
-                  status: "active",
+                  status: 'active',
                   bootstrappedAt: new Date().toISOString(),
                   createdAt: new Date().toISOString(),
                 });
               }
-            } catch { /* best-effort */ }
+            } catch {
+              /* best-effort */
+            }
 
             return true;
           }
 
-          write({ type: "result", status: "error", message: "Auto-bootstrap failed — deploy aborted", level: "error" });
+          write({
+            type: 'result',
+            status: 'error',
+            message: 'Auto-bootstrap failed — deploy aborted',
+            level: 'error',
+          });
           return false;
         }
 
         // === Run the main CDK command ===
-        const { code: exitCode, stdout: stdoutBuffer, stderr: stderrBuffer } =
-          await runCdkProcess(command, args, env);
+        const {
+          code: exitCode,
+          stdout: stdoutBuffer,
+          stderr: stderrBuffer,
+        } = await runCdkProcess(command, args, env);
 
         let actuallySucceeded = await checkDeploySuccess(exitCode, stdoutBuffer, stderrBuffer);
 
         // --- Auto-bootstrap & retry if needed ---
-        if (!actuallySucceeded && action === "deploy") {
+        if (!actuallySucceeded && action === 'deploy') {
           const combined = stdoutBuffer + stderrBuffer;
           if (needsBootstrap(combined)) {
             write({
-              type: "error-intelligence",
-              title: "CDK Bootstrap Required — auto-recovering",
-              suggestion: "Detected that this region is not bootstrapped. Running bootstrap automatically before retrying deploy.",
-              level: "warn",
+              type: 'error-intelligence',
+              title: 'CDK Bootstrap Required — auto-recovering',
+              suggestion:
+                'Detected that this region is not bootstrapped. Running bootstrap automatically before retrying deploy.',
+              level: 'warn',
             });
 
             const bootstrapped = await autoBootstrap();
             if (bootstrapped) {
               // Retry the deploy
-              write({ type: "command", label: `Retrying: ${command} ${args.join(" ")}`, level: "command" });
+              write({
+                type: 'command',
+                label: `Retrying: ${command} ${args.join(' ')}`,
+                level: 'command',
+              });
               const retry = await runCdkProcess(command, args, env);
               actuallySucceeded = await checkDeploySuccess(retry.code, retry.stdout, retry.stderr);
             }
@@ -487,40 +628,37 @@ export async function POST(request: NextRequest) {
         // === Handle final result ===
         if (actuallySucceeded) {
           write({
-            type: "result",
-            status: "success",
+            type: 'result',
+            status: 'success',
             message: `${action} completed successfully`,
-            level: "success",
+            level: 'success',
           });
 
           // Parse CDK outputs on successful deploy
-          if (action === "deploy" && bucketId) {
+          if (action === 'deploy' && bucketId) {
             try {
-              const fs = await import("fs/promises");
-              const outputsPath = path.join(CDK_DIR, "cdk-outputs.json");
-              const outputsRaw = await fs.readFile(outputsPath, "utf-8");
+              const fs = await import('fs/promises');
+              const outputsPath = path.join(CDK_DIR, 'cdk-outputs.json');
+              const outputsRaw = await fs.readFile(outputsPath, 'utf-8');
               const outputs = JSON.parse(outputsRaw);
-              const stackOutputs = Object.values(outputs)[0] as
-                | Record<string, string>
-                | undefined;
+              const stackOutputs = Object.values(outputs)[0] as Record<string, string> | undefined;
               if (stackOutputs) {
-                await updateInJsonFile<Bucket>("buckets.json", bucketId, {
-                  status: "active",
-                  s3BucketArn: stackOutputs["BucketArn"] || "",
-                  cloudFrontDomain: stackOutputs["CloudFrontDomain"] || "",
-                  cloudFrontDistributionId:
-                    stackOutputs["DistributionId"] || "",
+                await updateInJsonFile<Bucket>('buckets.json', bucketId, {
+                  status: 'active',
+                  s3BucketArn: stackOutputs['BucketArn'] || '',
+                  cloudFrontDomain: stackOutputs['CloudFrontDomain'] || '',
+                  cloudFrontDistributionId: stackOutputs['DistributionId'] || '',
                 } as Partial<Bucket>);
                 write({
-                  type: "outputs",
+                  type: 'outputs',
                   data: stackOutputs,
-                  level: "success",
-                  message: "Stack outputs captured",
+                  level: 'success',
+                  message: 'Stack outputs captured',
                 });
               }
             } catch {
-              await updateInJsonFile<Bucket>("buckets.json", bucketId, {
-                status: "active",
+              await updateInJsonFile<Bucket>('buckets.json', bucketId, {
+                status: 'active',
               } as Partial<Bucket>);
             }
           }
@@ -530,26 +668,26 @@ export async function POST(request: NextRequest) {
           const errorHint = matchErrorPatterns(combined);
 
           write({
-            type: "result",
-            status: "error",
+            type: 'result',
+            status: 'error',
             message: `${action} failed with exit code ${exitCode}`,
-            level: "error",
+            level: 'error',
           });
 
           if (errorHint) {
             write({
-              type: "error-intelligence",
+              type: 'error-intelligence',
               title: errorHint.title,
               suggestion: errorHint.suggestion,
               command: errorHint.command || null,
-              level: "warn",
+              level: 'warn',
             });
           }
 
           // Update bucket status
-          if (action === "deploy" && bucketId) {
-            await updateInJsonFile<Bucket>("buckets.json", bucketId, {
-              status: "failed",
+          if (action === 'deploy' && bucketId) {
+            await updateInJsonFile<Bucket>('buckets.json', bucketId, {
+              status: 'failed',
             } as Partial<Bucket>);
           }
         }
@@ -560,17 +698,16 @@ export async function POST(request: NextRequest) {
 
     return new Response(stream, {
       headers: {
-        "Content-Type": "application/x-ndjson",
-        "Transfer-Encoding": "chunked",
-        "Cache-Control": "no-cache",
+        'Content-Type': 'application/x-ndjson',
+        'Transfer-Encoding': 'chunked',
+        'Cache-Control': 'no-cache',
       },
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "CDK command failed";
+    const message = error instanceof Error ? error.message : 'CDK command failed';
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 }
@@ -579,19 +716,19 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const action = searchParams.get("action");
-  const bucketId = searchParams.get("bucketId");
+  const action = searchParams.get('action');
+  const bucketId = searchParams.get('bucketId');
 
-  if (action === "check-status") {
+  if (action === 'check-status') {
     // Check a single bucket's AWS status
     if (!bucketId) {
-      return Response.json({ error: "bucketId is required" }, { status: 400 });
+      return Response.json({ error: 'bucketId is required' }, { status: 400 });
     }
 
-    const { findInJsonFile } = await import("@/lib/filesystem");
-    const bucket = await findInJsonFile<Bucket>("buckets.json", bucketId);
+    const { findInJsonFile } = await import('@/lib/filesystem');
+    const bucket = await findInJsonFile<Bucket>('buckets.json', bucketId);
     if (!bucket) {
-      return Response.json({ error: "Bucket not found" }, { status: 404 });
+      return Response.json({ error: 'Bucket not found' }, { status: 404 });
     }
 
     try {
@@ -600,34 +737,32 @@ export async function GET(request: NextRequest) {
         checkBucketExists(bucket.s3BucketName, bucket.region),
       ]);
 
-      let recommendedAction: BucketSyncStatus["recommendedAction"];
+      let recommendedAction: BucketSyncStatus['recommendedAction'];
       let needsSync = false;
 
       if (stackStatus) {
         const isComplete =
-          stackStatus.stackStatus === "CREATE_COMPLETE" ||
-          stackStatus.stackStatus === "UPDATE_COMPLETE";
+          stackStatus.stackStatus === 'CREATE_COMPLETE' ||
+          stackStatus.stackStatus === 'UPDATE_COMPLETE';
         const isFailed =
-          stackStatus.stackStatus.includes("FAILED") ||
-          stackStatus.stackStatus.includes("ROLLBACK");
-        const isInProgress = stackStatus.stackStatus.includes("IN_PROGRESS");
+          stackStatus.stackStatus.includes('FAILED') ||
+          stackStatus.stackStatus.includes('ROLLBACK');
+        const isInProgress = stackStatus.stackStatus.includes('IN_PROGRESS');
 
-        if (isComplete && bucket.status !== "active") {
+        if (isComplete && bucket.status !== 'active') {
           needsSync = true;
-          recommendedAction = "update-to-active";
-        } else if (isFailed && bucket.status !== "failed") {
+          recommendedAction = 'update-to-active';
+        } else if (isFailed && bucket.status !== 'failed') {
           needsSync = true;
-          recommendedAction = "update-to-failed";
-        } else if (isInProgress && bucket.status !== "deploying") {
+          recommendedAction = 'update-to-failed';
+        } else if (isInProgress && bucket.status !== 'deploying') {
           needsSync = true;
         }
       } else {
         // No stack found
-        if (bucket.status === "active" || bucket.status === "deploying") {
+        if (bucket.status === 'active' || bucket.status === 'deploying') {
           needsSync = true;
-          recommendedAction = bucketExists
-            ? "update-to-active"
-            : "update-to-pending";
+          recommendedAction = bucketExists ? 'update-to-active' : 'update-to-pending';
         }
       }
 
@@ -640,8 +775,8 @@ export async function GET(request: NextRequest) {
         stackStatus: stackStatus?.stackStatus,
         stackStatusReason: stackStatus?.stackStatusReason,
         s3BucketExists: bucketExists,
-        cloudFrontDomain: stackStatus?.outputs["CloudFrontDomain"],
-        cloudFrontDistributionId: stackStatus?.outputs["DistributionId"],
+        cloudFrontDomain: stackStatus?.outputs['CloudFrontDomain'],
+        cloudFrontDistributionId: stackStatus?.outputs['DistributionId'],
         resources: stackStatus?.resources ?? [],
         needsSync,
         recommendedAction,
@@ -650,15 +785,15 @@ export async function GET(request: NextRequest) {
       return Response.json(result);
     } catch (e) {
       return Response.json(
-        { error: e instanceof Error ? e.message : "Failed to check status" },
+        { error: e instanceof Error ? e.message : 'Failed to check status' },
         { status: 500 },
       );
     }
   }
 
-  if (action === "sync-all") {
+  if (action === 'sync-all') {
     // Sync all buckets with AWS state
-    const buckets = await readJsonFile<Bucket>("buckets.json");
+    const buckets = await readJsonFile<Bucket>('buckets.json');
     const results: BucketSyncStatus[] = [];
 
     for (const bucket of buckets) {
@@ -668,50 +803,46 @@ export async function GET(request: NextRequest) {
           checkBucketExists(bucket.s3BucketName, bucket.region),
         ]);
 
-        let recommendedAction: BucketSyncStatus["recommendedAction"];
+        let recommendedAction: BucketSyncStatus['recommendedAction'];
         let needsSync = false;
 
         if (stackStatus) {
           const isComplete =
-            stackStatus.stackStatus === "CREATE_COMPLETE" ||
-            stackStatus.stackStatus === "UPDATE_COMPLETE";
+            stackStatus.stackStatus === 'CREATE_COMPLETE' ||
+            stackStatus.stackStatus === 'UPDATE_COMPLETE';
           const isFailed =
-            stackStatus.stackStatus.includes("FAILED") ||
-            stackStatus.stackStatus.includes("ROLLBACK");
+            stackStatus.stackStatus.includes('FAILED') ||
+            stackStatus.stackStatus.includes('ROLLBACK');
 
-          if (isComplete && bucket.status !== "active") {
+          if (isComplete && bucket.status !== 'active') {
             needsSync = true;
-            recommendedAction = "update-to-active";
+            recommendedAction = 'update-to-active';
             // Auto-sync: update bucket to active with outputs
-            await updateInJsonFile<Bucket>("buckets.json", bucket.id, {
-              status: "active",
-              s3BucketArn:
-                stackStatus.outputs["BucketArn"] || bucket.s3BucketArn,
-              cloudFrontDomain:
-                stackStatus.outputs["CloudFrontDomain"] ||
-                bucket.cloudFrontDomain,
+            await updateInJsonFile<Bucket>('buckets.json', bucket.id, {
+              status: 'active',
+              s3BucketArn: stackStatus.outputs['BucketArn'] || bucket.s3BucketArn,
+              cloudFrontDomain: stackStatus.outputs['CloudFrontDomain'] || bucket.cloudFrontDomain,
               cloudFrontDistributionId:
-                stackStatus.outputs["DistributionId"] ||
-                bucket.cloudFrontDistributionId,
+                stackStatus.outputs['DistributionId'] || bucket.cloudFrontDistributionId,
               updatedAt: new Date().toISOString(),
             } as Partial<Bucket>);
-          } else if (isFailed && bucket.status !== "failed") {
+          } else if (isFailed && bucket.status !== 'failed') {
             needsSync = true;
-            recommendedAction = "update-to-failed";
-            await updateInJsonFile<Bucket>("buckets.json", bucket.id, {
-              status: "failed",
+            recommendedAction = 'update-to-failed';
+            await updateInJsonFile<Bucket>('buckets.json', bucket.id, {
+              status: 'failed',
               updatedAt: new Date().toISOString(),
             } as Partial<Bucket>);
           }
         } else {
-          if (bucket.status === "active" || bucket.status === "deploying") {
+          if (bucket.status === 'active' || bucket.status === 'deploying') {
             needsSync = true;
             if (bucketExists) {
-              recommendedAction = "update-to-active";
+              recommendedAction = 'update-to-active';
             } else {
-              recommendedAction = "update-to-pending";
-              await updateInJsonFile<Bucket>("buckets.json", bucket.id, {
-                status: "pending",
+              recommendedAction = 'update-to-pending';
+              await updateInJsonFile<Bucket>('buckets.json', bucket.id, {
+                status: 'pending',
                 updatedAt: new Date().toISOString(),
               } as Partial<Bucket>);
             }
@@ -727,8 +858,8 @@ export async function GET(request: NextRequest) {
           stackStatus: stackStatus?.stackStatus,
           stackStatusReason: stackStatus?.stackStatusReason,
           s3BucketExists: bucketExists,
-          cloudFrontDomain: stackStatus?.outputs["CloudFrontDomain"],
-          cloudFrontDistributionId: stackStatus?.outputs["DistributionId"],
+          cloudFrontDomain: stackStatus?.outputs['CloudFrontDomain'],
+          cloudFrontDistributionId: stackStatus?.outputs['DistributionId'],
           resources: stackStatus?.resources ?? [],
           needsSync,
           recommendedAction,
@@ -750,54 +881,49 @@ export async function GET(request: NextRequest) {
     return Response.json({ results });
   }
 
-  if (action === "apply-sync") {
+  if (action === 'apply-sync') {
     // Apply a recommended sync action
     if (!bucketId) {
-      return Response.json({ error: "bucketId is required" }, { status: 400 });
+      return Response.json({ error: 'bucketId is required' }, { status: 400 });
     }
-    const syncAction = searchParams.get("syncAction");
-    const { findInJsonFile } = await import("@/lib/filesystem");
-    const bucket = await findInJsonFile<Bucket>("buckets.json", bucketId);
+    const syncAction = searchParams.get('syncAction');
+    const { findInJsonFile } = await import('@/lib/filesystem');
+    const bucket = await findInJsonFile<Bucket>('buckets.json', bucketId);
     if (!bucket) {
-      return Response.json({ error: "Bucket not found" }, { status: 404 });
+      return Response.json({ error: 'Bucket not found' }, { status: 404 });
     }
 
     try {
-      if (syncAction === "update-to-active") {
-        const stackStatus = await describeStack(
-          bucket.s3BucketName,
-          bucket.region,
-        );
-        await updateInJsonFile<Bucket>("buckets.json", bucketId, {
-          status: "active",
-          s3BucketArn: stackStatus?.outputs["BucketArn"] || bucket.s3BucketArn,
-          cloudFrontDomain:
-            stackStatus?.outputs["CloudFrontDomain"] || bucket.cloudFrontDomain,
+      if (syncAction === 'update-to-active') {
+        const stackStatus = await describeStack(bucket.s3BucketName, bucket.region);
+        await updateInJsonFile<Bucket>('buckets.json', bucketId, {
+          status: 'active',
+          s3BucketArn: stackStatus?.outputs['BucketArn'] || bucket.s3BucketArn,
+          cloudFrontDomain: stackStatus?.outputs['CloudFrontDomain'] || bucket.cloudFrontDomain,
           cloudFrontDistributionId:
-            stackStatus?.outputs["DistributionId"] ||
-            bucket.cloudFrontDistributionId,
+            stackStatus?.outputs['DistributionId'] || bucket.cloudFrontDistributionId,
           updatedAt: new Date().toISOString(),
         } as Partial<Bucket>);
-      } else if (syncAction === "update-to-failed") {
-        await updateInJsonFile<Bucket>("buckets.json", bucketId, {
-          status: "failed",
+      } else if (syncAction === 'update-to-failed') {
+        await updateInJsonFile<Bucket>('buckets.json', bucketId, {
+          status: 'failed',
           updatedAt: new Date().toISOString(),
         } as Partial<Bucket>);
-      } else if (syncAction === "update-to-pending") {
-        await updateInJsonFile<Bucket>("buckets.json", bucketId, {
-          status: "pending",
-          s3BucketArn: "",
-          cloudFrontDomain: "",
-          cloudFrontDistributionId: "",
+      } else if (syncAction === 'update-to-pending') {
+        await updateInJsonFile<Bucket>('buckets.json', bucketId, {
+          status: 'pending',
+          s3BucketArn: '',
+          cloudFrontDomain: '',
+          cloudFrontDistributionId: '',
           updatedAt: new Date().toISOString(),
         } as Partial<Bucket>);
-      } else if (syncAction === "rollback") {
+      } else if (syncAction === 'rollback') {
         await deleteStack(bucket.s3BucketName, bucket.region);
-        await updateInJsonFile<Bucket>("buckets.json", bucketId, {
-          status: "pending",
-          s3BucketArn: "",
-          cloudFrontDomain: "",
-          cloudFrontDistributionId: "",
+        await updateInJsonFile<Bucket>('buckets.json', bucketId, {
+          status: 'pending',
+          s3BucketArn: '',
+          cloudFrontDomain: '',
+          cloudFrontDistributionId: '',
           updatedAt: new Date().toISOString(),
         } as Partial<Bucket>);
       }
@@ -805,14 +931,14 @@ export async function GET(request: NextRequest) {
       return Response.json({ success: true });
     } catch (e) {
       return Response.json(
-        { error: e instanceof Error ? e.message : "Sync failed" },
+        { error: e instanceof Error ? e.message : 'Sync failed' },
         { status: 500 },
       );
     }
   }
 
   return Response.json(
-    { error: "Invalid action. Use check-status, sync-all, or apply-sync." },
+    { error: 'Invalid action. Use check-status, sync-all, or apply-sync.' },
     { status: 400 },
   );
 }

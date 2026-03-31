@@ -32,6 +32,8 @@ import {
   Zap,
   Compass,
   HardDrive,
+  Plus,
+  FolderPlus,
 } from 'lucide-react';
 import { useTour } from '@/components/ui/tour';
 import { useState } from 'react';
@@ -47,6 +49,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
+import { CreateBucketDialog } from '@/features/buckets/components/create-bucket-dialog';
+import { useCreateProject } from '@/features/projects/hooks/use-projects';
+import { useCreateBucket } from '@/features/buckets/hooks/use-buckets';
+import { useProjects } from '@/features/projects/hooks/use-projects';
+import { useEnvironments } from '@/features/environments/hooks/use-environments';
 
 const navItems = [
   {
@@ -83,6 +91,36 @@ export function AppSidebar() {
   const router = useRouter();
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const [bucketDialogOpen, setBucketDialogOpen] = useState(false);
+
+  const { createProject, loading: creatingProject } = useCreateProject();
+  const { createBucket, loading: creatingBucket } = useCreateBucket();
+  const { projects } = useProjects();
+  const { environments } = useEnvironments();
+
+  const handleCreateProject = async (data: Parameters<typeof createProject>[0]) => {
+    const result = await createProject(data);
+    if (result) {
+      toast.success(`Project "${result.name}" created`);
+      setProjectDialogOpen(false);
+    } else {
+      toast.error('Failed to create project');
+    }
+  };
+
+  const handleCreateBucket = async (data: Parameters<typeof createBucket>[0], deploy?: boolean) => {
+    const result = await createBucket(data);
+    if (result) {
+      toast.success(`Bucket "${result.name}" created`);
+      setBucketDialogOpen(false);
+      if (deploy) {
+        router.push('/buckets');
+      }
+    } else {
+      toast.error('Failed to create bucket');
+    }
+  };
 
   const handleReset = async () => {
     setResetting(true);
@@ -110,11 +148,42 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b px-6 h-14">
-        <Link href="/" className="flex items-center gap-2">
-          <HardDrive className="size-5 text-primary" />
-          <span className="text-base font-semibold tracking-tight">{APP_CONFIG.name}</span>
-        </Link>
+      <SidebarHeader className="border-b px-4 h-14">
+        <div className="flex items-center justify-between">
+          <HardDrive className="size-5 text-primary shrink-0" />
+          <div className="flex items-center gap-1">
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  onClick={() => setProjectDialogOpen(true)}
+                >
+                  <FolderPlus className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                New Project
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  onClick={() => setBucketDialogOpen(true)}
+                >
+                  <Plus className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                New Bucket
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
       </SidebarHeader>
 
       <SidebarContent className="no-scrollbar">
@@ -219,6 +288,22 @@ export function AppSidebar() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CreateProjectDialog
+        open={projectDialogOpen}
+        onOpenChange={setProjectDialogOpen}
+        onSubmit={handleCreateProject}
+        loading={creatingProject}
+      />
+
+      <CreateBucketDialog
+        open={bucketDialogOpen}
+        onOpenChange={setBucketDialogOpen}
+        onSubmit={handleCreateBucket}
+        projects={projects}
+        loading={creatingBucket}
+        environments={environments}
+      />
     </Sidebar>
   );
 }

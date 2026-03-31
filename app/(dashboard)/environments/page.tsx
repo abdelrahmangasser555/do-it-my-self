@@ -1,8 +1,8 @@
 // Environments management dashboard — activate / deactivate AWS regions
-"use client";
+'use client';
 
-import { useState, useCallback, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useCallback, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Globe,
   Plus,
@@ -25,24 +25,20 @@ import {
   Check,
   ExternalLink,
   Server,
-} from "lucide-react";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  ArrowUpCircle,
+  CheckCircle2,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -50,40 +46,35 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { PageTransition } from "@/components/page-transition";
-import { AWS_REGIONS } from "@/lib/validations";
+} from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { PageTransition } from '@/components/page-transition';
+import { AWS_REGIONS } from '@/lib/validations';
 import {
   useEnvironments,
   useBootstrapEnvironment,
   type BootstrapProgress,
-} from "@/features/environments/hooks/use-environments";
-import { diagnoseBootstrapError } from "@/features/onboarding/utils/error-diagnosis";
-import type { BootstrappedEnvironment } from "@/lib/types";
+} from '@/features/environments/hooks/use-environments';
+import { diagnoseBootstrapError } from '@/features/onboarding/utils/error-diagnosis';
+import type { BootstrappedEnvironment } from '@/lib/types';
 
 // ── Phase config for bootstrap progress ──────────────────────────────────────
 
 const phaseConfig: Record<
-  BootstrapProgress["phase"],
+  BootstrapProgress['phase'],
   { icon: typeof Search; label: string; color: string }
 > = {
-  checking: { icon: Search, label: "Checking", color: "text-blue-500" },
-  repairing: { icon: Wrench, label: "Repairing", color: "text-orange-500" },
-  installing: { icon: Package, label: "Installing", color: "text-yellow-500" },
-  bootstrapping: { icon: CloudUpload, label: "Bootstrapping", color: "text-purple-500" },
-  done: { icon: CheckCircle, label: "Complete", color: "text-green-500" },
-  error: { icon: XCircle, label: "Error", color: "text-red-500" },
+  checking: { icon: Search, label: 'Checking', color: 'text-blue-500' },
+  repairing: { icon: Wrench, label: 'Repairing', color: 'text-orange-500' },
+  installing: { icon: Package, label: 'Installing', color: 'text-yellow-500' },
+  bootstrapping: { icon: CloudUpload, label: 'Bootstrapping', color: 'text-purple-500' },
+  done: { icon: CheckCircle, label: 'Complete', color: 'text-green-500' },
+  error: { icon: XCircle, label: 'Error', color: 'text-red-500' },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -93,7 +84,7 @@ function relativeTime(dateStr: string): string {
   const then = new Date(dateStr).getTime();
   const diff = now - then;
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
+  if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
@@ -102,25 +93,22 @@ function relativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
-const regionLabel = (value: string) =>
-  AWS_REGIONS.find((r) => r.value === value)?.label ?? value;
+const regionLabel = (value: string) => AWS_REGIONS.find((r) => r.value === value)?.label ?? value;
 
 // ── Region groups for the select dropdown ────────────────────────────────────
 
 const REGION_GROUPS = [
-  { label: "North America", prefix: ["us-", "ca-"] },
-  { label: "Europe", prefix: ["eu-"] },
-  { label: "Asia Pacific", prefix: ["ap-"] },
-  { label: "South America", prefix: ["sa-"] },
-  { label: "Middle East & Africa", prefix: ["me-", "af-", "il-"] },
+  { label: 'North America', prefix: ['us-', 'ca-'] },
+  { label: 'Europe', prefix: ['eu-'] },
+  { label: 'Asia Pacific', prefix: ['ap-'] },
+  { label: 'South America', prefix: ['sa-'] },
+  { label: 'Middle East & Africa', prefix: ['me-', 'af-', 'il-'] },
 ];
 
 function groupRegions(regions: typeof AWS_REGIONS) {
   return REGION_GROUPS.map((g) => ({
     ...g,
-    regions: regions.filter((r) =>
-      g.prefix.some((p) => r.value.startsWith(p)),
-    ),
+    regions: regions.filter((r) => g.prefix.some((p) => r.value.startsWith(p))),
   })).filter((g) => g.regions.length > 0);
 }
 
@@ -137,16 +125,28 @@ export default function EnvironmentsPage() {
   } = useBootstrapEnvironment();
 
   const [addOpen, setAddOpen] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState("");
-  const [accountId, setAccountId] = useState("");
-  const [deleteTarget, setDeleteTarget] =
-    useState<BootstrappedEnvironment | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<BootstrappedEnvironment | null>(null);
   const [copiedError, setCopiedError] = useState(false);
+  const [cdkStatuses, setCdkStatuses] =
+    useState<
+      Record<
+        string,
+        {
+          status: 'up-to-date' | 'outdated' | 'unknown';
+          localVersion?: string;
+          deployedVersion?: string;
+          loading?: boolean;
+          updating?: boolean;
+        }
+      >
+    >();
 
   // Auto-fill AWS account ID from local credentials
   useEffect(() => {
     if (!accountId) {
-      fetch("/api/aws-identity")
+      fetch('/api/aws-identity')
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data?.account) setAccountId(data.account);
@@ -157,28 +157,76 @@ export default function EnvironmentsPage() {
 
   const usedRegions = new Set(environments.map((e) => e.region));
   const availableRegions = AWS_REGIONS.filter((r) => !usedRegions.has(r.value));
-  const groupedAvailable = groupRegions(
-    availableRegions as unknown as typeof AWS_REGIONS,
+  const groupedAvailable = groupRegions(availableRegions as unknown as typeof AWS_REGIONS);
+
+  const checkCdkStatus = useCallback(async (env: BootstrappedEnvironment) => {
+    setCdkStatuses((prev) => ({ ...(prev ?? {}), [env.id]: { status: 'unknown', loading: true } }));
+    try {
+      const res = await fetch(`/api/infrastructure/cdk-status?region=${env.region}`);
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      setCdkStatuses((prev) => ({
+        ...(prev ?? {}),
+        [env.id]: {
+          status: data.needsUpdate ? 'outdated' : 'up-to-date',
+          localVersion: data.localCdkVersion,
+          deployedVersion: data.deployedBootstrapVersion,
+          loading: false,
+        },
+      }));
+    } catch {
+      setCdkStatuses((prev) => ({
+        ...(prev ?? {}),
+        [env.id]: { status: 'unknown', loading: false },
+      }));
+    }
+  }, []);
+
+  const handleUpdateCdk = useCallback(
+    async (env: BootstrappedEnvironment) => {
+      setCdkStatuses((prev) => ({
+        ...(prev ?? {}),
+        [env.id]: { ...(prev?.[env.id] ?? { status: 'unknown' }), updating: true },
+      }));
+      try {
+        const res = await fetch('/api/infrastructure', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'bootstrap-update',
+            region: env.region,
+            accountId: env.accountId,
+          }),
+        });
+        if (!res.ok) throw new Error('Failed to update CDK');
+        toast.success(`CDK bootstrap updated for ${regionLabel(env.region)}`);
+        // Re-check status after update
+        await checkCdkStatus(env);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Failed to update CDK');
+        setCdkStatuses((prev) => ({
+          ...(prev ?? {}),
+          [env.id]: { ...(prev?.[env.id] ?? { status: 'unknown' }), updating: false },
+        }));
+      }
+    },
+    [checkCdkStatus],
   );
 
-  const activeCount = environments.filter((e) => e.status === "active").length;
-  const failedCount = environments.filter((e) => e.status === "failed").length;
-  const bootstrappingCount = environments.filter(
-    (e) => e.status === "bootstrapping",
-  ).length;
+  const activeCount = environments.filter((e) => e.status === 'active').length;
+  const failedCount = environments.filter((e) => e.status === 'failed').length;
+  const bootstrappingCount = environments.filter((e) => e.status === 'bootstrapping').length;
 
   const handleBootstrap = useCallback(async () => {
     if (!selectedRegion || !accountId) {
-      toast.error("Region and Account ID are required");
+      toast.error('Region and Account ID are required');
       return;
     }
-    const label =
-      AWS_REGIONS.find((r) => r.value === selectedRegion)?.label ??
-      selectedRegion;
+    const label = AWS_REGIONS.find((r) => r.value === selectedRegion)?.label ?? selectedRegion;
     setAddOpen(false);
     await bootstrapEnvironment(selectedRegion, accountId, label);
     await refetch();
-    setSelectedRegion("");
+    setSelectedRegion('');
   }, [selectedRegion, accountId, bootstrapEnvironment, refetch]);
 
   const handleRetry = useCallback(
@@ -192,13 +240,13 @@ export default function EnvironmentsPage() {
   const handleDelete = useCallback(
     async (id: string) => {
       const res = await fetch(`/api/environments?id=${id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (res.ok) {
-        toast.success("Environment removed");
+        toast.success('Environment removed');
         await refetch();
       } else {
-        toast.error("Failed to remove environment");
+        toast.error('Failed to remove environment');
       }
       setDeleteTarget(null);
     },
@@ -206,10 +254,10 @@ export default function EnvironmentsPage() {
   );
 
   // Build the phase order dynamically for progress display
-  const phaseOrder: BootstrapProgress["phase"][] =
-    progress?.phase === "repairing"
-      ? ["checking", "repairing", "installing", "bootstrapping", "done"]
-      : ["checking", "installing", "bootstrapping", "done"];
+  const phaseOrder: BootstrapProgress['phase'][] =
+    progress?.phase === 'repairing'
+      ? ['checking', 'repairing', 'installing', 'bootstrapping', 'done']
+      : ['checking', 'installing', 'bootstrapping', 'done'];
 
   return (
     <PageTransition>
@@ -235,9 +283,7 @@ export default function EnvironmentsPage() {
                     onClick={() => refetch()}
                     disabled={loading}
                   >
-                    <RefreshCw
-                      className={`size-4 ${loading ? "animate-spin" : ""}`}
-                    />
+                    <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Refresh environments</TooltipContent>
@@ -259,9 +305,7 @@ export default function EnvironmentsPage() {
                 <Server className="size-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold tracking-tight">
-                  {environments.length}
-                </p>
+                <p className="text-2xl font-bold tracking-tight">{environments.length}</p>
                 <p className="text-xs text-muted-foreground">Total Regions</p>
               </div>
             </CardContent>
@@ -276,9 +320,7 @@ export default function EnvironmentsPage() {
                 <p className="text-2xl font-bold tracking-tight text-green-600 dark:text-green-400">
                   {activeCount}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  Active &amp; Ready
-                </p>
+                <p className="text-xs text-muted-foreground">Active &amp; Ready</p>
               </div>
             </CardContent>
           </Card>
@@ -293,7 +335,7 @@ export default function EnvironmentsPage() {
                   {failedCount}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {failedCount === 1 ? "Needs Attention" : "Need Attention"}
+                  {failedCount === 1 ? 'Needs Attention' : 'Need Attention'}
                 </p>
               </div>
             </CardContent>
@@ -318,23 +360,20 @@ export default function EnvironmentsPage() {
                       </div>
                       <div>
                         <CardTitle className="text-sm">
-                          Bootstrapping{" "}
-                          {regionLabel(progress.region)}
+                          Bootstrapping {regionLabel(progress.region)}
                         </CardTitle>
-                        <CardDescription className="text-xs">
-                          {progress.message}
-                        </CardDescription>
+                        <CardDescription className="text-xs">{progress.message}</CardDescription>
                       </div>
                     </div>
                     <Badge
                       className={`text-xs ${
-                        progress.phase === "done"
-                          ? "bg-green-500/10 text-green-500 border-green-500/20"
-                          : progress.phase === "error"
-                            ? "bg-red-500/10 text-red-500 border-red-500/20"
-                            : progress.phase === "repairing"
-                              ? "bg-orange-500/10 text-orange-500 border-orange-500/20"
-                              : "bg-primary/10 text-primary border-primary/20"
+                        progress.phase === 'done'
+                          ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                          : progress.phase === 'error'
+                            ? 'bg-red-500/10 text-red-500 border-red-500/20'
+                            : progress.phase === 'repairing'
+                              ? 'bg-orange-500/10 text-orange-500 border-orange-500/20'
+                              : 'bg-primary/10 text-primary border-primary/20'
                       }`}
                     >
                       {phaseConfig[progress.phase].label}
@@ -349,13 +388,12 @@ export default function EnvironmentsPage() {
                       const config = phaseConfig[phase];
                       const Icon = config.icon;
                       const currentIdx = phaseOrder.indexOf(
-                        progress.phase as typeof phaseOrder[number],
+                        progress.phase as (typeof phaseOrder)[number],
                       );
                       const thisIdx = phaseOrder.indexOf(phase);
                       const isActive = progress.phase === phase;
                       const isComplete =
-                        currentIdx > thisIdx ||
-                        (progress.phase === "done" && phase === "done");
+                        currentIdx > thisIdx || (progress.phase === 'done' && phase === 'done');
                       const isPending = currentIdx < thisIdx;
 
                       return (
@@ -363,32 +401,30 @@ export default function EnvironmentsPage() {
                           key={phase}
                           className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all duration-200 ${
                             isActive
-                              ? "bg-primary/5 ring-1 ring-primary/20"
+                              ? 'bg-primary/5 ring-1 ring-primary/20'
                               : isComplete
-                                ? "opacity-50"
-                                : "opacity-25"
+                                ? 'opacity-50'
+                                : 'opacity-25'
                           }`}
                         >
-                          {isActive && progress.phase !== "done" ? (
-                            <Loader2
-                              className={`size-4 animate-spin ${config.color}`}
-                            />
+                          {isActive && progress.phase !== 'done' ? (
+                            <Loader2 className={`size-4 animate-spin ${config.color}`} />
                           ) : isComplete ? (
                             <CheckCircle className="size-4 text-green-500" />
                           ) : (
                             <Icon
-                              className={`size-4 ${isPending ? "text-muted-foreground" : config.color}`}
+                              className={`size-4 ${isPending ? 'text-muted-foreground' : config.color}`}
                             />
                           )}
                           <div className="flex-1 min-w-0">
                             <p
-                              className={`text-xs font-medium ${isActive ? "text-foreground" : "text-muted-foreground"}`}
+                              className={`text-xs font-medium ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}
                             >
-                              {phase === "checking" && "Checking existing bootstrap"}
-                              {phase === "repairing" && "Repairing broken stack"}
-                              {phase === "installing" && "Installing CDK dependencies"}
-                              {phase === "bootstrapping" && "Bootstrapping AWS environment"}
-                              {phase === "done" && "Bootstrap complete"}
+                              {phase === 'checking' && 'Checking existing bootstrap'}
+                              {phase === 'repairing' && 'Repairing broken stack'}
+                              {phase === 'installing' && 'Installing CDK dependencies'}
+                              {phase === 'bootstrapping' && 'Bootstrapping AWS environment'}
+                              {phase === 'done' && 'Bootstrap complete'}
                             </p>
                             {isActive && progress.detail && (
                               <p className="text-xs text-muted-foreground truncate mt-0.5">
@@ -402,22 +438,22 @@ export default function EnvironmentsPage() {
                   </div>
 
                   {/* Progress bar */}
-                  {progress.phase !== "done" && progress.phase !== "error" && (
+                  {progress.phase !== 'done' && progress.phase !== 'error' && (
                     <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                       <motion.div
                         className="h-full rounded-full bg-linear-to-r from-primary/80 to-primary"
-                        initial={{ width: "0%" }}
+                        initial={{ width: '0%' }}
                         animate={{
                           width:
-                            progress.phase === "checking"
-                              ? "10%"
-                              : progress.phase === "repairing"
-                                ? "25%"
-                                : progress.phase === "installing"
-                                  ? "50%"
-                                  : "80%",
+                            progress.phase === 'checking'
+                              ? '10%'
+                              : progress.phase === 'repairing'
+                                ? '25%'
+                                : progress.phase === 'installing'
+                                  ? '50%'
+                                  : '80%',
                         }}
-                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        transition={{ duration: 0.5, ease: 'easeOut' }}
                       />
                     </div>
                   )}
@@ -437,18 +473,14 @@ export default function EnvironmentsPage() {
               className="space-y-3"
             >
               {(() => {
-                const diagnosis = diagnoseBootstrapError(
-                  lastErrorOutput || bootstrapError,
-                );
+                const diagnosis = diagnoseBootstrapError(lastErrorOutput || bootstrapError);
                 return (
                   <Alert variant="destructive">
                     <AlertTriangle className="size-4" />
                     <AlertDescription className="space-y-3">
                       <div>
                         <p className="font-medium">{diagnosis.title}</p>
-                        <p className="text-sm mt-1 opacity-90">
-                          {diagnosis.description}
-                        </p>
+                        <p className="text-sm mt-1 opacity-90">{diagnosis.description}</p>
                       </div>
                       <div className="space-y-1.5">
                         <p className="text-xs font-medium">How to fix:</p>
@@ -477,9 +509,7 @@ export default function EnvironmentsPage() {
               {lastErrorOutput && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Raw Error Output
-                    </p>
+                    <p className="text-xs font-medium text-muted-foreground">Raw Error Output</p>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -495,7 +525,7 @@ export default function EnvironmentsPage() {
                       ) : (
                         <Copy className="mr-1 size-3" />
                       )}
-                      {copiedError ? "Copied" : "Copy"}
+                      {copiedError ? 'Copied' : 'Copy'}
                     </Button>
                   </div>
                   <ScrollArea className="max-h-32 rounded-lg bg-muted/50 p-3 overflow-auto">
@@ -546,9 +576,7 @@ export default function EnvironmentsPage() {
             {loading ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <Loader2 className="size-7 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Loading environments…
-                </p>
+                <p className="text-sm text-muted-foreground">Loading environments…</p>
               </div>
             ) : environments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -557,14 +585,9 @@ export default function EnvironmentsPage() {
                 </div>
                 <p className="text-sm font-medium">No environments yet</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-70">
-                  Bootstrap an AWS region to start deploying buckets and
-                  CloudFront distributions.
+                  Bootstrap an AWS region to start deploying buckets and CloudFront distributions.
                 </p>
-                <Button
-                  className="mt-4"
-                  size="sm"
-                  onClick={() => setAddOpen(true)}
-                >
+                <Button className="mt-4" size="sm" onClick={() => setAddOpen(true)}>
                   <Plus className="mr-2 size-4" />
                   Add Your First Region
                 </Button>
@@ -573,9 +596,9 @@ export default function EnvironmentsPage() {
               <AnimatePresence mode="popLayout">
                 <div className="space-y-3">
                   {environments.map((env, i) => {
-                    const isFailed = env.status === "failed";
-                    const isActive = env.status === "active";
-                    const isBootstrapping = env.status === "bootstrapping";
+                    const isFailed = env.status === 'failed';
+                    const isActive = env.status === 'active';
+                    const isBootstrapping = env.status === 'bootstrapping';
                     const isProgressTarget =
                       progress && progress.region === env.region && bootstrapping;
 
@@ -592,10 +615,10 @@ export default function EnvironmentsPage() {
                         exit={{ opacity: 0, x: -20 }}
                         className={`group relative rounded-xl border p-4 transition-all duration-200 hover:shadow-sm ${
                           isFailed
-                            ? "border-red-500/20 bg-red-500/2"
+                            ? 'border-red-500/20 bg-red-500/2'
                             : isBootstrapping || isProgressTarget
-                              ? "border-primary/20 bg-primary/2"
-                              : "hover:border-foreground/10"
+                              ? 'border-primary/20 bg-primary/2'
+                              : 'hover:border-foreground/10'
                         }`}
                       >
                         <div className="flex items-center justify-between">
@@ -604,18 +627,14 @@ export default function EnvironmentsPage() {
                             <div
                               className={`flex size-10 items-center justify-center rounded-xl ${
                                 isActive
-                                  ? "bg-green-500/10"
+                                  ? 'bg-green-500/10'
                                   : isFailed
-                                    ? "bg-red-500/10"
-                                    : "bg-yellow-500/10"
+                                    ? 'bg-red-500/10'
+                                    : 'bg-yellow-500/10'
                               }`}
                             >
-                              {isActive && (
-                                <CheckCircle className="size-5 text-green-500" />
-                              )}
-                              {isFailed && (
-                                <AlertCircle className="size-5 text-red-500" />
-                              )}
+                              {isActive && <CheckCircle className="size-5 text-green-500" />}
+                              {isFailed && <AlertCircle className="size-5 text-red-500" />}
                               {isBootstrapping && (
                                 <Loader2 className="size-5 animate-spin text-yellow-500" />
                               )}
@@ -626,26 +645,19 @@ export default function EnvironmentsPage() {
                                 <span className="font-medium text-sm">
                                   {env.alias || regionLabel(env.region)}
                                 </span>
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] font-mono"
-                                >
+                                <Badge variant="outline" className="text-[10px] font-mono">
                                   {env.region}
                                 </Badge>
                                 <Badge
                                   className={`text-[10px] ${
                                     isActive
-                                      ? "bg-green-500/10 text-green-500 border-green-500/20"
+                                      ? 'bg-green-500/10 text-green-500 border-green-500/20'
                                       : isFailed
-                                        ? "bg-red-500/10 text-red-500 border-red-500/20"
-                                        : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
+                                        ? 'bg-red-500/10 text-red-500 border-red-500/20'
+                                        : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
                                   }`}
                                 >
-                                  {isActive
-                                    ? "Active"
-                                    : isFailed
-                                      ? "Failed"
-                                      : "Bootstrapping"}
+                                  {isActive ? 'Active' : isFailed ? 'Failed' : 'Bootstrapping'}
                                 </Badge>
                               </div>
                               <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
@@ -667,13 +679,61 @@ export default function EnvironmentsPage() {
                                         </span>
                                       </TooltipTrigger>
                                       <TooltipContent>
-                                        {new Date(
-                                          env.bootstrappedAt,
-                                        ).toLocaleString()}
+                                        {new Date(env.bootstrappedAt).toLocaleString()}
                                       </TooltipContent>
                                     </Tooltip>
                                   </TooltipProvider>
                                 )}
+                                {/* CDK status badge */}
+                                {isActive &&
+                                  (() => {
+                                    const cs = cdkStatuses?.[env.id];
+                                    if (!cs) {
+                                      return (
+                                        <button
+                                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                          onClick={() => checkCdkStatus(env)}
+                                        >
+                                          <Package className="size-3" />
+                                          Check CDK version
+                                        </button>
+                                      );
+                                    }
+                                    if (cs.loading) {
+                                      return (
+                                        <span className="flex items-center gap-1">
+                                          <Loader2 className="size-3 animate-spin" />
+                                          Checking CDK…
+                                        </span>
+                                      );
+                                    }
+                                    if (cs.status === 'up-to-date') {
+                                      return (
+                                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                                          <CheckCircle2 className="size-3" />
+                                          CDK up-to-date{' '}
+                                          {cs.localVersion ? `(v${cs.localVersion})` : ''}
+                                        </span>
+                                      );
+                                    }
+                                    if (cs.status === 'outdated') {
+                                      return (
+                                        <span className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+                                          <ArrowUpCircle className="size-3" />
+                                          CDK update available
+                                        </span>
+                                      );
+                                    }
+                                    return (
+                                      <button
+                                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                        onClick={() => checkCdkStatus(env)}
+                                      >
+                                        <Package className="size-3" />
+                                        Check CDK version
+                                      </button>
+                                    );
+                                  })()}
                               </div>
                             </div>
                           </div>
@@ -687,13 +747,28 @@ export default function EnvironmentsPage() {
                                 disabled={bootstrapping}
                                 className="text-xs"
                               >
-                                {bootstrapping &&
-                                progress?.region === env.region ? (
+                                {bootstrapping && progress?.region === env.region ? (
                                   <Loader2 className="mr-1.5 size-3 animate-spin" />
                                 ) : (
                                   <RefreshCw className="mr-1.5 size-3" />
                                 )}
                                 Retry Bootstrap
+                              </Button>
+                            )}
+                            {isActive && cdkStatuses?.[env.id]?.status === 'outdated' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs"
+                                disabled={cdkStatuses[env.id]?.updating || bootstrapping}
+                                onClick={() => handleUpdateCdk(env)}
+                              >
+                                {cdkStatuses[env.id]?.updating ? (
+                                  <Loader2 className="mr-1.5 size-3 animate-spin" />
+                                ) : (
+                                  <ArrowUpCircle className="mr-1.5 size-3" />
+                                )}
+                                Update CDK
                               </Button>
                             )}
                             <TooltipProvider>
@@ -708,9 +783,7 @@ export default function EnvironmentsPage() {
                                     <Trash2 className="size-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>
-                                  Remove from tracked environments
-                                </TooltipContent>
+                                <TooltipContent>Remove from tracked environments</TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           </div>
@@ -721,7 +794,7 @@ export default function EnvironmentsPage() {
                           {isProgressTarget && (
                             <motion.div
                               initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
+                              animate={{ opacity: 1, height: 'auto' }}
                               exit={{ opacity: 0, height: 0 }}
                               transition={{ duration: 0.2 }}
                               className="mt-3 pt-3 border-t border-border/50"
@@ -732,19 +805,12 @@ export default function EnvironmentsPage() {
                                   const PhaseIcon = cfg.icon;
                                   return (
                                     <>
-                                      {progress.phase !== "done" &&
-                                      progress.phase !== "error" ? (
-                                        <Loader2
-                                          className={`size-3.5 animate-spin ${cfg.color}`}
-                                        />
+                                      {progress.phase !== 'done' && progress.phase !== 'error' ? (
+                                        <Loader2 className={`size-3.5 animate-spin ${cfg.color}`} />
                                       ) : (
-                                        <PhaseIcon
-                                          className={`size-3.5 ${cfg.color}`}
-                                        />
+                                        <PhaseIcon className={`size-3.5 ${cfg.color}`} />
                                       )}
-                                      <span
-                                        className={`text-xs font-medium ${cfg.color}`}
-                                      >
+                                      <span className={`text-xs font-medium ${cfg.color}`}>
                                         {cfg.label}
                                       </span>
                                     </>
@@ -754,29 +820,28 @@ export default function EnvironmentsPage() {
                                   {progress.message}
                                 </span>
                               </div>
-                              {progress.phase !== "done" &&
-                                progress.phase !== "error" && (
-                                  <div className="h-1 rounded-full bg-muted overflow-hidden">
-                                    <motion.div
-                                      className="h-full rounded-full bg-linear-to-r from-primary/80 to-primary"
-                                      initial={{ width: "0%" }}
-                                      animate={{
-                                        width:
-                                          progress.phase === "checking"
-                                            ? "10%"
-                                            : progress.phase === "repairing"
-                                              ? "25%"
-                                              : progress.phase === "installing"
-                                                ? "50%"
-                                                : "80%",
-                                      }}
-                                      transition={{
-                                        duration: 0.5,
-                                        ease: "easeOut",
-                                      }}
-                                    />
-                                  </div>
-                                )}
+                              {progress.phase !== 'done' && progress.phase !== 'error' && (
+                                <div className="h-1 rounded-full bg-muted overflow-hidden">
+                                  <motion.div
+                                    className="h-full rounded-full bg-linear-to-r from-primary/80 to-primary"
+                                    initial={{ width: '0%' }}
+                                    animate={{
+                                      width:
+                                        progress.phase === 'checking'
+                                          ? '10%'
+                                          : progress.phase === 'repairing'
+                                            ? '25%'
+                                            : progress.phase === 'installing'
+                                              ? '50%'
+                                              : '80%',
+                                    }}
+                                    transition={{
+                                      duration: 0.5,
+                                      ease: 'easeOut',
+                                    }}
+                                  />
+                                </div>
+                              )}
                             </motion.div>
                           )}
                         </AnimatePresence>
@@ -798,9 +863,8 @@ export default function EnvironmentsPage() {
                 Bootstrap New Region
               </DialogTitle>
               <DialogDescription>
-                Run CDK bootstrap in a new AWS region. This creates the required
-                resources for deployments (S3 staging bucket, IAM roles, ECR
-                repo).
+                Run CDK bootstrap in a new AWS region. This creates the required resources for
+                deployments (S3 staging bucket, IAM roles, ECR repo).
               </DialogDescription>
             </DialogHeader>
 
@@ -823,10 +887,7 @@ export default function EnvironmentsPage() {
 
               <div className="space-y-2">
                 <Label className="text-xs font-medium">Region</Label>
-                <Select
-                  value={selectedRegion}
-                  onValueChange={setSelectedRegion}
-                >
+                <Select value={selectedRegion} onValueChange={setSelectedRegion}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choose AWS region…" />
                   </SelectTrigger>
@@ -882,18 +943,12 @@ export default function EnvironmentsPage() {
             </div>
 
             <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setAddOpen(false)}
-                disabled={bootstrapping}
-              >
+              <Button variant="outline" onClick={() => setAddOpen(false)} disabled={bootstrapping}>
                 Cancel
               </Button>
               <Button
                 onClick={handleBootstrap}
-                disabled={
-                  !selectedRegion || !accountId || bootstrapping
-                }
+                disabled={!selectedRegion || !accountId || bootstrapping}
               >
                 {bootstrapping ? (
                   <>
@@ -912,10 +967,7 @@ export default function EnvironmentsPage() {
         </Dialog>
 
         {/* ── Delete Confirmation ───────────────────────────────────── */}
-        <Dialog
-          open={!!deleteTarget}
-          onOpenChange={() => setDeleteTarget(null)}
-        >
+        <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -923,10 +975,9 @@ export default function EnvironmentsPage() {
                 Remove Environment
               </DialogTitle>
               <DialogDescription>
-                Remove{" "}
-                <strong>{deleteTarget?.alias || deleteTarget?.region}</strong>{" "}
-                from your tracked environments? This does{" "}
-                <strong>not</strong> destroy the CDKToolkit stack in AWS.
+                Remove <strong>{deleteTarget?.alias || deleteTarget?.region}</strong> from your
+                tracked environments? This does <strong>not</strong> destroy the CDKToolkit stack in
+                AWS.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>

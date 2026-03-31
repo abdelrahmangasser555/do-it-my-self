@@ -1,7 +1,7 @@
 // Presentational table for listing all buckets with status indicators and actions
-"use client";
+'use client';
 
-import Link from "next/link";
+import Link from 'next/link';
 import {
   Table,
   TableBody,
@@ -9,16 +9,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import {
   MoreHorizontal,
   Trash2,
@@ -31,37 +31,45 @@ import {
   Eye,
   Copy,
   Check,
-} from "lucide-react";
-import type { Bucket } from "@/lib/types";
-import { useState } from "react";
-import { toast } from "sonner";
+  CloudUpload,
+} from 'lucide-react';
+import type { Bucket } from '@/lib/types';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 interface BucketsTableProps {
   buckets: Bucket[];
   onDelete: (id: string) => void;
   onFullDelete?: (bucket: Bucket) => void;
   onDeploy: (bucket: Bucket) => void;
+  onConnectCDN?: (bucket: Bucket) => void;
 }
 
-const statusColors: Record<Bucket["status"], string> = {
-  pending: "secondary",
-  deploying: "default",
-  active: "default",
-  failed: "destructive",
-  deleting: "outline",
+const statusColors: Record<Bucket['status'], string> = {
+  pending: 'secondary',
+  deploying: 'default',
+  active: 'default',
+  failed: 'destructive',
+  deleting: 'outline',
 };
 
-const statusIcons: Partial<Record<Bucket["status"], React.ReactNode>> = {
+const statusIcons: Partial<Record<Bucket['status'], React.ReactNode>> = {
   deleting: <Loader2 className="mr-1 size-3 animate-spin" />,
 };
 
-export function BucketsTable({ buckets, onDelete, onFullDelete, onDeploy }: BucketsTableProps) {
+export function BucketsTable({
+  buckets,
+  onDelete,
+  onFullDelete,
+  onDeploy,
+  onConnectCDN,
+}: BucketsTableProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
-    toast.success("Copied to clipboard");
+    toast.success('Copied to clipboard');
     setTimeout(() => setCopiedId(null), 1500);
   };
 
@@ -90,7 +98,7 @@ export function BucketsTable({ buckets, onDelete, onFullDelete, onDeploy }: Buck
       </TableHeader>
       <TableBody>
         {buckets.map((bucket) => (
-          <TableRow key={bucket.id} className={bucket.status === "deleting" ? "opacity-50" : ""}>
+          <TableRow key={bucket.id} className={bucket.status === 'deleting' ? 'opacity-50' : ''}>
             <TableCell className="max-w-45">
               <div className="flex items-center gap-1.5 group">
                 <Link
@@ -101,7 +109,10 @@ export function BucketsTable({ buckets, onDelete, onFullDelete, onDeploy }: Buck
                   {bucket.name}
                 </Link>
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleCopy(bucket.name, `name-${bucket.id}`); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCopy(bucket.name, `name-${bucket.id}`);
+                  }}
                   className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   {copiedId === `name-${bucket.id}` ? (
@@ -131,32 +142,32 @@ export function BucketsTable({ buckets, onDelete, onFullDelete, onDeploy }: Buck
             </TableCell>
             <TableCell>{bucket.region}</TableCell>
             <TableCell className="max-w-50 truncate font-mono text-xs">
-              {bucket.cloudFrontDomain || "—"}
+              {bucket.cloudFrontDomain || '—'}
             </TableCell>
             <TableCell>
               <div className="flex gap-1">
                 {bucket.config?.versioning && (
-                  <Badge variant="outline" className="text-xs">V</Badge>
+                  <Badge variant="outline" className="text-xs">
+                    V
+                  </Badge>
                 )}
-                {bucket.config?.encryption && bucket.config.encryption !== "none" && (
+                {bucket.config?.encryption && bucket.config.encryption !== 'none' && (
                   <Badge variant="outline" className="text-xs">
                     <Shield className="mr-0.5 size-3" />
                     {bucket.config.encryption.toUpperCase()}
                   </Badge>
                 )}
                 {bucket.config?.backupEnabled && (
-                  <Badge variant="outline" className="text-xs">BK</Badge>
+                  <Badge variant="outline" className="text-xs">
+                    BK
+                  </Badge>
                 )}
               </div>
             </TableCell>
             <TableCell>
               <Badge
                 variant={
-                  statusColors[bucket.status] as
-                    | "default"
-                    | "secondary"
-                    | "destructive"
-                    | "outline"
+                  statusColors[bucket.status] as 'default' | 'secondary' | 'destructive' | 'outline'
                 }
               >
                 {statusIcons[bucket.status]}
@@ -169,7 +180,7 @@ export function BucketsTable({ buckets, onDelete, onFullDelete, onDeploy }: Buck
             <TableCell>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-xs" disabled={bucket.status === "deleting"}>
+                  <Button variant="ghost" size="icon-xs" disabled={bucket.status === 'deleting'}>
                     <MoreHorizontal className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -180,31 +191,31 @@ export function BucketsTable({ buckets, onDelete, onFullDelete, onDeploy }: Buck
                       View Details
                     </Link>
                   </DropdownMenuItem>
-                  {bucket.status === "pending" && (
+                  {bucket.status === 'pending' && (
                     <DropdownMenuItem onClick={() => onDeploy(bucket)}>
                       <Rocket className="mr-2 size-4" />
                       Deploy with CDK
                     </DropdownMenuItem>
                   )}
-                  {bucket.status === "failed" && (
+                  {bucket.status === 'failed' && (
                     <DropdownMenuItem onClick={() => onDeploy(bucket)}>
                       <Rocket className="mr-2 size-4" />
                       Retry Deploy
                     </DropdownMenuItem>
                   )}
+                  {onConnectCDN && bucket.status === 'active' && !bucket.cloudFrontDomain && (
+                    <DropdownMenuItem onClick={() => onConnectCDN(bucket)}>
+                      <CloudUpload className="mr-2 size-4" />
+                      Connect CDN
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => onDelete(bucket.id)}
-                  >
+                  <DropdownMenuItem variant="destructive" onClick={() => onDelete(bucket.id)}>
                     <Trash2 className="mr-2 size-4" />
                     Remove Metadata
                   </DropdownMenuItem>
-                  {onFullDelete && bucket.status === "active" && (
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onClick={() => onFullDelete(bucket)}
-                    >
+                  {onFullDelete && bucket.status === 'active' && (
+                    <DropdownMenuItem variant="destructive" onClick={() => onFullDelete(bucket)}>
                       <AlertTriangle className="mr-2 size-4" />
                       Full Delete (AWS)
                     </DropdownMenuItem>

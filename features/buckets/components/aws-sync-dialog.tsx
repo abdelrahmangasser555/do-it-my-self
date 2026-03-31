@@ -1,8 +1,8 @@
 // Dialog for discovering and importing real S3 buckets from AWS
-"use client";
+'use client';
 
-import { useState, useCallback, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useCallback, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Dialog,
   DialogContent,
@@ -10,11 +10,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -22,7 +22,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from '@/components/ui/table';
 import {
   RefreshCw,
   Search,
@@ -32,13 +32,15 @@ import {
   Download,
   CheckCircle2,
   Globe,
-} from "lucide-react";
-import type { Bucket } from "@/lib/types";
+} from 'lucide-react';
+import type { Bucket } from '@/lib/types';
 
 interface AwsBucketInfo {
   name: string;
   creationDate: string;
   region: string;
+  cloudFrontDomain?: string | null;
+  cloudFrontDistributionId?: string | null;
 }
 
 interface AwsSyncDialogProps {
@@ -57,7 +59,7 @@ export function AwsSyncDialog({
   const [awsBuckets, setAwsBuckets] = useState<AwsBucketInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
 
@@ -67,15 +69,15 @@ export function AwsSyncDialog({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/buckets/aws");
+      const res = await fetch('/api/buckets/aws');
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to fetch AWS buckets");
+        throw new Error(data.error || 'Failed to fetch AWS buckets');
       }
       const data: AwsBucketInfo[] = await res.json();
       setAwsBuckets(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
@@ -85,14 +87,14 @@ export function AwsSyncDialog({
     if (open) {
       fetchBuckets();
       setSelected(new Set());
-      setSearch("");
+      setSearch('');
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = awsBuckets.filter(
     (b) =>
       b.name.toLowerCase().includes(search.toLowerCase()) ||
-      b.region.toLowerCase().includes(search.toLowerCase())
+      b.region.toLowerCase().includes(search.toLowerCase()),
   );
 
   const untrackedFiltered = filtered.filter((b) => !trackedNames.has(b.name));
@@ -136,8 +138,7 @@ export function AwsSyncDialog({
             Discover AWS S3 Buckets
           </DialogTitle>
           <DialogDescription>
-            Lists all S3 buckets in your AWS account. Import untracked buckets to
-            manage them here.
+            Lists all S3 buckets in your AWS account. Import untracked buckets to manage them here.
           </DialogDescription>
         </DialogHeader>
 
@@ -164,17 +165,14 @@ export function AwsSyncDialog({
           </span>
           <span className="flex items-center gap-1">
             <Cloud className="size-3.5 text-yellow-500" />
-            {awsBuckets.filter((b) => !trackedNames.has(b.name)).length}{" "}
-            untracked
+            {awsBuckets.filter((b) => !trackedNames.has(b.name)).length} untracked
           </span>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-sm text-muted-foreground">
-              Listing S3 buckets from AWS…
-            </span>
+            <span className="ml-2 text-sm text-muted-foreground">Listing S3 buckets from AWS…</span>
           </div>
         ) : error ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -190,9 +188,7 @@ export function AwsSyncDialog({
                     Untracked Buckets ({untrackedFiltered.length})
                   </h3>
                   <Button variant="ghost" size="sm" onClick={toggleAll}>
-                    {selected.size === untrackedFiltered.length
-                      ? "Deselect All"
-                      : "Select All"}
+                    {selected.size === untrackedFiltered.length ? 'Deselect All' : 'Select All'}
                   </Button>
                 </div>
                 <div className="rounded-lg border">
@@ -202,6 +198,7 @@ export function AwsSyncDialog({
                         <TableHead className="w-10"></TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Region</TableHead>
+                        <TableHead>CDN</TableHead>
                         <TableHead>Created</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -222,19 +219,25 @@ export function AwsSyncDialog({
                                 onCheckedChange={() => toggleSelect(b.name)}
                               />
                             </TableCell>
-                            <TableCell className="font-mono text-sm">
-                              {b.name}
-                            </TableCell>
+                            <TableCell className="font-mono text-sm">{b.name}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs">
                                 <Globe className="mr-1 size-3" />
                                 {b.region}
                               </Badge>
                             </TableCell>
+                            <TableCell>
+                              {b.cloudFrontDomain ? (
+                                <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs">
+                                  <Cloud className="mr-1 size-3" />
+                                  CDN detected
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
-                              {b.creationDate
-                                ? new Date(b.creationDate).toLocaleDateString()
-                                : "—"}
+                              {b.creationDate ? new Date(b.creationDate).toLocaleDateString() : '—'}
                             </TableCell>
                           </motion.tr>
                         ))}
@@ -264,19 +267,25 @@ export function AwsSyncDialog({
                     <TableBody>
                       {trackedFiltered.map((b) => (
                         <TableRow key={b.name} className="opacity-60">
-                          <TableCell className="font-mono text-sm">
-                            {b.name}
-                          </TableCell>
+                          <TableCell className="font-mono text-sm">{b.name}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-xs">
                               <Globe className="mr-1 size-3" />
                               {b.region}
                             </Badge>
-                          </TableCell>
+                          </TableCell>{' '}
+                          <TableCell>
+                            {b.cloudFrontDomain ? (
+                              <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs">
+                                <Cloud className="mr-1 size-3" />
+                                CDN
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>{' '}
                           <TableCell className="text-xs text-muted-foreground">
-                            {b.creationDate
-                              ? new Date(b.creationDate).toLocaleDateString()
-                              : "—"}
+                            {b.creationDate ? new Date(b.creationDate).toLocaleDateString() : '—'}
                           </TableCell>
                           <TableCell>
                             <Badge className="bg-green-500/10 text-green-600 border-green-500/20 text-xs">
@@ -297,8 +306,8 @@ export function AwsSyncDialog({
                 <Database className="mb-3 size-8 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground">
                   {search
-                    ? "No buckets match your search"
-                    : "No S3 buckets found in your AWS account"}
+                    ? 'No buckets match your search'
+                    : 'No S3 buckets found in your AWS account'}
                 </p>
               </div>
             )}
@@ -309,12 +318,8 @@ export function AwsSyncDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          <Button
-            variant="outline"
-            onClick={fetchBuckets}
-            disabled={loading}
-          >
-            <RefreshCw className={`mr-2 size-4 ${loading ? "animate-spin" : ""}`} />
+          <Button variant="outline" onClick={fetchBuckets} disabled={loading}>
+            <RefreshCw className={`mr-2 size-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           {selected.size > 0 && (
@@ -324,7 +329,7 @@ export function AwsSyncDialog({
               ) : (
                 <Download className="mr-2 size-4" />
               )}
-              Import {selected.size} Bucket{selected.size > 1 ? "s" : ""}
+              Import {selected.size} Bucket{selected.size > 1 ? 's' : ''}
             </Button>
           )}
         </DialogFooter>

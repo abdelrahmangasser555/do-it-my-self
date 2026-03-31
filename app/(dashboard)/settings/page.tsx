@@ -1,7 +1,7 @@
 // Settings page — AWS credentials, OpenAI key, default environment, theme
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from 'react';
 import {
   Settings2,
   Key,
@@ -19,31 +19,25 @@ import {
   Moon,
   Sun,
   Monitor,
-} from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { PageTransition } from "@/components/page-transition";
-import { APP_CONFIG } from "@/lib/config";
-import { useTheme, type Theme } from "@/lib/theme-context";
-import { AWS_REGIONS } from "@/lib/validations";
+} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { PageTransition } from '@/components/page-transition';
+import { APP_CONFIG } from '@/lib/config';
+import { useTheme, type Theme } from '@/lib/theme-context';
+import { AWS_REGIONS } from '@/lib/validations';
 
 interface SettingsData {
   awsAccessKeyId: string;
@@ -64,9 +58,9 @@ interface Environment {
 }
 
 const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Moon }[] = [
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "light", label: "Light", icon: Sun },
-  { value: "system", label: "System", icon: Monitor },
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'system', label: 'System', icon: Monitor },
 ];
 
 export default function SettingsPage() {
@@ -77,11 +71,11 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
 
   // Form state
-  const [awsKeyId, setAwsKeyId] = useState("");
-  const [awsSecret, setAwsSecret] = useState("");
-  const [awsRegion, setAwsRegion] = useState("us-east-1");
-  const [openaiKey, setOpenaiKey] = useState("");
-  const [defaultEnv, setDefaultEnv] = useState("");
+  const [awsKeyId, setAwsKeyId] = useState('');
+  const [awsSecret, setAwsSecret] = useState('');
+  const [awsRegion, setAwsRegion] = useState('us-east-1');
+  const [openaiKey, setOpenaiKey] = useState('');
+  const [defaultEnv, setDefaultEnv] = useState('');
 
   // Visibility toggles
   const [showAwsKey, setShowAwsKey] = useState(false);
@@ -92,23 +86,23 @@ export default function SettingsPage() {
     try {
       setLoading(true);
       const [settingsRes, envsRes] = await Promise.all([
-        fetch("/api/settings?raw=true"),
-        fetch("/api/environments"),
+        fetch('/api/settings?raw=true'),
+        fetch('/api/environments'),
       ]);
       if (settingsRes.ok) {
         const data = await settingsRes.json();
         setSettings(data);
-        setAwsKeyId(data.awsAccessKeyId || "");
-        setAwsSecret(data.awsSecretAccessKey || "");
-        setAwsRegion(data.awsDefaultRegion || "us-east-1");
-        setOpenaiKey(data.openaiApiKey || "");
-        setDefaultEnv(data.defaultEnvironment || "");
+        setAwsKeyId(data.awsAccessKeyId || '');
+        setAwsSecret(data.awsSecretAccessKey || '');
+        setAwsRegion(data.awsDefaultRegion || 'us-east-1');
+        setOpenaiKey(data.openaiApiKey || '');
+        setDefaultEnv(data.defaultEnvironment || '');
       }
       if (envsRes.ok) {
         setEnvironments(await envsRes.json());
       }
     } catch {
-      toast.error("Failed to load settings");
+      toast.error('Failed to load settings');
     } finally {
       setLoading(false);
     }
@@ -122,9 +116,9 @@ export default function SettingsPage() {
   const handleThemeChange = (t: Theme) => {
     setTheme(t);
     // Fire-and-forget save to server
-    fetch("/api/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ theme: t }),
     });
   };
@@ -132,9 +126,9 @@ export default function SettingsPage() {
   const handleSaveAws = async () => {
     setSaving(true);
     try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           awsAccessKeyId: awsKeyId,
           awsSecretAccessKey: awsSecret,
@@ -142,13 +136,13 @@ export default function SettingsPage() {
         }),
       });
       if (res.ok) {
-        toast.success("AWS credentials updated");
+        toast.success('AWS credentials updated');
         await fetchSettings();
       } else {
-        toast.error("Failed to save AWS settings");
+        toast.error('Failed to save AWS settings');
       }
     } catch {
-      toast.error("Failed to save AWS settings");
+      toast.error('Failed to save AWS settings');
     } finally {
       setSaving(false);
     }
@@ -157,19 +151,19 @@ export default function SettingsPage() {
   const handleSaveOpenai = async () => {
     setSaving(true);
     try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ openaiApiKey: openaiKey }),
       });
       if (res.ok) {
-        toast.success("OpenAI API key updated");
+        toast.success('OpenAI API key updated');
         await fetchSettings();
       } else {
-        toast.error("Failed to save OpenAI key");
+        toast.error('Failed to save OpenAI key');
       }
     } catch {
-      toast.error("Failed to save OpenAI key");
+      toast.error('Failed to save OpenAI key');
     } finally {
       setSaving(false);
     }
@@ -178,18 +172,18 @@ export default function SettingsPage() {
   const handleSavePreferences = async () => {
     setSaving(true);
     try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ defaultEnvironment: defaultEnv, theme }),
       });
       if (res.ok) {
-        toast.success("Preferences saved");
+        toast.success('Preferences saved');
       } else {
-        toast.error("Failed to save preferences");
+        toast.error('Failed to save preferences');
       }
     } catch {
-      toast.error("Failed to save preferences");
+      toast.error('Failed to save preferences');
     } finally {
       setSaving(false);
     }
@@ -205,21 +199,12 @@ export default function SettingsPage() {
     );
   }
 
-  const activeEnvironments = environments.filter((e) => e.status === "active");
+  const activeEnvironments = environments.filter((e) => e.status === 'active');
 
   return (
     <PageTransition>
       <div className="mx-auto max-w-2xl space-y-8">
         {/* Header */}
-        <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight flex items-center justify-center gap-2">
-            <Settings2 className="size-6" />
-            Settings
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your {APP_CONFIG.name} configuration and credentials.
-          </p>
-        </div>
 
         {/* General Section */}
         <div className="space-y-1">
@@ -237,9 +222,7 @@ export default function SettingsPage() {
                   <Palette className="size-4 text-muted-foreground" />
                   <Label className="text-sm font-medium">Theme</Label>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Choose how {APP_CONFIG.name} looks.
-                </p>
+                <p className="text-xs text-muted-foreground">Choose how {APP_CONFIG.name} looks.</p>
               </div>
               <div className="flex items-center gap-1 rounded-lg border p-1">
                 {THEME_OPTIONS.map((opt) => (
@@ -248,8 +231,8 @@ export default function SettingsPage() {
                     onClick={() => handleThemeChange(opt.value)}
                     className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                       theme === opt.value
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                     }`}
                   >
                     <opt.icon className="size-3.5" />
@@ -266,13 +249,11 @@ export default function SettingsPage() {
                   <MapPin className="size-4 text-muted-foreground" />
                   <Label className="text-sm font-medium">Default Environment</Label>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Default region for new buckets.
-                </p>
+                <p className="text-xs text-muted-foreground">Default region for new buckets.</p>
               </div>
               <Select
-                value={defaultEnv || "none"}
-                onValueChange={(v) => setDefaultEnv(v === "none" ? "" : v)}
+                value={defaultEnv || 'none'}
+                onValueChange={(v) => setDefaultEnv(v === 'none' ? '' : v)}
               >
                 <SelectTrigger className="w-50">
                   <SelectValue placeholder="Select region" />
@@ -281,8 +262,7 @@ export default function SettingsPage() {
                   <SelectItem value="none">No default</SelectItem>
                   {activeEnvironments.map((env) => {
                     const regionLabel =
-                      AWS_REGIONS.find((r) => r.value === env.region)?.label ??
-                      env.region;
+                      AWS_REGIONS.find((r) => r.value === env.region)?.label ?? env.region;
                     return (
                       <SelectItem key={env.id} value={env.region}>
                         {regionLabel}
@@ -328,18 +308,13 @@ export default function SettingsPage() {
                   Configured
                 </Badge>
               ) : (
-                <Badge
-                  variant="outline"
-                  className="gap-1 text-yellow-500 border-yellow-500/20"
-                >
+                <Badge variant="outline" className="gap-1 text-yellow-500 border-yellow-500/20">
                   <AlertCircle className="size-3" />
                   Not Set
                 </Badge>
               )}
             </div>
-            <CardDescription>
-              Stored locally — never sent externally.
-            </CardDescription>
+            <CardDescription>Stored locally — never sent externally.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -347,7 +322,7 @@ export default function SettingsPage() {
               <div className="relative">
                 <Input
                   id="awsKeyId"
-                  type={showAwsKey ? "text" : "password"}
+                  type={showAwsKey ? 'text' : 'password'}
                   value={awsKeyId}
                   onChange={(e) => setAwsKeyId(e.target.value)}
                   placeholder="AKIA..."
@@ -358,11 +333,7 @@ export default function SettingsPage() {
                   onClick={() => setShowAwsKey(!showAwsKey)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showAwsKey ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
+                  {showAwsKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </div>
             </div>
@@ -372,7 +343,7 @@ export default function SettingsPage() {
               <div className="relative">
                 <Input
                   id="awsSecret"
-                  type={showAwsSecret ? "text" : "password"}
+                  type={showAwsSecret ? 'text' : 'password'}
                   value={awsSecret}
                   onChange={(e) => setAwsSecret(e.target.value)}
                   placeholder="Enter secret access key"
@@ -383,11 +354,7 @@ export default function SettingsPage() {
                   onClick={() => setShowAwsSecret(!showAwsSecret)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showAwsSecret ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
+                  {showAwsSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </div>
             </div>
@@ -448,9 +415,7 @@ export default function SettingsPage() {
                 </Badge>
               )}
             </div>
-            <CardDescription>
-              Used for AI-powered command generation. Optional.
-            </CardDescription>
+            <CardDescription>Used for AI-powered command generation. Optional.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -458,7 +423,7 @@ export default function SettingsPage() {
               <div className="relative">
                 <Input
                   id="openaiKey"
-                  type={showOpenaiKey ? "text" : "password"}
+                  type={showOpenaiKey ? 'text' : 'password'}
                   value={openaiKey}
                   onChange={(e) => setOpenaiKey(e.target.value)}
                   placeholder="sk-..."
@@ -469,11 +434,7 @@ export default function SettingsPage() {
                   onClick={() => setShowOpenaiKey(!showOpenaiKey)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showOpenaiKey ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
+                  {showOpenaiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </div>
             </div>
@@ -508,15 +469,12 @@ export default function SettingsPage() {
               </div>
               <div>
                 <p className="font-semibold">{APP_CONFIG.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {APP_CONFIG.description}
-                </p>
+                <p className="text-xs text-muted-foreground">{APP_CONFIG.description}</p>
               </div>
             </div>
             <p className="mt-4 text-xs text-muted-foreground">
-              All data is stored locally on your machine. No information is sent
-              to external servers except direct AWS API calls and optional
-              OpenAI requests.
+              All data is stored locally on your machine. No information is sent to external servers
+              except direct AWS API calls and optional OpenAI requests.
             </p>
           </CardContent>
         </Card>

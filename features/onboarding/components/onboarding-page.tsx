@@ -1,33 +1,27 @@
 // Main onboarding page — step-based with environment bootstrapping and star CTA
-"use client";
+'use client';
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  ArrowRight,
-  HardDrive,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import { useOnboardingState } from "../hooks/use-onboarding-state";
-import { useEnvironmentValidation } from "../hooks/use-environment-validation";
-import { useAwsValidation } from "../hooks/use-aws-validation";
-import { useAiOptionalSetup } from "../hooks/use-ai-optional-setup";
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle, AlertCircle, Loader2, ArrowRight, HardDrive } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { useOnboardingState } from '../hooks/use-onboarding-state';
+import { useEnvironmentValidation } from '../hooks/use-environment-validation';
+import { useAwsValidation } from '../hooks/use-aws-validation';
+import { useAiOptionalSetup } from '../hooks/use-ai-optional-setup';
 import {
   useEnvironments,
   useBootstrapEnvironment,
-} from "@/features/environments/hooks/use-environments";
-import { EnvironmentStep } from "./environment-step";
-import { AwsStep } from "./aws-step";
-import { BootstrapEnvironmentsStep } from "./bootstrap-environments-step";
-import { AiStep } from "./ai-step";
-import { StarRepoStep } from "./star-repo-step";
+} from '@/features/environments/hooks/use-environments';
+import { EnvironmentStep } from './environment-step';
+import { AwsStep } from './aws-step';
+import { BootstrapEnvironmentsStep } from './bootstrap-environments-step';
+import { AiStep } from './ai-step';
+import { StarRepoStep } from './star-repo-step';
 
 // Animation variants for step cards
 const stepVariants = {
@@ -51,11 +45,7 @@ export function OnboardingPage() {
   const envHook = useEnvironmentValidation();
   const awsHook = useAwsValidation();
   const aiHook = useAiOptionalSetup();
-  const {
-    environments,
-    activeEnvironments,
-    refetch: refetchEnvs,
-  } = useEnvironments();
+  const { environments, activeEnvironments, refetch: refetchEnvs } = useEnvironments();
   const {
     bootstrapEnvironment,
     loading: bootstrapLoading,
@@ -69,12 +59,7 @@ export function OnboardingPage() {
     if (envHook.checked && envHook.allPassed && !state.environmentValidated) {
       updateState({ environmentValidated: true });
     }
-  }, [
-    envHook.checked,
-    envHook.allPassed,
-    state.environmentValidated,
-    updateState,
-  ]);
+  }, [envHook.checked, envHook.allPassed, state.environmentValidated, updateState]);
 
   useEffect(() => {
     if (awsHook.checked && awsHook.allPassed && !state.awsValidated) {
@@ -97,7 +82,7 @@ export function OnboardingPage() {
 
   const handleBootstrapRegion = useCallback(
     async (region: string) => {
-      const accountId = awsHook.identity?.account || "";
+      const accountId = awsHook.identity?.account || '';
       if (!accountId) return;
       await bootstrapEnvironment(region, accountId, region);
       await refetchEnvs();
@@ -107,7 +92,7 @@ export function OnboardingPage() {
 
   const handleRemoveEnv = useCallback(
     async (id: string) => {
-      await fetch(`/api/environments?id=${id}`, { method: "DELETE" });
+      await fetch(`/api/environments?id=${id}`, { method: 'DELETE' });
       await refetchEnvs();
     },
     [refetchEnvs],
@@ -156,8 +141,23 @@ export function OnboardingPage() {
   };
 
   const handleEnterDashboard = async () => {
+    // Create a "Welcome Project" silently before redirecting
+    try {
+      await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Welcome Project',
+          environment: 'dev',
+          maxFileSizeMB: 100,
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'application/pdf'],
+        }),
+      });
+    } catch {
+      // Non-critical — ignore failures
+    }
     await updateState({ onboardingComplete: true });
-    router.push("/");
+    router.push('/');
   };
 
   if (stateLoading) {
@@ -181,21 +181,19 @@ export function OnboardingPage() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
           className="flex items-start justify-between"
         >
           <div className="flex items-center gap-3">
             <motion.div
               initial={{ rotate: -15, scale: 0.8 }}
               animate={{ rotate: 0, scale: 1 }}
-              transition={{ type: "spring", stiffness: 200, damping: 12 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 12 }}
             >
               <HardDrive className="size-6 text-primary" />
             </motion.div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">
-                Environment Setup
-              </h1>
+              <h1 className="text-2xl font-bold tracking-tight">Environment Setup</h1>
               <p className="text-sm text-muted-foreground">
                 Let&apos;s prepare your machine and AWS account.
               </p>
@@ -239,12 +237,7 @@ export function OnboardingPage() {
               className="space-y-6"
             >
               {/* Step 1 — Environment */}
-              <motion.div
-                custom={0}
-                variants={stepVariants}
-                initial="hidden"
-                animate="visible"
-              >
+              <motion.div custom={0} variants={stepVariants} initial="hidden" animate="visible">
                 <EnvironmentStep
                   results={envHook.results}
                   loading={envHook.loading}
@@ -260,12 +253,7 @@ export function OnboardingPage() {
               </motion.div>
 
               {/* Step 2 — AWS Connection & IAM Permissions */}
-              <motion.div
-                custom={1}
-                variants={stepVariants}
-                initial="hidden"
-                animate="visible"
-              >
+              <motion.div custom={1} variants={stepVariants} initial="hidden" animate="visible">
                 <AwsStep
                   identity={awsHook.identity}
                   awsLoading={awsHook.loading}
@@ -291,34 +279,22 @@ export function OnboardingPage() {
               </motion.div>
 
               {/* Step 3 — Bootstrap Environments */}
-              <motion.div
-                custom={2}
-                variants={stepVariants}
-                initial="hidden"
-                animate="visible"
-              >
+              <motion.div custom={2} variants={stepVariants} initial="hidden" animate="visible">
                 <BootstrapEnvironmentsStep
                   environments={environments}
-                  accountId={awsHook.identity?.account || ""}
+                  accountId={awsHook.identity?.account || ''}
                   loading={bootstrapLoading}
                   error={bootstrapError}
                   lastErrorOutput={bootstrapErrorOutput}
                   progress={bootstrapProgress}
-                  hasAnyActive={
-                    activeEnvironments.length > 0 || state.cdkBootstrapped
-                  }
+                  hasAnyActive={activeEnvironments.length > 0 || state.cdkBootstrapped}
                   onBootstrap={handleBootstrapRegion}
                   onRemove={handleRemoveEnv}
                 />
               </motion.div>
 
               {/* Step 4 — AI Setup (Optional) */}
-              <motion.div
-                custom={3}
-                variants={stepVariants}
-                initial="hidden"
-                animate="visible"
-              >
+              <motion.div custom={3} variants={stepVariants} initial="hidden" animate="visible">
                 <AiStep
                   loading={aiHook.loading}
                   error={aiHook.error}
@@ -340,7 +316,7 @@ export function OnboardingPage() {
               key="star"
               initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
             >
               <StarRepoStep />
             </motion.div>
@@ -361,7 +337,7 @@ export function OnboardingPage() {
               <div className="text-sm text-muted-foreground">
                 {isReady
                   ? "All required steps complete. You're ready to go!"
-                  : "Complete the required steps above to continue."}
+                  : 'Complete the required steps above to continue.'}
               </div>
               <Button onClick={handleFinish} disabled={!isReady} size="lg">
                 Continue
@@ -370,11 +346,7 @@ export function OnboardingPage() {
             </>
           ) : (
             <>
-              <Button
-                variant="ghost"
-                onClick={() => setShowStarStep(false)}
-                size="sm"
-              >
+              <Button variant="ghost" onClick={() => setShowStarStep(false)} size="sm">
                 Back to setup
               </Button>
               <Button onClick={handleEnterDashboard} size="lg">

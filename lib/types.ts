@@ -7,7 +7,7 @@ export interface BootstrappedEnvironment {
   accountId: string;
   region: string;
   alias: string;
-  status: "bootstrapping" | "active" | "failed";
+  status: 'bootstrapping' | 'active' | 'failed';
   bootstrappedAt: string;
   createdAt: string;
 }
@@ -17,7 +17,7 @@ export interface BootstrappedEnvironment {
 export interface Project {
   id: string;
   name: string;
-  environment: "dev" | "prod";
+  environment: 'dev' | 'prod';
   maxFileSizeMB: number;
   allowedMimeTypes: string[];
   createdAt: string;
@@ -25,10 +25,47 @@ export interface Project {
 }
 
 export interface BucketConfig {
-  versioning: boolean;
-  encryption: "s3" | "kms" | "none";
-  backupEnabled: boolean;
+  // Default settings
+  access: 'private' | 'public';
   maxFileSizeMB: number;
+  strictFileSizeLimit: boolean;
+  allowedFileTypes: 'images' | 'videos' | 'documents' | 'any';
+  autoDelete: boolean;
+  autoDeleteDays?: number;
+
+  // Advanced - Security
+  signedUrlExpiration: number;
+  corsOrigins: string[];
+  corsMethods: string[];
+
+  // Advanced - Storage
+  versioning: boolean;
+  lifecycleTransitionDays?: number;
+  lifecycleDeleteIncompleteUploads: boolean;
+
+  // Advanced - Performance
+  enableCDN: boolean;
+  cacheControl: string;
+
+  // Advanced - Upload
+  multipartThresholdMB: number;
+  maxConcurrency: number;
+  retryCount: number;
+
+  // Advanced - Encryption
+  encryptionType: 'S3' | 'KMS' | 'none';
+  kmsKeyId?: string;
+
+  // Advanced - Monitoring
+  enableAccessLogs: boolean;
+  enableMetrics: boolean;
+
+  // Advanced - Cost
+  monthlyBudgetAlertUSD?: number;
+
+  // Legacy compat
+  encryption: 's3' | 'kms' | 'none';
+  backupEnabled: boolean;
 }
 
 export interface Bucket {
@@ -40,7 +77,7 @@ export interface Bucket {
   cloudFrontDomain: string;
   cloudFrontDistributionId: string;
   region: string;
-  status: "pending" | "deploying" | "active" | "failed" | "deleting";
+  status: 'pending' | 'deploying' | 'active' | 'failed' | 'deleting';
   config: BucketConfig;
   createdAt: string;
   updatedAt: string;
@@ -49,7 +86,7 @@ export interface Bucket {
 export interface DeletionStep {
   id: string;
   label: string;
-  status: "pending" | "running" | "done" | "error";
+  status: 'pending' | 'running' | 'done' | 'error';
   error?: string;
 }
 
@@ -68,7 +105,7 @@ export interface FileRecord {
 
 export interface ProjectFormData {
   name: string;
-  environment: "dev" | "prod";
+  environment: 'dev' | 'prod';
   maxFileSizeMB: number;
   allowedMimeTypes: string[];
 }
@@ -194,7 +231,7 @@ export interface BucketSyncStatus {
   bucketId: string;
   bucketName: string;
   s3BucketName: string;
-  localStatus: Bucket["status"];
+  localStatus: Bucket['status'];
   stackExists: boolean;
   stackStatus?: string;
   stackStatusReason?: string;
@@ -203,9 +240,5 @@ export interface BucketSyncStatus {
   cloudFrontDistributionId?: string;
   resources: StackResourceInfo[];
   needsSync: boolean;
-  recommendedAction?:
-    | "update-to-active"
-    | "update-to-failed"
-    | "update-to-pending"
-    | "cleanup";
+  recommendedAction?: 'update-to-active' | 'update-to-failed' | 'update-to-pending' | 'cleanup';
 }

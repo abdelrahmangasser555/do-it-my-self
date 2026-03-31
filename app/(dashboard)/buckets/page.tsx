@@ -1,36 +1,34 @@
 // Buckets listing page with create, deploy, search, AWS sync, and full-delete controls
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Plus, RefreshCw, Search, Cloud } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { PageTransition } from "@/components/page-transition";
-import { BucketsTable } from "@/features/buckets/components/buckets-table";
-import { CreateBucketDialog } from "@/features/buckets/components/create-bucket-dialog";
-import { DeleteBucketDialog } from "@/features/buckets/components/delete-bucket-dialog";
-import { AwsSyncDialog } from "@/features/buckets/components/aws-sync-dialog";
-import { SyncStatusDialog } from "@/features/infrastructure/components/sync-status-dialog";
-import {
-  useBuckets,
-  useCreateBucket,
-  useDeleteBucket,
-} from "@/features/buckets/hooks/use-buckets";
-import { useProjects } from "@/features/projects/hooks/use-projects";
-import { useDeployBucket } from "@/features/infrastructure/hooks/use-deploy-bucket";
-import { useFiles } from "@/features/files/hooks/use-files";
-import type { BucketFormValues } from "@/lib/validations";
-import type { Bucket } from "@/lib/types";
-import { useEnvironments } from "@/features/environments/hooks/use-environments";
+import { useState } from 'react';
+import { Plus, RefreshCw, Search, Cloud } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { PageTransition } from '@/components/page-transition';
+import { BucketsTable } from '@/features/buckets/components/buckets-table';
+import { CreateBucketDialog } from '@/features/buckets/components/create-bucket-dialog';
+import { DeleteBucketDialog } from '@/features/buckets/components/delete-bucket-dialog';
+import { AwsSyncDialog } from '@/features/buckets/components/aws-sync-dialog';
+import { ConnectCdnDialog } from '@/features/buckets/components/connect-cdn-dialog';
+import { SyncStatusDialog } from '@/features/infrastructure/components/sync-status-dialog';
+import { useBuckets, useCreateBucket, useDeleteBucket } from '@/features/buckets/hooks/use-buckets';
+import { useProjects } from '@/features/projects/hooks/use-projects';
+import { useDeployBucket } from '@/features/infrastructure/hooks/use-deploy-bucket';
+import { useFiles } from '@/features/files/hooks/use-files';
+import type { BucketFormValues } from '@/lib/validations';
+import type { Bucket } from '@/lib/types';
+import { useEnvironments } from '@/features/environments/hooks/use-environments';
 
 export default function BucketsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Bucket | null>(null);
   const [syncOpen, setSyncOpen] = useState(false);
   const [awsSyncOpen, setAwsSyncOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const [connectCdnTarget, setConnectCdnTarget] = useState<Bucket | null>(null);
+  const [search, setSearch] = useState('');
   const { buckets, loading, refetch } = useBuckets();
   const { projects } = useProjects();
   const { createBucket, loading: creating } = useCreateBucket();
@@ -51,24 +49,28 @@ export default function BucketsPage() {
     );
   });
 
-  const handleCreate = async (data: BucketFormValues) => {
+  const handleCreate = async (data: BucketFormValues, deploy?: boolean) => {
     const result = await createBucket(data);
     if (result) {
       toast.success(`Bucket "${result.name}" created`);
       setDialogOpen(false);
       refetch();
+      if (deploy) {
+        // Trigger deploy via infrastructure API
+        await handleDeploy(result);
+      }
     } else {
-      toast.error("Failed to create bucket");
+      toast.error('Failed to create bucket');
     }
   };
 
   const handleDelete = async (id: string) => {
     const success = await deleteBucket(id);
     if (success) {
-      toast.success("Bucket metadata removed");
+      toast.success('Bucket metadata removed');
       refetch();
     } else {
-      toast.error("Failed to delete bucket");
+      toast.error('Failed to delete bucket');
     }
   };
 
@@ -80,7 +82,7 @@ export default function BucketsPage() {
     toast.info(`Deploying ${bucket.name}... This may take a few minutes.`);
     const result = await deploy(bucket.id, bucket.s3BucketName, bucket.region);
     if (result.success) {
-      toast.success("Deployment complete!");
+      toast.success('Deployment complete!');
       refetch();
     } else {
       toast.error(`Deployment failed: ${result.error}`);
@@ -88,34 +90,30 @@ export default function BucketsPage() {
   };
 
   const handleImportBuckets = async (
-    awsBuckets: { name: string; creationDate: string; region: string }[]
+    awsBuckets: { name: string; creationDate: string; region: string }[],
   ) => {
     try {
-      const res = await fetch("/api/buckets/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/buckets/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ buckets: awsBuckets }),
       });
       if (res.ok) {
         const data = await res.json();
-        toast.success(
-          `Imported ${data.imported} bucket${data.imported !== 1 ? "s" : ""}`
-        );
+        toast.success(`Imported ${data.imported} bucket${data.imported !== 1 ? 's' : ''}`);
       } else {
         const data = await res.json();
-        toast.error(data.error || "Import failed");
+        toast.error(data.error || 'Import failed');
       }
     } catch {
-      toast.error("Failed to import buckets");
+      toast.error('Failed to import buckets');
     }
     refetch();
     setAwsSyncOpen(false);
   };
 
   const fileCountForBucket = (bucket: Bucket | null) =>
-    bucket
-      ? files.filter((f) => f.bucketName === bucket.s3BucketName).length
-      : 0;
+    bucket ? files.filter((f) => f.bucketName === bucket.s3BucketName).length : 0;
 
   return (
     <PageTransition>
@@ -123,15 +121,10 @@ export default function BucketsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Buckets</h1>
-            <p className="text-muted-foreground">
-              Manage S3 buckets and CloudFront distributions.
-            </p>
+            <p className="text-muted-foreground">Manage S3 buckets and CloudFront distributions.</p>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setAwsSyncOpen(true)}
-            >
+            <Button variant="outline" onClick={() => setAwsSyncOpen(true)}>
               <Cloud className="mr-2 size-4" />
               Discover AWS Buckets
             </Button>
@@ -143,10 +136,7 @@ export default function BucketsPage() {
               <RefreshCw className="mr-2 size-4" />
               Sync Status
             </Button>
-            <Button
-              onClick={() => setDialogOpen(true)}
-              data-tour-step-id="tour-new-bucket"
-            >
+            <Button onClick={() => setDialogOpen(true)} data-tour-step-id="tour-new-bucket">
               <Plus className="mr-2 size-4" />
               New Bucket
             </Button>
@@ -186,6 +176,7 @@ export default function BucketsPage() {
                 onDelete={handleDelete}
                 onFullDelete={handleFullDelete}
                 onDeploy={handleDeploy}
+                onConnectCDN={(bucket) => setConnectCdnTarget(bucket)}
               />
             )}
           </CardContent>
@@ -210,7 +201,7 @@ export default function BucketsPage() {
           onComplete={() => {
             setDeleteTarget(null);
             refetch();
-            toast.success("Bucket fully deleted from AWS");
+            toast.success('Bucket fully deleted from AWS');
           }}
         />
 
@@ -221,12 +212,24 @@ export default function BucketsPage() {
           onImport={handleImportBuckets}
         />
 
+        <ConnectCdnDialog
+          open={!!connectCdnTarget}
+          onOpenChange={(v) => {
+            if (!v) setConnectCdnTarget(null);
+          }}
+          bucket={connectCdnTarget}
+          onComplete={() => {
+            setConnectCdnTarget(null);
+            refetch();
+          }}
+        />
+
         <SyncStatusDialog
           open={syncOpen}
           onOpenChange={setSyncOpen}
           onSynced={() => {
             refetch();
-            toast.success("Buckets synced with AWS");
+            toast.success('Buckets synced with AWS');
           }}
         />
       </div>

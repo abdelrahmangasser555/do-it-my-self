@@ -1,19 +1,12 @@
 // Environments management dashboard — activate / deactivate AWS regions
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Globe,
-  Plus,
   Trash2,
-  RefreshCw,
   CheckCircle,
-  AlertCircle,
   Loader2,
-  MapPin,
-  Shield,
-  Clock,
   Wrench,
   Search,
   Package,
@@ -24,21 +17,11 @@ import {
   Copy,
   Check,
   ExternalLink,
-  Server,
-  ArrowUpCircle,
-  CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -49,11 +32,9 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PageTransition } from '@/components/page-transition';
+import { EnvironmentsMap } from '@/features/environments/components/environments-map';
 import { AWS_REGIONS } from '@/lib/validations';
 import {
   useEnvironments,
@@ -61,7 +42,7 @@ import {
   type BootstrapProgress,
 } from '@/features/environments/hooks/use-environments';
 import { diagnoseBootstrapError } from '@/features/onboarding/utils/error-diagnosis';
-import type { BootstrappedEnvironment } from '@/lib/types';
+import type { BootstrappedEnvironment, Bucket } from '@/lib/types';
 
 // ── Phase config for bootstrap progress ──────────────────────────────────────
 
@@ -95,23 +76,6 @@ function relativeTime(dateStr: string): string {
 
 const regionLabel = (value: string) => AWS_REGIONS.find((r) => r.value === value)?.label ?? value;
 
-// ── Region groups for the select dropdown ────────────────────────────────────
-
-const REGION_GROUPS = [
-  { label: 'North America', prefix: ['us-', 'ca-'] },
-  { label: 'Europe', prefix: ['eu-'] },
-  { label: 'Asia Pacific', prefix: ['ap-'] },
-  { label: 'South America', prefix: ['sa-'] },
-  { label: 'Middle East & Africa', prefix: ['me-', 'af-', 'il-'] },
-];
-
-function groupRegions(regions: typeof AWS_REGIONS) {
-  return REGION_GROUPS.map((g) => ({
-    ...g,
-    regions: regions.filter((r) => g.prefix.some((p) => r.value.startsWith(p))),
-  })).filter((g) => g.regions.length > 0);
-}
-
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function EnvironmentsPage() {
@@ -124,24 +88,10 @@ export default function EnvironmentsPage() {
     progress,
   } = useBootstrapEnvironment();
 
-  const [addOpen, setAddOpen] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState('');
   const [accountId, setAccountId] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<BootstrappedEnvironment | null>(null);
   const [copiedError, setCopiedError] = useState(false);
-  const [cdkStatuses, setCdkStatuses] =
-    useState<
-      Record<
-        string,
-        {
-          status: 'up-to-date' | 'outdated' | 'unknown';
-          localVersion?: string;
-          deployedVersion?: string;
-          loading?: boolean;
-          updating?: boolean;
-        }
-      >
-    >();
+  const [buckets, setBuckets] = useState<Bucket[]>([]);
 
   // Auto-fill AWS account ID from local credentials
   useEffect(() => {
@@ -155,86 +105,38 @@ export default function EnvironmentsPage() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const usedRegions = new Set(environments.map((e) => e.region));
-  const availableRegions = AWS_REGIONS.filter((r) => !usedRegions.has(r.value));
-  const groupedAvailable = groupRegions(availableRegions as unknown as typeof AWS_REGIONS);
-
-  const checkCdkStatus = useCallback(async (env: BootstrappedEnvironment) => {
-    setCdkStatuses((prev) => ({ ...(prev ?? {}), [env.id]: { status: 'unknown', loading: true } }));
-    try {
-      const res = await fetch(`/api/infrastructure/cdk-status?region=${env.region}`);
-      if (!res.ok) throw new Error('Failed');
-      const data = await res.json();
-      setCdkStatuses((prev) => ({
-        ...(prev ?? {}),
-        [env.id]: {
-          status: data.needsUpdate ? 'outdated' : 'up-to-date',
-          localVersion: data.localCdkVersion,
-          deployedVersion: data.deployedBootstrapVersion,
-          loading: false,
-        },
-      }));
-    } catch {
-      setCdkStatuses((prev) => ({
-        ...(prev ?? {}),
-        [env.id]: { status: 'unknown', loading: false },
-      }));
-    }
+  // Fetch buckets for region distribution
+  useEffect(() => {
+    fetch('/api/buckets')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setBuckets(data))
+      .catch(() => {});
   }, []);
 
-  const handleUpdateCdk = useCallback(
-    async (env: BootstrappedEnvironment) => {
-      setCdkStatuses((prev) => ({
-        ...(prev ?? {}),
-        [env.id]: { ...(prev?.[env.id] ?? { status: 'unknown' }), updating: true },
-      }));
-      try {
-        const res = await fetch('/api/infrastructure', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'bootstrap-update',
-            region: env.region,
-            accountId: env.accountId,
-          }),
-        });
-        if (!res.ok) throw new Error('Failed to update CDK');
-        toast.success(`CDK bootstrap updated for ${regionLabel(env.region)}`);
-        // Re-check status after update
-        await checkCdkStatus(env);
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Failed to update CDK');
-        setCdkStatuses((prev) => ({
-          ...(prev ?? {}),
-          [env.id]: { ...(prev?.[env.id] ?? { status: 'unknown' }), updating: false },
-        }));
+  const bucketsByRegion = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const b of buckets) {
+      if (b.status === 'active') {
+        map.set(b.region, (map.get(b.region) || 0) + 1);
       }
-    },
-    [checkCdkStatus],
-  );
-
-  const activeCount = environments.filter((e) => e.status === 'active').length;
-  const failedCount = environments.filter((e) => e.status === 'failed').length;
-  const bootstrappingCount = environments.filter((e) => e.status === 'bootstrapping').length;
-
-  const handleBootstrap = useCallback(async () => {
-    if (!selectedRegion || !accountId) {
-      toast.error('Region and Account ID are required');
-      return;
     }
-    const label = AWS_REGIONS.find((r) => r.value === selectedRegion)?.label ?? selectedRegion;
-    setAddOpen(false);
-    await bootstrapEnvironment(selectedRegion, accountId, label);
-    await refetch();
-    setSelectedRegion('');
-  }, [selectedRegion, accountId, bootstrapEnvironment, refetch]);
+    return Array.from(map.entries()).map(([region, count]) => ({ region, count }));
+  }, [buckets]);
 
-  const handleRetry = useCallback(
-    async (env: BootstrappedEnvironment) => {
-      await bootstrapEnvironment(env.region, env.accountId, env.alias);
+  const usedRegions = new Set(environments.map((e) => e.region));
+  const availableRegions = AWS_REGIONS.filter((r) => !usedRegions.has(r.value));
+
+  const handleBootstrapRegion = useCallback(
+    async (region: string) => {
+      if (!accountId) {
+        toast.error('AWS Account ID is missing. Configure credentials first.');
+        return;
+      }
+      const label = AWS_REGIONS.find((r) => r.value === region)?.label ?? region;
+      await bootstrapEnvironment(region, accountId, label);
       await refetch();
     },
-    [bootstrapEnvironment, refetch],
+    [accountId, bootstrapEnvironment, refetch],
   );
 
   const handleDelete = useCallback(
@@ -262,85 +164,21 @@ export default function EnvironmentsPage() {
   return (
     <PageTransition>
       <div className="space-y-6">
-        {/* ── Header ────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Globe className="size-6 text-primary" />
-              Environments
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage bootstrapped AWS regions for bucket deployments
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => refetch()}
-                    disabled={loading}
-                  >
-                    <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Refresh environments</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <Button onClick={() => setAddOpen(true)} disabled={bootstrapping}>
-              <Plus className="mr-2 size-4" />
-              Add Region
-            </Button>
-          </div>
-        </div>
-
-        {/* ── Stats ─────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent pointer-events-none" />
-            <CardContent className="flex items-center gap-4 p-5">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10">
-                <Server className="size-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold tracking-tight">{environments.length}</p>
-                <p className="text-xs text-muted-foreground">Total Regions</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-linear-to-br from-green-500/5 to-transparent pointer-events-none" />
-            <CardContent className="flex items-center gap-4 p-5">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-green-500/10">
-                <CheckCircle className="size-5 text-green-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold tracking-tight text-green-600 dark:text-green-400">
-                  {activeCount}
-                </p>
-                <p className="text-xs text-muted-foreground">Active &amp; Ready</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-linear-to-br from-red-500/5 to-transparent pointer-events-none" />
-            <CardContent className="flex items-center gap-4 p-5">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-red-500/10">
-                <AlertCircle className="size-5 text-red-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold tracking-tight text-red-600 dark:text-red-400">
-                  {failedCount}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {failedCount === 1 ? 'Needs Attention' : 'Need Attention'}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* ── World Map ─────────────────────────────────────────────── */}
+        <EnvironmentsMap
+          environments={environments}
+          bucketsByRegion={bucketsByRegion}
+          loading={loading}
+          bootstrapping={bootstrapping}
+          onActivate={handleBootstrapRegion}
+          onRemove={async (id) => {
+            const env = environments.find((e) => e.id === id);
+            if (env) setDeleteTarget(env);
+          }}
+          onRefresh={() => refetch()}
+          availableRegions={availableRegions as unknown as typeof AWS_REGIONS}
+          accountId={accountId}
+        />
 
         {/* ── Live Bootstrap Progress Panel ─────────────────────────── */}
         <AnimatePresence>
@@ -538,433 +376,6 @@ export default function EnvironmentsPage() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* ── Environments list ──────────────────────────────────────── */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Bootstrapped Regions</CardTitle>
-              <CardDescription>
-                Active regions are available for bucket creation and deployment.
-              </CardDescription>
-            </div>
-            {environments.length > 0 && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {activeCount > 0 && (
-                  <span className="flex items-center gap-1">
-                    <div className="size-2 rounded-full bg-green-500" />
-                    {activeCount} active
-                  </span>
-                )}
-                {bootstrappingCount > 0 && (
-                  <span className="flex items-center gap-1">
-                    <div className="size-2 rounded-full bg-yellow-500 animate-pulse" />
-                    {bootstrappingCount} in progress
-                  </span>
-                )}
-                {failedCount > 0 && (
-                  <span className="flex items-center gap-1">
-                    <div className="size-2 rounded-full bg-red-500" />
-                    {failedCount} failed
-                  </span>
-                )}
-              </div>
-            )}
-          </CardHeader>
-          <Separator />
-          <CardContent className="pt-4">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <Loader2 className="size-7 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Loading environments…</p>
-              </div>
-            ) : environments.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="flex size-16 items-center justify-center rounded-2xl bg-muted/50 mb-4">
-                  <Globe className="size-8 text-muted-foreground/40" />
-                </div>
-                <p className="text-sm font-medium">No environments yet</p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-70">
-                  Bootstrap an AWS region to start deploying buckets and CloudFront distributions.
-                </p>
-                <Button className="mt-4" size="sm" onClick={() => setAddOpen(true)}>
-                  <Plus className="mr-2 size-4" />
-                  Add Your First Region
-                </Button>
-              </div>
-            ) : (
-              <AnimatePresence mode="popLayout">
-                <div className="space-y-3">
-                  {environments.map((env, i) => {
-                    const isFailed = env.status === 'failed';
-                    const isActive = env.status === 'active';
-                    const isBootstrapping = env.status === 'bootstrapping';
-                    const isProgressTarget =
-                      progress && progress.region === env.region && bootstrapping;
-
-                    return (
-                      <motion.div
-                        key={env.id}
-                        layout
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{
-                          opacity: 1,
-                          y: 0,
-                          transition: { delay: i * 0.04, duration: 0.25 },
-                        }}
-                        exit={{ opacity: 0, x: -20 }}
-                        className={`group relative rounded-xl border p-4 transition-all duration-200 hover:shadow-sm ${
-                          isFailed
-                            ? 'border-red-500/20 bg-red-500/2'
-                            : isBootstrapping || isProgressTarget
-                              ? 'border-primary/20 bg-primary/2'
-                              : 'hover:border-foreground/10'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            {/* Status indicator */}
-                            <div
-                              className={`flex size-10 items-center justify-center rounded-xl ${
-                                isActive
-                                  ? 'bg-green-500/10'
-                                  : isFailed
-                                    ? 'bg-red-500/10'
-                                    : 'bg-yellow-500/10'
-                              }`}
-                            >
-                              {isActive && <CheckCircle className="size-5 text-green-500" />}
-                              {isFailed && <AlertCircle className="size-5 text-red-500" />}
-                              {isBootstrapping && (
-                                <Loader2 className="size-5 animate-spin text-yellow-500" />
-                              )}
-                            </div>
-
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-sm">
-                                  {env.alias || regionLabel(env.region)}
-                                </span>
-                                <Badge variant="outline" className="text-[10px] font-mono">
-                                  {env.region}
-                                </Badge>
-                                <Badge
-                                  className={`text-[10px] ${
-                                    isActive
-                                      ? 'bg-green-500/10 text-green-500 border-green-500/20'
-                                      : isFailed
-                                        ? 'bg-red-500/10 text-red-500 border-red-500/20'
-                                        : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
-                                  }`}
-                                >
-                                  {isActive ? 'Active' : isFailed ? 'Failed' : 'Bootstrapping'}
-                                </Badge>
-                              </div>
-                              <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                  <Shield className="size-3" />
-                                  {env.accountId}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="size-3" />
-                                  {regionLabel(env.region)}
-                                </span>
-                                {env.bootstrappedAt && (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span className="flex items-center gap-1 cursor-default">
-                                          <Clock className="size-3" />
-                                          {relativeTime(env.bootstrappedAt)}
-                                        </span>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        {new Date(env.bootstrappedAt).toLocaleString()}
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                )}
-                                {/* CDK status badge */}
-                                {isActive &&
-                                  (() => {
-                                    const cs = cdkStatuses?.[env.id];
-                                    if (!cs) {
-                                      return (
-                                        <button
-                                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                                          onClick={() => checkCdkStatus(env)}
-                                        >
-                                          <Package className="size-3" />
-                                          Check CDK version
-                                        </button>
-                                      );
-                                    }
-                                    if (cs.loading) {
-                                      return (
-                                        <span className="flex items-center gap-1">
-                                          <Loader2 className="size-3 animate-spin" />
-                                          Checking CDK…
-                                        </span>
-                                      );
-                                    }
-                                    if (cs.status === 'up-to-date') {
-                                      return (
-                                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                                          <CheckCircle2 className="size-3" />
-                                          CDK up-to-date{' '}
-                                          {cs.localVersion ? `(v${cs.localVersion})` : ''}
-                                        </span>
-                                      );
-                                    }
-                                    if (cs.status === 'outdated') {
-                                      return (
-                                        <span className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
-                                          <ArrowUpCircle className="size-3" />
-                                          CDK update available
-                                        </span>
-                                      );
-                                    }
-                                    return (
-                                      <button
-                                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                                        onClick={() => checkCdkStatus(env)}
-                                      >
-                                        <Package className="size-3" />
-                                        Check CDK version
-                                      </button>
-                                    );
-                                  })()}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            {isFailed && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRetry(env)}
-                                disabled={bootstrapping}
-                                className="text-xs"
-                              >
-                                {bootstrapping && progress?.region === env.region ? (
-                                  <Loader2 className="mr-1.5 size-3 animate-spin" />
-                                ) : (
-                                  <RefreshCw className="mr-1.5 size-3" />
-                                )}
-                                Retry Bootstrap
-                              </Button>
-                            )}
-                            {isActive && cdkStatuses?.[env.id]?.status === 'outdated' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-xs"
-                                disabled={cdkStatuses[env.id]?.updating || bootstrapping}
-                                onClick={() => handleUpdateCdk(env)}
-                              >
-                                {cdkStatuses[env.id]?.updating ? (
-                                  <Loader2 className="mr-1.5 size-3 animate-spin" />
-                                ) : (
-                                  <ArrowUpCircle className="mr-1.5 size-3" />
-                                )}
-                                Update CDK
-                              </Button>
-                            )}
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="size-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive"
-                                    onClick={() => setDeleteTarget(env)}
-                                  >
-                                    <Trash2 className="size-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Remove from tracked environments</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                        </div>
-
-                        {/* Inline progress for this specific region */}
-                        <AnimatePresence>
-                          {isProgressTarget && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              exit={{ opacity: 0, height: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="mt-3 pt-3 border-t border-border/50"
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                {(() => {
-                                  const cfg = phaseConfig[progress.phase];
-                                  const PhaseIcon = cfg.icon;
-                                  return (
-                                    <>
-                                      {progress.phase !== 'done' && progress.phase !== 'error' ? (
-                                        <Loader2 className={`size-3.5 animate-spin ${cfg.color}`} />
-                                      ) : (
-                                        <PhaseIcon className={`size-3.5 ${cfg.color}`} />
-                                      )}
-                                      <span className={`text-xs font-medium ${cfg.color}`}>
-                                        {cfg.label}
-                                      </span>
-                                    </>
-                                  );
-                                })()}
-                                <span className="text-xs text-muted-foreground truncate">
-                                  {progress.message}
-                                </span>
-                              </div>
-                              {progress.phase !== 'done' && progress.phase !== 'error' && (
-                                <div className="h-1 rounded-full bg-muted overflow-hidden">
-                                  <motion.div
-                                    className="h-full rounded-full bg-linear-to-r from-primary/80 to-primary"
-                                    initial={{ width: '0%' }}
-                                    animate={{
-                                      width:
-                                        progress.phase === 'checking'
-                                          ? '10%'
-                                          : progress.phase === 'repairing'
-                                            ? '25%'
-                                            : progress.phase === 'installing'
-                                              ? '50%'
-                                              : '80%',
-                                    }}
-                                    transition={{
-                                      duration: 0.5,
-                                      ease: 'easeOut',
-                                    }}
-                                  />
-                                </div>
-                              )}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </AnimatePresence>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ── Add Region Dialog ─────────────────────────────────────── */}
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Globe className="size-5 text-primary" />
-                Bootstrap New Region
-              </DialogTitle>
-              <DialogDescription>
-                Run CDK bootstrap in a new AWS region. This creates the required resources for
-                deployments (S3 staging bucket, IAM roles, ECR repo).
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">AWS Account ID</Label>
-                <Input
-                  placeholder="123456789012"
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  className="font-mono text-sm"
-                />
-                {accountId && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Shield className="size-3" />
-                    Auto-filled from your AWS CLI credentials
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">Region</Label>
-                <Select value={selectedRegion} onValueChange={setSelectedRegion}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose AWS region…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groupedAvailable.map((group) => (
-                      <div key={group.label}>
-                        <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                          {group.label}
-                        </p>
-                        {group.regions.map((r) => (
-                          <SelectItem key={r.value} value={r.value}>
-                            <div className="flex items-center gap-2">
-                              <MapPin className="size-3 text-muted-foreground" />
-                              {r.label}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </div>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {availableRegions.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    All regions have been bootstrapped.
-                  </p>
-                )}
-              </div>
-
-              {/* What bootstrap does */}
-              <div className="rounded-lg bg-muted/50 p-3 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">
-                  What happens during bootstrap?
-                </p>
-                <ul className="text-xs text-muted-foreground space-y-1">
-                  <li className="flex items-start gap-2">
-                    <Search className="size-3 mt-0.5 shrink-0" />
-                    Check if the region already has a CDKToolkit stack
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Wrench className="size-3 mt-0.5 shrink-0" />
-                    Auto-repair broken stacks (rollback/failed states)
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Package className="size-3 mt-0.5 shrink-0" />
-                    Install CDK dependencies
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CloudUpload className="size-3 mt-0.5 shrink-0" />
-                    Deploy CDKToolkit CloudFormation stack
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setAddOpen(false)} disabled={bootstrapping}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleBootstrap}
-                disabled={!selectedRegion || !accountId || bootstrapping}
-              >
-                {bootstrapping ? (
-                  <>
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                    Bootstrapping…
-                  </>
-                ) : (
-                  <>
-                    <Rocket className="mr-2 size-4" />
-                    Bootstrap Region
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* ── Delete Confirmation ───────────────────────────────────── */}
         <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>

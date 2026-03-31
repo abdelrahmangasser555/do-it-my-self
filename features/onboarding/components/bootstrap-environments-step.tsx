@@ -1,7 +1,7 @@
 // Step 3 — Bootstrap Environments: select regions to CDK bootstrap
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 import {
   CheckCircle,
   XCircle,
@@ -24,30 +24,31 @@ import {
   Package,
   CloudUpload,
   Wrench,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ScrollArea } from "@/components/ui/scroll-area";
+} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { AWS_REGIONS } from "@/lib/validations";
-import type { BootstrappedEnvironment } from "@/lib/types";
-import type { BootstrapProgress } from "@/features/environments/hooks/use-environments";
-import { motion, AnimatePresence } from "framer-motion";
+} from '@/components/ui/select';
+import { AWS_REGIONS } from '@/lib/validations';
+import type { BootstrappedEnvironment } from '@/lib/types';
+import type { BootstrapProgress } from '@/features/environments/hooks/use-environments';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   diagnoseBootstrapError,
   IAM_SETUP_STEPS,
   MINIMUM_IAM_PERMISSIONS,
   SETUP_RESOURCES,
-} from "../utils/error-diagnosis";
+} from '../utils/error-diagnosis';
+import { EnvironmentsMap } from '@/features/environments/components/environments-map';
 
 interface BootstrapEnvironmentsStepProps {
   environments: BootstrappedEnvironment[];
@@ -61,45 +62,45 @@ interface BootstrapEnvironmentsStepProps {
   onRemove: (id: string) => Promise<void>;
 }
 
-const statusColors: Record<BootstrappedEnvironment["status"], string> = {
-  bootstrapping: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-  active: "bg-green-500/10 text-green-500 border-green-500/20",
-  failed: "bg-red-500/10 text-red-500 border-red-500/20",
+const statusColors: Record<BootstrappedEnvironment['status'], string> = {
+  bootstrapping: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
+  active: 'bg-green-500/10 text-green-500 border-green-500/20',
+  failed: 'bg-red-500/10 text-red-500 border-red-500/20',
 };
 
 const phaseConfig: Record<
-  BootstrapProgress["phase"],
+  BootstrapProgress['phase'],
   { icon: typeof Search; label: string; color: string }
 > = {
   checking: {
     icon: Search,
-    label: "Checking",
-    color: "text-blue-500",
+    label: 'Checking',
+    color: 'text-blue-500',
   },
   repairing: {
     icon: Wrench,
-    label: "Repairing",
-    color: "text-orange-500",
+    label: 'Repairing',
+    color: 'text-orange-500',
   },
   installing: {
     icon: Package,
-    label: "Installing",
-    color: "text-yellow-500",
+    label: 'Installing',
+    color: 'text-yellow-500',
   },
   bootstrapping: {
     icon: CloudUpload,
-    label: "Bootstrapping",
-    color: "text-purple-500",
+    label: 'Bootstrapping',
+    color: 'text-purple-500',
   },
   done: {
     icon: CheckCircle,
-    label: "Complete",
-    color: "text-green-500",
+    label: 'Complete',
+    color: 'text-green-500',
   },
   error: {
     icon: XCircle,
-    label: "Error",
-    color: "text-red-500",
+    label: 'Error',
+    color: 'text-red-500',
   },
 };
 
@@ -114,20 +115,20 @@ export function BootstrapEnvironmentsStep({
   onBootstrap,
   onRemove,
 }: BootstrapEnvironmentsStepProps) {
-  const [selectedRegion, setSelectedRegion] = useState("");
+  const [selectedRegion, setSelectedRegion] = useState('');
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // Filter out already-bootstrapped regions
   const usedRegions = new Set(
-    environments.filter((e) => e.status !== "failed").map((e) => e.region),
+    environments.filter((e) => e.status !== 'failed').map((e) => e.region),
   );
   const availableRegions = AWS_REGIONS.filter((r) => !usedRegions.has(r.value));
 
   const handleBootstrap = async () => {
     if (!selectedRegion) return;
     await onBootstrap(selectedRegion);
-    setSelectedRegion("");
+    setSelectedRegion('');
   };
 
   return (
@@ -139,19 +140,17 @@ export function BootstrapEnvironmentsStep({
           </div>
           <div>
             <CardTitle className="text-base">Environments</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Bootstrap AWS regions for deployment
-            </p>
+            <p className="text-sm text-muted-foreground">Bootstrap AWS regions for deployment</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {environments.length > 0 && (
             <Badge
-              className={`text-xs ${hasAnyActive ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"}`}
+              className={`text-xs ${hasAnyActive ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'}`}
             >
               {hasAnyActive
-                ? `${environments.filter((e) => e.status === "active").length} Active`
-                : "No Active Environments"}
+                ? `${environments.filter((e) => e.status === 'active').length} Active`
+                : 'No Active Environments'}
             </Badge>
           )}
           {loading ? (
@@ -173,9 +172,8 @@ export function BootstrapEnvironmentsStep({
         <div className="flex items-start gap-3">
           <Globe className="mt-0.5 size-4 text-muted-foreground shrink-0" />
           <p className="text-sm text-muted-foreground">
-            Each AWS region needs a one-time CDK bootstrap before you can deploy
-            buckets there. Select the regions you plan to use. You can add more
-            later from the Environments page.
+            Each AWS region needs a one-time CDK bootstrap before you can deploy buckets there.
+            Select the regions you plan to use. You can add more later from the Environments page.
           </p>
         </div>
 
@@ -188,9 +186,7 @@ export function BootstrapEnvironmentsStep({
           >
             <div className="flex items-center gap-2">
               <BookOpen className="size-4 text-muted-foreground" />
-              <span className="text-sm font-medium">
-                Setup Guide & IAM Requirements
-              </span>
+              <span className="text-sm font-medium">Setup Guide & IAM Requirements</span>
             </div>
             {showSetupGuide ? (
               <ChevronUp className="size-4 text-muted-foreground" />
@@ -203,7 +199,7 @@ export function BootstrapEnvironmentsStep({
             {showSetupGuide && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
+                animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
                 className="space-y-4 pt-2 overflow-hidden"
@@ -212,17 +208,12 @@ export function BootstrapEnvironmentsStep({
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="size-3.5 text-muted-foreground" />
-                    <p className="text-xs font-medium">
-                      Required IAM Permissions
-                    </p>
+                    <p className="text-xs font-medium">Required IAM Permissions</p>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Your IAM user needs these permissions. The easiest option is
-                    to attach the{" "}
-                    <span className="font-medium text-foreground">
-                      AdministratorAccess
-                    </span>{" "}
-                    managed policy.
+                    Your IAM user needs these permissions. The easiest option is to attach the{' '}
+                    <span className="font-medium text-foreground">AdministratorAccess</span> managed
+                    policy.
                   </p>
                   <ul className="text-xs text-muted-foreground space-y-0.5 pl-5 list-disc">
                     {MINIMUM_IAM_PERMISSIONS.map((p, i) => (
@@ -235,9 +226,7 @@ export function BootstrapEnvironmentsStep({
 
                 {/* IAM User Setup Steps */}
                 <div className="space-y-2">
-                  <p className="text-xs font-medium">
-                    How to Create an IAM User
-                  </p>
+                  <p className="text-xs font-medium">How to Create an IAM User</p>
                   <ol className="text-xs text-muted-foreground space-y-1 pl-5 list-decimal">
                     {IAM_SETUP_STEPS.map((step, i) => (
                       <li key={i}>{step}</li>
@@ -249,15 +238,10 @@ export function BootstrapEnvironmentsStep({
 
                 {/* Helpful Resources */}
                 <div className="space-y-2">
-                  <p className="text-xs font-medium">
-                    Helpful Resources & Video Tutorials
-                  </p>
+                  <p className="text-xs font-medium">Helpful Resources & Video Tutorials</p>
                   <div className="grid gap-2">
                     {Object.values(SETUP_RESOURCES).map((resource) => (
-                      <div
-                        key={resource.label}
-                        className="flex items-center gap-3 flex-wrap"
-                      >
+                      <div key={resource.label} className="flex items-center gap-3 flex-wrap">
                         <a
                           href={resource.docs}
                           target="_blank"
@@ -322,6 +306,18 @@ export function BootstrapEnvironmentsStep({
           </Button>
         </div>
 
+        {/* Interactive Map — compact mode for onboarding */}
+        <EnvironmentsMap
+          environments={environments}
+          loading={loading}
+          bootstrapping={loading}
+          onActivate={onBootstrap}
+          onRemove={onRemove}
+          compact
+          availableRegions={availableRegions as unknown as typeof AWS_REGIONS}
+          accountId={accountId}
+        />
+
         {/* Live Bootstrap Progress */}
         <AnimatePresence>
           {progress && loading && (
@@ -336,17 +332,16 @@ export function BootstrapEnvironmentsStep({
                 <div className="flex items-center gap-2">
                   <Globe className="size-4 text-muted-foreground" />
                   <span className="text-sm font-medium">
-                    {AWS_REGIONS.find((r) => r.value === progress.region)
-                      ?.label || progress.region}
+                    {AWS_REGIONS.find((r) => r.value === progress.region)?.label || progress.region}
                   </span>
                 </div>
                 <Badge
                   className={`text-xs ${
-                    progress.phase === "done"
-                      ? "bg-green-500/10 text-green-500 border-green-500/20"
-                      : progress.phase === "error"
-                        ? "bg-red-500/10 text-red-500 border-red-500/20"
-                        : "bg-primary/10 text-primary border-primary/20"
+                    progress.phase === 'done'
+                      ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                      : progress.phase === 'error'
+                        ? 'bg-red-500/10 text-red-500 border-red-500/20'
+                        : 'bg-primary/10 text-primary border-primary/20'
                   }`}
                 >
                   {phaseConfig[progress.phase].label}
@@ -355,23 +350,21 @@ export function BootstrapEnvironmentsStep({
 
               {/* Phase steps */}
               <div className="space-y-2">
-                {(
-                  progress.phase === "repairing"
-                    ? (["checking", "repairing", "installing", "bootstrapping", "done"] as const)
-                    : (["checking", "installing", "bootstrapping", "done"] as const)
+                {(progress.phase === 'repairing'
+                  ? (['checking', 'repairing', 'installing', 'bootstrapping', 'done'] as const)
+                  : (['checking', 'installing', 'bootstrapping', 'done'] as const)
                 ).map((phase) => {
                   const config = phaseConfig[phase];
                   const Icon = config.icon;
                   const phaseOrder =
-                    progress.phase === "repairing"
-                      ? ["checking", "repairing", "installing", "bootstrapping", "done"]
-                      : ["checking", "installing", "bootstrapping", "done"];
+                    progress.phase === 'repairing'
+                      ? ['checking', 'repairing', 'installing', 'bootstrapping', 'done']
+                      : ['checking', 'installing', 'bootstrapping', 'done'];
                   const currentIdx = phaseOrder.indexOf(progress.phase);
                   const thisIdx = phaseOrder.indexOf(phase);
                   const isActive = progress.phase === phase;
                   const isComplete =
-                    currentIdx > thisIdx ||
-                    (progress.phase === "done" && phase === "done");
+                    currentIdx > thisIdx || (progress.phase === 'done' && phase === 'done');
                   const isPending = currentIdx < thisIdx;
 
                   return (
@@ -379,36 +372,30 @@ export function BootstrapEnvironmentsStep({
                       key={phase}
                       className={`flex items-center gap-3 rounded-md px-3 py-2 transition-colors ${
                         isActive
-                          ? "bg-primary/5 border border-primary/20"
+                          ? 'bg-primary/5 border border-primary/20'
                           : isComplete
-                            ? "opacity-60"
-                            : "opacity-30"
+                            ? 'opacity-60'
+                            : 'opacity-30'
                       }`}
                     >
-                      {isActive && progress.phase !== "done" ? (
-                        <Loader2
-                          className={`size-4 animate-spin ${config.color}`}
-                        />
+                      {isActive && progress.phase !== 'done' ? (
+                        <Loader2 className={`size-4 animate-spin ${config.color}`} />
                       ) : isComplete ? (
                         <CheckCircle className="size-4 text-green-500" />
                       ) : (
                         <Icon
-                          className={`size-4 ${isPending ? "text-muted-foreground" : config.color}`}
+                          className={`size-4 ${isPending ? 'text-muted-foreground' : config.color}`}
                         />
                       )}
                       <div className="flex-1 min-w-0">
                         <p
-                          className={`text-xs font-medium ${isActive ? "text-foreground" : "text-muted-foreground"}`}
+                          className={`text-xs font-medium ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}
                         >
-                          {phase === "checking" &&
-                            "Checking existing bootstrap"}
-                          {phase === "repairing" &&
-                            "Repairing broken stack"}
-                          {phase === "installing" &&
-                            "Installing CDK dependencies"}
-                          {phase === "bootstrapping" &&
-                            "Bootstrapping AWS environment"}
-                          {phase === "done" && "Bootstrap complete"}
+                          {phase === 'checking' && 'Checking existing bootstrap'}
+                          {phase === 'repairing' && 'Repairing broken stack'}
+                          {phase === 'installing' && 'Installing CDK dependencies'}
+                          {phase === 'bootstrapping' && 'Bootstrapping AWS environment'}
+                          {phase === 'done' && 'Bootstrap complete'}
                         </p>
                         {isActive && progress.message && (
                           <p className="text-xs text-muted-foreground truncate mt-0.5">
@@ -422,26 +409,25 @@ export function BootstrapEnvironmentsStep({
               </div>
 
               {/* Progress bar animation */}
-              {progress.phase !== "done" &&
-                progress.phase !== "error" && (
-                  <div className="h-1 rounded-full bg-muted overflow-hidden">
-                    <motion.div
-                      className="h-full bg-primary rounded-full"
-                      initial={{ width: "0%" }}
-                      animate={{
-                        width:
-                          progress.phase === "checking"
-                            ? "10%"
-                            : progress.phase === "repairing"
-                              ? "25%"
-                              : progress.phase === "installing"
-                                ? "50%"
-                                : "80%",
-                      }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
-                    />
-                  </div>
-                )}
+              {progress.phase !== 'done' && progress.phase !== 'error' && (
+                <div className="h-1 rounded-full bg-muted overflow-hidden">
+                  <motion.div
+                    className="h-full bg-primary rounded-full"
+                    initial={{ width: '0%' }}
+                    animate={{
+                      width:
+                        progress.phase === 'checking'
+                          ? '10%'
+                          : progress.phase === 'repairing'
+                            ? '25%'
+                            : progress.phase === 'installing'
+                              ? '50%'
+                              : '80%',
+                    }}
+                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                  />
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -450,18 +436,14 @@ export function BootstrapEnvironmentsStep({
         {error && (
           <div className="space-y-3">
             {(() => {
-              const diagnosis = diagnoseBootstrapError(
-                lastErrorOutput || error,
-              );
+              const diagnosis = diagnoseBootstrapError(lastErrorOutput || error);
               return (
                 <Alert variant="destructive">
                   <AlertTriangle className="size-4" />
                   <AlertDescription className="space-y-3">
                     <div>
                       <p className="font-medium">{diagnosis.title}</p>
-                      <p className="text-sm mt-1 opacity-90">
-                        {diagnosis.description}
-                      </p>
+                      <p className="text-sm mt-1 opacity-90">{diagnosis.description}</p>
                     </div>
                     <div className="space-y-1.5">
                       <p className="text-xs font-medium">How to fix:</p>
@@ -490,9 +472,7 @@ export function BootstrapEnvironmentsStep({
             {lastErrorOutput && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Error Output
-                  </p>
+                  <p className="text-xs font-medium text-muted-foreground">Error Output</p>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -508,7 +488,7 @@ export function BootstrapEnvironmentsStep({
                     ) : (
                       <Copy className="mr-1 size-3" />
                     )}
-                    {copied ? "Copied" : "Copy"}
+                    {copied ? 'Copied' : 'Copy'}
                   </Button>
                 </div>
                 <ScrollArea className="max-h-40 rounded-md bg-muted p-3 overflow-auto">
@@ -535,26 +515,25 @@ export function BootstrapEnvironmentsStep({
               <div className="space-y-2">
                 {environments.map((env) => {
                   const regionLabel =
-                    AWS_REGIONS.find((r) => r.value === env.region)?.label ||
-                    env.region;
+                    AWS_REGIONS.find((r) => r.value === env.region)?.label || env.region;
                   return (
                     <motion.div
                       key={env.id}
                       initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
+                      animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.2 }}
                       className="flex items-center justify-between rounded-lg border p-3"
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
-                          {env.status === "active" && (
+                          {env.status === 'active' && (
                             <div className="size-2 rounded-full bg-green-500 animate-pulse" />
                           )}
-                          {env.status === "bootstrapping" && (
+                          {env.status === 'bootstrapping' && (
                             <Loader2 className="size-3 animate-spin text-yellow-500" />
                           )}
-                          {env.status === "failed" && (
+                          {env.status === 'failed' && (
                             <div className="size-2 rounded-full bg-red-500" />
                           )}
                         </div>
@@ -566,18 +545,14 @@ export function BootstrapEnvironmentsStep({
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge
-                          className={`text-xs ${statusColors[env.status]}`}
-                        >
-                          {env.status === "bootstrapping" && (
+                        <Badge className={`text-xs ${statusColors[env.status]}`}>
+                          {env.status === 'bootstrapping' && (
                             <Loader2 className="mr-1 size-3 animate-spin" />
                           )}
-                          {env.status === "active" && (
-                            <Rocket className="mr-1 size-3" />
-                          )}
+                          {env.status === 'active' && <Rocket className="mr-1 size-3" />}
                           {env.status}
                         </Badge>
-                        {env.status === "failed" && (
+                        {env.status === 'failed' && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -601,8 +576,7 @@ export function BootstrapEnvironmentsStep({
           <div className="flex flex-col items-center gap-2 py-4 text-center">
             <Globe className="size-8 text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">
-              No environments bootstrapped yet. Add at least one region to
-              continue.
+              No environments bootstrapped yet. Add at least one region to continue.
             </p>
           </div>
         )}

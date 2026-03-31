@@ -1,8 +1,8 @@
 // Presentational table for listing file metadata records + S3 merged files
-"use client";
+'use client';
 
-import { useState, useMemo } from "react";
-import { format } from "date-fns";
+import { useState, useMemo } from 'react';
+import { format } from 'date-fns';
 import {
   Table,
   TableBody,
@@ -10,32 +10,30 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { Calendar } from "@/components/ui/calendar";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Calendar } from '@/components/ui/calendar';
 import {
   MoreHorizontal,
   Trash2,
@@ -54,11 +52,13 @@ import {
   Search,
   CalendarIcon,
   X,
-} from "lucide-react";
-import type { FileRecord } from "@/lib/types";
-import type { MergedS3File } from "@/features/files/hooks/use-files";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+  Download,
+  Filter,
+} from 'lucide-react';
+import type { FileRecord } from '@/lib/types';
+import type { MergedS3File } from '@/features/files/hooks/use-files';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 // ── Legacy metadata view ────────────────────────────────────────────────────
 
@@ -68,9 +68,9 @@ interface FilesTableProps {
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
+  if (bytes === 0) return '0 B';
   const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
+  const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
@@ -129,20 +129,13 @@ export function FilesTable({ files, onDelete }: FilesTableProps) {
                 <DropdownMenuContent align="end">
                   {file.cloudFrontUrl && (
                     <DropdownMenuItem asChild>
-                      <a
-                        href={file.cloudFrontUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
+                      <a href={file.cloudFrontUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="mr-2 size-4" />
                         Open CDN URL
                       </a>
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => onDelete(file.id)}
-                  >
+                  <DropdownMenuItem variant="destructive" onClick={() => onDelete(file.id)}>
                     <Trash2 className="mr-2 size-4" />
                     Delete Record
                   </DropdownMenuItem>
@@ -165,47 +158,50 @@ interface S3FilesTableProps {
   /** Hard-delete: permanently removes the file from S3 and clears any tracking record. */
   onDeleteS3?: (key: string) => void;
   onMove?: (key: string) => void;
+  /** Bucket name + region needed for presigned download URLs */
+  bucketName?: string;
+  region?: string;
 }
 
 function getMimeFromKey(key: string): string {
-  const ext = key.split(".").pop()?.toLowerCase() ?? "";
+  const ext = key.split('.').pop()?.toLowerCase() ?? '';
   const mimeMap: Record<string, string> = {
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    png: "image/png",
-    gif: "image/gif",
-    webp: "image/webp",
-    svg: "image/svg+xml",
-    bmp: "image/bmp",
-    ico: "image/x-icon",
-    pdf: "application/pdf",
-    json: "application/json",
-    xml: "application/xml",
-    csv: "text/csv",
-    txt: "text/plain",
-    html: "text/html",
-    css: "text/css",
-    js: "application/javascript",
-    ts: "application/typescript",
-    zip: "application/zip",
-    gz: "application/gzip",
-    tar: "application/x-tar",
-    mp4: "video/mp4",
-    webm: "video/webm",
-    avi: "video/x-msvideo",
-    mp3: "audio/mpeg",
-    wav: "audio/wav",
-    ogg: "audio/ogg",
-    doc: "application/msword",
-    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    xls: "application/vnd.ms-excel",
-    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+    bmp: 'image/bmp',
+    ico: 'image/x-icon',
+    pdf: 'application/pdf',
+    json: 'application/json',
+    xml: 'application/xml',
+    csv: 'text/csv',
+    txt: 'text/plain',
+    html: 'text/html',
+    css: 'text/css',
+    js: 'application/javascript',
+    ts: 'application/typescript',
+    zip: 'application/zip',
+    gz: 'application/gzip',
+    tar: 'application/x-tar',
+    mp4: 'video/mp4',
+    webm: 'video/webm',
+    avi: 'video/x-msvideo',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   };
-  return mimeMap[ext] || "application/octet-stream";
+  return mimeMap[ext] || 'application/octet-stream';
 }
 
 function getFileName(key: string): string {
-  return key.split("/").pop() ?? key;
+  return key.split('/').pop() ?? key;
 }
 
 export function S3FilesTable({
@@ -213,13 +209,20 @@ export function S3FilesTable({
   onDeleteMetadata,
   onDeleteS3,
   onMove,
+  bucketName,
+  region,
 }: S3FilesTableProps) {
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [deleteConfirmKey, setDeleteConfirmKey] = useState<string | null>(null);
+  const [orphanOnly, setOrphanOnly] = useState(false);
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
 
   const filteredFiles = useMemo(() => {
     return files.filter((f) => {
+      // Orphan filter (files not uploaded from system = external/orphan)
+      if (orphanOnly && f.uploadedFromSystem) return false;
       // Search filter (name or key)
       if (search) {
         const q = search.toLowerCase();
@@ -240,9 +243,35 @@ export function S3FilesTable({
       }
       return true;
     });
-  }, [files, search, dateFrom, dateTo]);
+  }, [files, search, dateFrom, dateTo, orphanOnly]);
 
-  const hasFilters = search || dateFrom || dateTo;
+  const orphanCount = useMemo(() => files.filter((f) => !f.uploadedFromSystem).length, [files]);
+
+  const hasFilters = search || dateFrom || dateTo || orphanOnly;
+
+  async function handleDownload(key: string) {
+    if (!bucketName) {
+      toast.error('Bucket name is missing');
+      return;
+    }
+    setDownloadingKey(key);
+    try {
+      const params = new URLSearchParams({ bucketName, objectKey: key });
+      if (region) params.set('region', region);
+      const res = await fetch(`/api/files/download?${params}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to generate download URL');
+      }
+      const { url } = await res.json();
+      // Open presigned URL in new tab to trigger browser download
+      window.open(url, '_blank');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setDownloadingKey(null);
+    }
+  }
 
   if (files.length === 0) {
     return (
@@ -268,10 +297,7 @@ export function S3FilesTable({
           />
           {search && (
             <InputGroupAddon>
-              <button
-                onClick={() => setSearch("")}
-                className="hover:text-foreground"
-              >
+              <button onClick={() => setSearch('')} className="hover:text-foreground">
                 <X className="size-3.5" />
               </button>
             </InputGroupAddon>
@@ -283,18 +309,14 @@ export function S3FilesTable({
             <Button
               variant="outline"
               size="sm"
-              className={cn("gap-1.5 text-xs", dateFrom && "text-foreground")}
+              className={cn('gap-1.5 text-xs', dateFrom && 'text-foreground')}
             >
               <CalendarIcon className="size-3.5" />
-              {dateFrom ? format(dateFrom, "MMM d, yyyy") : "From"}
+              {dateFrom ? format(dateFrom, 'MMM d, yyyy') : 'From'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={dateFrom}
-              onSelect={setDateFrom}
-            />
+            <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} />
           </PopoverContent>
         </Popover>
 
@@ -303,10 +325,10 @@ export function S3FilesTable({
             <Button
               variant="outline"
               size="sm"
-              className={cn("gap-1.5 text-xs", dateTo && "text-foreground")}
+              className={cn('gap-1.5 text-xs', dateTo && 'text-foreground')}
             >
               <CalendarIcon className="size-3.5" />
-              {dateTo ? format(dateTo, "MMM d, yyyy") : "To"}
+              {dateTo ? format(dateTo, 'MMM d, yyyy') : 'To'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
@@ -314,15 +336,26 @@ export function S3FilesTable({
           </PopoverContent>
         </Popover>
 
+        <Button
+          variant={orphanOnly ? 'default' : 'outline'}
+          size="sm"
+          className="gap-1.5 text-xs"
+          onClick={() => setOrphanOnly((v) => !v)}
+        >
+          <Filter className="size-3.5" />
+          Orphans{orphanCount > 0 && ` (${orphanCount})`}
+        </Button>
+
         {hasFilters && (
           <Button
             variant="ghost"
             size="sm"
             className="text-xs text-muted-foreground"
             onClick={() => {
-              setSearch("");
+              setSearch('');
               setDateFrom(undefined);
               setDateTo(undefined);
+              setOrphanOnly(false);
             }}
           >
             <X className="size-3 mr-1" /> Clear filters
@@ -351,10 +384,7 @@ export function S3FilesTable({
         <TableBody>
           {filteredFiles.length === 0 ? (
             <TableRow>
-              <TableCell
-                colSpan={7}
-                className="text-center py-8 text-muted-foreground text-sm"
-              >
+              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground text-sm">
                 No files match your filters.
               </TableCell>
             </TableRow>
@@ -362,7 +392,7 @@ export function S3FilesTable({
             filteredFiles.map((file) => {
               const mime = file.metadata?.mimeType || getMimeFromKey(file.key);
               return (
-                <TableRow key={file.key}>
+                <TableRow key={file.key} className="group">
                   <TableCell className="font-medium text-sm max-w-45">
                     <HoverCard openDelay={300} closeDelay={100}>
                       <HoverCardTrigger asChild>
@@ -370,11 +400,7 @@ export function S3FilesTable({
                           {getFileName(file.key)}
                         </span>
                       </HoverCardTrigger>
-                      <HoverCardContent
-                        className="w-80"
-                        side="right"
-                        align="start"
-                      >
+                      <HoverCardContent className="w-80" side="right" align="start">
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
                             <File className="size-4 text-primary shrink-0" />
@@ -385,44 +411,32 @@ export function S3FilesTable({
                           <div className="grid gap-2 text-xs">
                             <div className="flex items-center gap-2 min-w-0">
                               <Key className="size-3 text-muted-foreground shrink-0" />
-                              <span className="text-muted-foreground shrink-0">
-                                Key:
-                              </span>
-                              <span className="font-mono truncate min-w-0 flex-1">
-                                {file.key}
-                              </span>
+                              <span className="text-muted-foreground shrink-0">Key:</span>
+                              <span className="font-mono truncate min-w-0 flex-1">{file.key}</span>
                             </div>
                             <div className="flex items-center gap-2 min-w-0">
                               <HardDrive className="size-3 text-muted-foreground shrink-0" />
-                              <span className="text-muted-foreground shrink-0">
-                                Size:
-                              </span>
+                              <span className="text-muted-foreground shrink-0">Size:</span>
                               <span>{formatBytes(file.size)}</span>
                             </div>
                             <div className="flex items-center gap-2 min-w-0">
                               <Tag className="size-3 text-muted-foreground shrink-0" />
-                              <span className="text-muted-foreground shrink-0">
-                                Type:
-                              </span>
+                              <span className="text-muted-foreground shrink-0">Type:</span>
                               <span>{mime}</span>
                             </div>
                             <div className="flex items-center gap-2 min-w-0">
                               <Clock className="size-3 text-muted-foreground shrink-0" />
-                              <span className="text-muted-foreground shrink-0">
-                                Modified:
-                              </span>
+                              <span className="text-muted-foreground shrink-0">Modified:</span>
                               <span>
                                 {file.lastModified
                                   ? new Date(file.lastModified).toLocaleString()
-                                  : "—"}
+                                  : '—'}
                               </span>
                             </div>
                             {file.storageClass && (
                               <div className="flex items-center gap-2 min-w-0">
                                 <Database className="size-3 text-muted-foreground shrink-0" />
-                                <span className="text-muted-foreground shrink-0">
-                                  Storage:
-                                </span>
+                                <span className="text-muted-foreground shrink-0">Storage:</span>
                                 <span>{file.storageClass}</span>
                               </div>
                             )}
@@ -431,16 +445,12 @@ export function S3FilesTable({
                                 className="flex items-center gap-2 cursor-copy min-w-0"
                                 onClick={() => {
                                   // copy to clipboard
-                                  navigator.clipboard.writeText(
-                                    file?.etag || "",
-                                  );
-                                  toast.success("ETag copied to clipboard");
+                                  navigator.clipboard.writeText(file?.etag || '');
+                                  toast.success('ETag copied to clipboard');
                                 }}
                               >
                                 <Tag className="size-3 text-muted-foreground shrink-0" />
-                                <span className="text-muted-foreground shrink-0">
-                                  ETag:
-                                </span>
+                                <span className="text-muted-foreground shrink-0">ETag:</span>
                                 <span className="font-mono truncate min-w-0 flex-1">
                                   {file.etag}
                                 </span>
@@ -449,9 +459,7 @@ export function S3FilesTable({
                             {file.cdnUrl && (
                               <div className="flex items-center gap-2 min-w-0">
                                 <ExternalLink className="size-3 text-muted-foreground shrink-0" />
-                                <span className="text-muted-foreground shrink-0">
-                                  CDN:
-                                </span>
+                                <span className="text-muted-foreground shrink-0">CDN:</span>
                                 <a
                                   href={file.cdnUrl}
                                   target="_blank"
@@ -468,13 +476,11 @@ export function S3FilesTable({
                                   Metadata Record
                                 </p>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-muted-foreground">
-                                    Linked:
-                                  </span>
+                                  <span className="text-muted-foreground">Linked:</span>
                                   <span>
                                     {file.metadata.linkedModel
                                       ? `${file.metadata.linkedModel}:${file.metadata.linkedModelId}`
-                                      : "Orphan"}
+                                      : 'Orphan'}
                                   </span>
                                 </div>
                               </div>
@@ -489,12 +495,10 @@ export function S3FilesTable({
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-[10px]">
-                      {mime.split("/")[1] || mime}
+                      {mime.split('/')[1] || mime}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm">
-                    {formatBytes(file.size)}
-                  </TableCell>
+                  <TableCell className="text-sm">{formatBytes(file.size)}</TableCell>
                   <TableCell>
                     {file.uploadedFromSystem ? (
                       <Badge className="gap-1 bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">
@@ -507,67 +511,79 @@ export function S3FilesTable({
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">
-                    {file.lastModified
-                      ? new Date(file.lastModified).toLocaleDateString()
-                      : "—"}
+                    {file.lastModified ? new Date(file.lastModified).toLocaleDateString() : '—'}
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-xs">
-                          <MoreHorizontal className="size-4" />
+                    <div className="flex items-center gap-1">
+                      {bucketName && (
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          disabled={downloadingKey === file.key}
+                          onClick={() => handleDownload(file.key)}
+                          title="Download file"
+                        >
+                          <Download className="size-4" />
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-60">
-                        {file.cdnUrl && (
-                          <DropdownMenuItem asChild>
-                            <a
-                              href={file.cdnUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon-xs">
+                            <MoreHorizontal className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-60">
+                          {bucketName && (
+                            <DropdownMenuItem
+                              disabled={downloadingKey === file.key}
+                              onClick={() => handleDownload(file.key)}
                             >
-                              <ExternalLink className="mr-2 size-4" />
-                              Open CDN URL
-                            </a>
-                          </DropdownMenuItem>
-                        )}
-                        {onMove && (
-                          <DropdownMenuItem onClick={() => onMove(file.key)}>
-                            <ArrowRightLeft className="mr-2 size-4" />
-                            Move File
-                          </DropdownMenuItem>
-                        )}
+                              <Download className="mr-2 size-4" />
+                              {downloadingKey === file.key ? 'Generating URL…' : 'Download File'}
+                            </DropdownMenuItem>
+                          )}
+                          {file.cdnUrl && (
+                            <DropdownMenuItem asChild>
+                              <a href={file.cdnUrl} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="mr-2 size-4" />
+                                Open CDN URL
+                              </a>
+                            </DropdownMenuItem>
+                          )}
+                          {onMove && (
+                            <DropdownMenuItem onClick={() => onMove(file.key)}>
+                              <ArrowRightLeft className="mr-2 size-4" />
+                              Move File
+                            </DropdownMenuItem>
+                          )}
 
-                        {(onDeleteS3 ||
-                          (file.uploadedFromSystem &&
-                            file.metadata &&
-                            onDeleteMetadata)) && <DropdownMenuSeparator />}
+                          {(onDeleteS3 ||
+                            (file.uploadedFromSystem && file.metadata && onDeleteMetadata)) && (
+                            <DropdownMenuSeparator />
+                          )}
 
-                        {onDeleteS3 && (
-                          <DropdownMenuItem
-                            variant="destructive"
-                            className="flex-col items-start gap-0.5 py-2"
-                            onClick={() => onDeleteS3(file.key)}
-                          >
-                            <span className="flex items-center gap-2">
-                              <Trash2 className="size-3.5 shrink-0 text-destructive" />
-                              Delete from S3
-                            </span>
-                            <span className="pl-5 text-[10px] font-normal opacity-60 leading-snug">
-                              Permanently removes from cloud storage
-                            </span>
-                          </DropdownMenuItem>
-                        )}
-
-                        {file.uploadedFromSystem &&
-                          file.metadata &&
-                          onDeleteMetadata && (
+                          {onDeleteS3 && (
                             <DropdownMenuItem
                               variant="destructive"
                               className="flex-col items-start gap-0.5 py-2"
-                              onClick={() =>
-                                onDeleteMetadata(file.metadata!.id)
-                              }
+                              onClick={() => setDeleteConfirmKey(file.key)}
+                            >
+                              <span className="flex items-center gap-2">
+                                <Trash2 className="size-3.5 shrink-0 text-destructive" />
+                                Delete from S3
+                              </span>
+                              <span className="pl-5 text-[10px] font-normal opacity-60 leading-snug">
+                                Permanently removes from cloud storage
+                              </span>
+                            </DropdownMenuItem>
+                          )}
+
+                          {file.uploadedFromSystem && file.metadata && onDeleteMetadata && (
+                            <DropdownMenuItem
+                              variant="destructive"
+                              className="flex-col items-start gap-0.5 py-2"
+                              onClick={() => onDeleteMetadata(file.metadata!.id)}
                             >
                               <span className="flex items-center gap-2">
                                 <FileX className="size-3.5 shrink-0 text-destructive" />
@@ -578,8 +594,9 @@ export function S3FilesTable({
                               </span>
                             </DropdownMenuItem>
                           )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
@@ -587,6 +604,40 @@ export function S3FilesTable({
           )}
         </TableBody>
       </Table>
+
+      {/* Hard-delete confirmation dialog */}
+      <AlertDialog
+        open={!!deleteConfirmKey}
+        onOpenChange={(open) => !open && setDeleteConfirmKey(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently delete this file?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove{' '}
+              <span className="font-mono text-xs">
+                {deleteConfirmKey && getFileName(deleteConfirmKey)}
+              </span>{' '}
+              from S3. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteConfirmKey && onDeleteS3) {
+                  onDeleteS3(deleteConfirmKey);
+                }
+                setDeleteConfirmKey(null);
+              }}
+            >
+              <Trash2 className="mr-2 size-4" />
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

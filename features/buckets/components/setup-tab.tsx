@@ -1,13 +1,16 @@
 // Setup & Integration tab — structured code snippets with install commands
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { CodeBlock } from '@/components/code-block';
 import { Separator } from '@/components/ui/separator';
-import { Code2, Info } from 'lucide-react';
+import { Code2, Info, Upload, X, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
 import type { Bucket } from '@/lib/types';
 import {
   generateInstallSnippet,
@@ -55,6 +58,128 @@ function SectionHeader({
   );
 }
 
+function formatPreviewBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
+interface MockFile {
+  id: string;
+  name: string;
+  size: number;
+  progress: number;
+  status: 'uploading' | 'complete' | 'error';
+  error?: string;
+}
+
+const DEMO_FILES: MockFile[] = [
+  { id: '1', name: 'hero-banner.png', size: 2_450_000, progress: 100, status: 'complete' },
+  { id: '2', name: 'product-photo.jpg', size: 1_820_000, progress: 72, status: 'uploading' },
+  {
+    id: '3',
+    name: 'document.pdf',
+    size: 5_600_000,
+    progress: 0,
+    status: 'error',
+    error: 'Network timeout',
+  },
+];
+
+function UploadPreview({ maxMB }: { maxMB: number }) {
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [demoFiles, setDemoFiles] = useState<MockFile[]>(DEMO_FILES);
+
+  const removeDemoFile = useCallback((id: string) => {
+    setDemoFiles((prev) => prev.filter((f) => f.id !== id));
+  }, []);
+
+  return (
+    <div className="rounded-lg border bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          UI Preview
+        </p>
+        <Badge variant="outline" className="text-[10px]">
+          Interactive Demo
+        </Badge>
+      </div>
+
+      {/* Dropzone */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragOver(true);
+        }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragOver(false);
+        }}
+        className={cn(
+          'flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 cursor-pointer transition-colors',
+          isDragOver
+            ? 'border-primary bg-primary/5'
+            : 'border-muted-foreground/25 hover:border-muted-foreground/50',
+        )}
+      >
+        <div className="rounded-full bg-muted p-3">
+          <Upload className="size-5 text-muted-foreground" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium">Drop files here or click to browse</p>
+          <p className="text-xs text-muted-foreground mt-1">Max file size: {maxMB} MB</p>
+        </div>
+      </div>
+
+      {/* Demo file list */}
+      {demoFiles.length > 0 && (
+        <div className="space-y-2">
+          {demoFiles.map((file) => (
+            <div
+              key={file.id}
+              className="flex items-center gap-3 rounded-lg border bg-background p-3"
+            >
+              <FileText className="size-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium truncate">{file.name}</p>
+                  <span className="text-xs text-muted-foreground ml-2 shrink-0">
+                    {formatPreviewBytes(file.size)}
+                  </span>
+                </div>
+                {file.status === 'uploading' && (
+                  <Progress value={file.progress} className="mt-1.5 h-1" />
+                )}
+                {file.status === 'error' && (
+                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                    <AlertCircle className="size-3" /> {file.error}
+                  </p>
+                )}
+                {file.status === 'complete' && (
+                  <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
+                    <CheckCircle2 className="size-3" /> Uploaded
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 shrink-0"
+                onClick={() => removeDemoFile(file.id)}
+              >
+                <X className="size-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SetupTab({ bucket }: SetupTabProps) {
   const maxMB = bucket.config?.maxFileSizeMB ?? 100;
   const [framework, setFramework] = useState<Framework>('nextjs');
@@ -89,7 +214,7 @@ export function SetupTab({ bucket }: SetupTabProps) {
               </Badge>
             </TooltipTrigger>
             <TooltipContent>
-              <p className="text-xs max-w-[200px]">
+              <p className="text-xs max-w-50">
                 Bucket-level limit ({maxMB} MB) is authoritative. Project-level limit is the default
                 fallback. The lower of the two is enforced.
               </p>
@@ -199,6 +324,10 @@ export function SetupTab({ bucket }: SetupTabProps) {
           title="Frontend Upload Component"
           description="Full React component with dropzone, progress tracking, and file list"
         />
+
+        {/* Interactive UI Preview */}
+        <UploadPreview maxMB={maxMB} />
+
         <CodeBlock
           title="components/file-upload.tsx"
           language="typescript"

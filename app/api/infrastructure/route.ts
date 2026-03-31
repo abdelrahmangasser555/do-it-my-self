@@ -181,34 +181,51 @@ async function runPreChecks(write: (data: Record<string, unknown>) => void): Pro
     });
   }
 
-  // Clean up stale synth.lock files (Windows EPERM fix)
+  // Clean up cdk.out directory entirely (Windows EPERM fix)
+  // Windows holds file locks on synth.lock files, making atomic renames fail.
+  // Deleting the entire cdk.out directory before each run is the reliable fix.
   try {
     const fs = await import('fs/promises');
     const cdkOutDir = path.join(CDK_DIR, 'cdk.out');
     try {
-      const files = await fs.readdir(cdkOutDir);
-      const lockFiles = files.filter((f) => f.startsWith('synth.lock'));
-      if (lockFiles.length > 0) {
-        write({
-          type: 'check',
-          label: `Cleaning ${lockFiles.length} stale CDK lock file(s)…`,
-          level: 'warn',
-        });
-        for (const lockFile of lockFiles) {
-          try {
-            await fs.unlink(path.join(cdkOutDir, lockFile));
-          } catch {
-            // best-effort — file may already be gone
+      await fs.access(cdkOutDir);
+      write({
+        type: 'check',
+        label: 'Cleaning CDK output directory (Windows lock fix)…',
+        level: 'warn',
+      });
+      // Retry removal up to 3 times with small delays (Windows file lock release)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await fs.rm(cdkOutDir, { recursive: true, force: true });
+          break;
+        } catch (rmErr) {
+          if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+          } else {
+            // Last resort: just clean lock files
+            try {
+              const files = await fs.readdir(cdkOutDir);
+              for (const f of files.filter((fn) => fn.startsWith('synth.lock'))) {
+                try {
+                  await fs.unlink(path.join(cdkOutDir, f));
+                } catch {
+                  /* */
+                }
+              }
+            } catch {
+              /* */
+            }
           }
         }
-        write({
-          type: 'check',
-          label: 'Stale lock files removed',
-          level: 'success',
-        });
       }
+      write({
+        type: 'check',
+        label: 'CDK output directory cleaned',
+        level: 'success',
+      });
     } catch {
-      // cdk.out may not exist yet — that's fine
+      // cdk.out doesn't exist yet — that's fine
     }
   } catch {
     // fs import fail — ignore
@@ -364,8 +381,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Build command
+        const cdkOutDir = path.join(CDK_DIR, 'cdk.out');
         const env = {
           ...process.env,
+          // Force CDK to use a consistent output dir (avoids stale lock conflicts)
+          CDK_OUTDIR: cdkOutDir,
           SCR_BUCKET_NAME: s3BucketName || '',
           SCR_REGION: region || 'us-east-1',
           // New config fields

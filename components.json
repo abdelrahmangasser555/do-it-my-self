@@ -20,6 +20,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@tour": "https://onboarding-tour.vercel.app/r/{name}.json"
+    "@tour": "https://onboarding-tour.vercel.app/r/{name}.json",
+    "@mapcn": "https://mapcn.dev/r/{name}.json"
   }
 }

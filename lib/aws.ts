@@ -3,6 +3,7 @@
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
   DeleteObjectCommand,
   ListObjectsV2Command,
   DeleteObjectsCommand,
@@ -10,7 +11,7 @@ import {
   CopyObjectCommand,
   ListBucketsCommand,
   GetBucketLocationCommand,
-} from "@aws-sdk/client-s3";
+} from '@aws-sdk/client-s3';
 import {
   CloudFrontClient,
   GetDistributionCommand,
@@ -18,17 +19,17 @@ import {
   DeleteDistributionCommand,
   GetDistributionConfigCommand,
   ListDistributionsCommand,
-} from "@aws-sdk/client-cloudfront";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+} from '@aws-sdk/client-cloudfront';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-const REGION = process.env.AWS_REGION || "us-east-1";
+const REGION = process.env.AWS_REGION || 'us-east-1';
 
 export function getS3Client(region?: string): S3Client {
   return new S3Client({ region: region || REGION });
 }
 
 export function getCloudFrontClient(): CloudFrontClient {
-  return new CloudFrontClient({ region: "us-east-1" }); // CloudFront is global, but API is in us-east-1
+  return new CloudFrontClient({ region: 'us-east-1' }); // CloudFront is global, but API is in us-east-1
 }
 
 export async function generatePresignedUploadUrl(
@@ -46,6 +47,20 @@ export async function generatePresignedUploadUrl(
   return getSignedUrl(client, command, { expiresIn: 3600 });
 }
 
+export async function generatePresignedDownloadUrl(
+  bucketName: string,
+  objectKey: string,
+  region?: string,
+  expiresIn = 3600,
+): Promise<string> {
+  const client = getS3Client(region);
+  const command = new GetObjectCommand({
+    Bucket: bucketName,
+    Key: objectKey,
+  });
+  return getSignedUrl(client, command, { expiresIn });
+}
+
 export async function deleteS3Object(
   bucketName: string,
   objectKey: string,
@@ -60,10 +75,7 @@ export async function deleteS3Object(
 }
 
 /** Empty a bucket by listing and deleting all objects (incl. versions if any). */
-export async function emptyBucket(
-  bucketName: string,
-  region?: string,
-): Promise<number> {
+export async function emptyBucket(bucketName: string, region?: string): Promise<number> {
   const client = getS3Client(region);
   let totalDeleted = 0;
   let continuationToken: string | undefined;
@@ -90,19 +102,14 @@ export async function emptyBucket(
       totalDeleted += objects.length;
     }
 
-    continuationToken = list.IsTruncated
-      ? list.NextContinuationToken
-      : undefined;
+    continuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
   } while (continuationToken);
 
   return totalDeleted;
 }
 
 /** Delete an S3 bucket (must be emptied first). */
-export async function deleteS3Bucket(
-  bucketName: string,
-  region?: string,
-): Promise<void> {
+export async function deleteS3Bucket(bucketName: string, region?: string): Promise<void> {
   const client = getS3Client(region);
   await client.send(new DeleteBucketCommand({ Bucket: bucketName }));
 }
@@ -112,15 +119,11 @@ export async function deleteS3Bucket(
  * CloudFront requires the distribution to be disabled before it can be deleted.
  * We disable it and then poll until it reaches Deployed state, then delete.
  */
-export async function deleteCloudFrontDistribution(
-  distributionId: string,
-): Promise<void> {
+export async function deleteCloudFrontDistribution(distributionId: string): Promise<void> {
   const client = getCloudFrontClient();
 
   // 1. Get current config
-  const configRes = await client.send(
-    new GetDistributionConfigCommand({ Id: distributionId }),
-  );
+  const configRes = await client.send(new GetDistributionConfigCommand({ Id: distributionId }));
   const config = configRes.DistributionConfig!;
   const etag = configRes.ETag!;
 
@@ -139,10 +142,8 @@ export async function deleteCloudFrontDistribution(
   // 3. Poll until the distribution is Deployed (not InProgress)
   let deployed = false;
   for (let attempt = 0; attempt < 60; attempt++) {
-    const dist = await client.send(
-      new GetDistributionCommand({ Id: distributionId }),
-    );
-    if (dist.Distribution?.Status === "Deployed") {
+    const dist = await client.send(new GetDistributionCommand({ Id: distributionId }));
+    if (dist.Distribution?.Status === 'Deployed') {
       deployed = true;
       // 4. Delete with latest ETag
       const latestConfig = await client.send(
@@ -167,10 +168,7 @@ export async function deleteCloudFrontDistribution(
   }
 }
 
-export function buildCloudFrontUrl(
-  cloudFrontDomain: string,
-  objectKey: string,
-): string {
+export function buildCloudFrontUrl(cloudFrontDomain: string, objectKey: string): string {
   return `https://${cloudFrontDomain}/${objectKey}`;
 }
 
@@ -183,12 +181,12 @@ export async function createS3Folder(
   region?: string,
 ): Promise<void> {
   const client = getS3Client(region);
-  const key = folderPath.endsWith("/") ? folderPath : `${folderPath}/`;
+  const key = folderPath.endsWith('/') ? folderPath : `${folderPath}/`;
   await client.send(
     new PutObjectCommand({
       Bucket: bucketName,
       Key: key,
-      Body: "",
+      Body: '',
       ContentLength: 0,
     }),
   );
@@ -254,7 +252,7 @@ export async function listS3Objects(
           objects.push({
             key: obj.Key,
             size: obj.Size ?? 0,
-            lastModified: obj.LastModified?.toISOString() ?? "",
+            lastModified: obj.LastModified?.toISOString() ?? '',
             etag: obj.ETag,
             storageClass: obj.StorageClass,
           });
@@ -262,9 +260,7 @@ export async function listS3Objects(
       }
     }
 
-    continuationToken = response.IsTruncated
-      ? response.NextContinuationToken
-      : undefined;
+    continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
   } while (continuationToken);
 
   return objects;
@@ -285,17 +281,13 @@ export interface CloudFrontDistributionSummary {
 }
 
 /** List all CloudFront distributions in the account. */
-export async function listCloudFrontDistributions(): Promise<
-  CloudFrontDistributionSummary[]
-> {
+export async function listCloudFrontDistributions(): Promise<CloudFrontDistributionSummary[]> {
   const client = getCloudFrontClient();
   const distributions: CloudFrontDistributionSummary[] = [];
   let marker: string | undefined;
 
   do {
-    const response = await client.send(
-      new ListDistributionsCommand({ Marker: marker }),
-    );
+    const response = await client.send(new ListDistributionsCommand({ Marker: marker }));
 
     const items = response.DistributionList?.Items;
     if (items) {
@@ -307,15 +299,15 @@ export async function listCloudFrontDistributions(): Promise<
           }
         }
         distributions.push({
-          id: dist.Id ?? "",
-          domainName: dist.DomainName ?? "",
-          status: dist.Status ?? "Unknown",
+          id: dist.Id ?? '',
+          domainName: dist.DomainName ?? '',
+          status: dist.Status ?? 'Unknown',
           enabled: dist.Enabled ?? false,
           origins,
-          comment: dist.Comment ?? "",
-          lastModified: dist.LastModifiedTime?.toISOString() ?? "",
+          comment: dist.Comment ?? '',
+          lastModified: dist.LastModifiedTime?.toISOString() ?? '',
           alternativeDomains: dist.Aliases?.Items ?? [],
-          priceClass: dist.PriceClass ?? "PriceClass_All",
+          priceClass: dist.PriceClass ?? 'PriceClass_All',
         });
       }
     }
@@ -335,7 +327,7 @@ import {
   DescribeStacksCommand,
   DescribeStackResourcesCommand,
   DeleteStackCommand,
-} from "@aws-sdk/client-cloudformation";
+} from '@aws-sdk/client-cloudformation';
 
 export function getCloudFormationClient(region?: string): CloudFormationClient {
   return new CloudFormationClient({ region: region || REGION });
@@ -369,9 +361,7 @@ export async function describeStack(
   const stackName = `SCR-${s3BucketName}`;
 
   try {
-    const response = await client.send(
-      new DescribeStacksCommand({ StackName: stackName }),
-    );
+    const response = await client.send(new DescribeStacksCommand({ StackName: stackName }));
     const stack = response.Stacks?.[0];
     if (!stack) return null;
 
@@ -386,38 +376,33 @@ export async function describeStack(
     const resourcesRes = await client.send(
       new DescribeStackResourcesCommand({ StackName: stackName }),
     );
-    const resources: StackResource[] = (resourcesRes.StackResources ?? []).map(
-      (r) => ({
-        logicalId: r.LogicalResourceId ?? "",
-        physicalId: r.PhysicalResourceId ?? "",
-        type: r.ResourceType ?? "",
-        status: r.ResourceStatus ?? "",
-        statusReason: r.ResourceStatusReason,
-        lastUpdated: r.Timestamp?.toISOString() ?? "",
-      }),
-    );
+    const resources: StackResource[] = (resourcesRes.StackResources ?? []).map((r) => ({
+      logicalId: r.LogicalResourceId ?? '',
+      physicalId: r.PhysicalResourceId ?? '',
+      type: r.ResourceType ?? '',
+      status: r.ResourceStatus ?? '',
+      statusReason: r.ResourceStatusReason,
+      lastUpdated: r.Timestamp?.toISOString() ?? '',
+    }));
 
     return {
       stackName,
-      stackStatus: stack.StackStatus ?? "UNKNOWN",
+      stackStatus: stack.StackStatus ?? 'UNKNOWN',
       stackStatusReason: stack.StackStatusReason,
-      creationTime: stack.CreationTime?.toISOString() ?? "",
+      creationTime: stack.CreationTime?.toISOString() ?? '',
       lastUpdatedTime: stack.LastUpdatedTime?.toISOString(),
       outputs,
       resources,
     };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "";
-    if (msg.includes("does not exist")) return null;
+    const msg = e instanceof Error ? e.message : '';
+    if (msg.includes('does not exist')) return null;
     throw e;
   }
 }
 
 /** Delete a CloudFormation stack (rollback). */
-export async function deleteStack(
-  s3BucketName: string,
-  region?: string,
-): Promise<void> {
+export async function deleteStack(s3BucketName: string, region?: string): Promise<void> {
   const client = getCloudFormationClient(region);
   const stackName = `SCR-${s3BucketName}`;
   await client.send(new DeleteStackCommand({ StackName: stackName }));
@@ -425,13 +410,10 @@ export async function deleteStack(
 
 // ── S3 bucket size metrics ───────────────────────────────────────────────────
 
-import { HeadBucketCommand } from "@aws-sdk/client-s3";
+import { HeadBucketCommand } from '@aws-sdk/client-s3';
 
 /** Check if an S3 bucket exists and is accessible. */
-export async function checkBucketExists(
-  bucketName: string,
-  region?: string,
-): Promise<boolean> {
+export async function checkBucketExists(bucketName: string, region?: string): Promise<boolean> {
   try {
     const client = getS3Client(region);
     await client.send(new HeadBucketCommand({ Bucket: bucketName }));
@@ -501,8 +483,7 @@ export function calculateCostBreakdown(
   const s3ListRequests = (listRequests / 1000) * S3_LIST_PER_1K;
   const s3DataTransfer = transferGB * S3_DATA_TRANSFER_PER_GB;
   const cfDataTransfer = transferGB * 0.3 * CF_PER_GB_TRANSFER; // ~30% via CloudFront
-  const cfRequests =
-    ((readRequests + writeRequests) / 10000) * CF_HTTPS_PER_10K;
+  const cfRequests = ((readRequests + writeRequests) / 10000) * CF_HTTPS_PER_10K;
 
   const total =
     s3Storage +
@@ -533,7 +514,7 @@ function round4(n: number): number {
 
 // ── STS: Get Caller Identity ─────────────────────────────────────────────────
 
-import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
+import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 
 export interface CallerIdentity {
   account: string;
@@ -546,9 +527,9 @@ export async function getCallerIdentity(): Promise<CallerIdentity> {
   const client = new STSClient({ region: REGION });
   const res = await client.send(new GetCallerIdentityCommand({}));
   return {
-    account: res.Account ?? "",
-    arn: res.Arn ?? "",
-    userId: res.UserId ?? "",
+    account: res.Account ?? '',
+    arn: res.Arn ?? '',
+    userId: res.UserId ?? '',
   };
 }
 
@@ -568,19 +549,17 @@ export async function listAllS3Buckets(): Promise<S3BucketInfo[]> {
 
   for (const b of res.Buckets ?? []) {
     if (!b.Name) continue;
-    let region = "us-east-1";
+    let region = 'us-east-1';
     try {
-      const locRes = await client.send(
-        new GetBucketLocationCommand({ Bucket: b.Name }),
-      );
+      const locRes = await client.send(new GetBucketLocationCommand({ Bucket: b.Name }));
       // null / empty means us-east-1
-      region = locRes.LocationConstraint || "us-east-1";
+      region = locRes.LocationConstraint || 'us-east-1';
     } catch {
       // If we can't get location, default to us-east-1
     }
     buckets.push({
       name: b.Name,
-      creationDate: b.CreationDate?.toISOString() ?? "",
+      creationDate: b.CreationDate?.toISOString() ?? '',
       region,
     });
   }

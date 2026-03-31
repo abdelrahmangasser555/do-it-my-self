@@ -49,3 +49,4 @@ infrastructure/cdk/cdk.out/
 data/*.json
 !data/.gitkeep
 data/**/*.json
+data

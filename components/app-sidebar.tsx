@@ -110,7 +110,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b px-6 py-4">
+      <SidebarHeader className="border-b px-6 h-14">
         <Link href="/" className="flex items-center gap-2">
           <HardDrive className="size-5 text-primary" />
           <span className="text-base font-semibold tracking-tight">{APP_CONFIG.name}</span>

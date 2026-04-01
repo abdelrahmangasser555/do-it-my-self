@@ -270,14 +270,14 @@ export function BootstrapEnvironmentsStep({
         </div>
 
         {/* Add region */}
-        <div className="flex items-end gap-3">
+        {/* <div className="flex items-end gap-3">
           <div className="flex-1 space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">
-              Select a region to bootstrap
+              Select a region to activate
             </label>
             <Select value={selectedRegion} onValueChange={setSelectedRegion}>
               <SelectTrigger>
-                <SelectValue placeholder="Choose AWS region..." />
+                <SelectValue placeholder="choose a region to activate..." />
               </SelectTrigger>
               <SelectContent>
                 {availableRegions.map((r) => (
@@ -302,9 +302,9 @@ export function BootstrapEnvironmentsStep({
             ) : (
               <Plus className="mr-2 size-3.5" />
             )}
-            Bootstrap
+            activate
           </Button>
-        </div>
+        </div> */}
 
         {/* Interactive Map — compact mode for onboarding */}
         <EnvironmentsMap

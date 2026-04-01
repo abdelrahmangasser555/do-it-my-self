@@ -118,6 +118,27 @@ export async function deleteS3Bucket(bucketName: string, region?: string): Promi
 }
 
 /**
+ * Disable a CloudFront distribution (without deleting it).
+ * Returns immediately after sending the update; the distribution will transition to InProgress.
+ */
+export async function disableCloudFrontDistribution(distributionId: string): Promise<void> {
+  const client = getCloudFrontClient();
+  const configRes = await client.send(new GetDistributionConfigCommand({ Id: distributionId }));
+  const config = configRes.DistributionConfig!;
+  const etag = configRes.ETag!;
+  if (config.Enabled) {
+    config.Enabled = false;
+    await client.send(
+      new UpdateDistributionCommand({
+        Id: distributionId,
+        DistributionConfig: config,
+        IfMatch: etag,
+      }),
+    );
+  }
+}
+
+/**
  * Disable and delete a CloudFront distribution.
  * CloudFront requires the distribution to be disabled before it can be deleted.
  * We disable it and then poll until it reaches Deployed state, then delete.

@@ -18,6 +18,7 @@ import {
   Database,
   Shield,
   Clock,
+  PauseCircle,
 } from 'lucide-react';
 import { CircleFlag } from 'react-circle-flags';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
@@ -108,6 +109,8 @@ function DistributionCard({
   dist,
   bucketStats,
   onDelete,
+  onDisable,
+  disabling,
 }: {
   dist: Distribution;
   bucketStats: {
@@ -120,10 +123,17 @@ function DistributionCard({
     fileTypeBreakdown: { type: string; count: number; color: string }[];
   } | null;
   onDelete: (d: Distribution) => void;
+  onDisable: (d: Distribution) => void;
+  disabling: boolean;
 }) {
   const pcInfo = getPriceClassInfo(dist.priceClass);
   const originRegions = dist.origins.map(originToRegion).filter((r): r is string => r !== null);
   const uniqueRegions = [...new Set(originRegions)];
+
+  // A distribution is considered "linked" if it has a tracked bucket OR has CNAMEs in use
+  // Origins always exist in CloudFront, so we check tracked linkage + custom domains
+  const isLinked = !!dist.linkedBucket || dist.alternativeDomains.length > 0;
+  const canDisable = dist.enabled && !isLinked;
 
   // Build mini transfer rod from cost data
   const hasStats =
@@ -153,10 +163,10 @@ function DistributionCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.97 }}
       transition={{ duration: 0.2 }}
-      className="group"
+      className="group h-full"
     >
-      <div className="relative flex flex-col overflow-hidden rounded-xl border border-border/50 bg-card transition-all duration-200 hover:border-border hover:scale-[1.008]">
-        <div className="flex flex-col gap-2.5 p-4">
+      <div className="relative flex flex-col h-full overflow-hidden rounded-xl border border-border/50 bg-card transition-all duration-200 hover:border-border hover:scale-[1.008]">
+        <div className="flex flex-col gap-2.5 p-4 flex-1">
           {/* ── Header ── */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-start gap-2.5 min-w-0 flex-1">
@@ -384,17 +394,38 @@ function DistributionCard({
                 </>
               )}
             </div>
-            {!dist.enabled && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-[10px] text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => onDelete(dist)}
-              >
-                <Trash2 className="size-2.5 mr-1" />
-                Delete
-              </Button>
-            )}
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Disable — only when not linked to anything and currently enabled */}
+              {canDisable && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px] text-amber-500 hover:text-amber-600"
+                  onClick={() => onDisable(dist)}
+                  disabled={disabling}
+                  title="Disable this distribution (no tracked bucket or CNAME linked)"
+                >
+                  {disabling ? (
+                    <Loader2 className="size-2.5 mr-1 animate-spin" />
+                  ) : (
+                    <PauseCircle className="size-2.5 mr-1" />
+                  )}
+                  Disable
+                </Button>
+              )}
+              {/* Delete — only when already disabled */}
+              {!dist.enabled && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px] text-destructive hover:text-destructive"
+                  onClick={() => onDelete(dist)}
+                >
+                  <Trash2 className="size-2.5 mr-1" />
+                  Delete
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -410,6 +441,7 @@ export default function DistributionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Distribution | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [disablingId, setDisablingId] = useState<string | null>(null);
 
   const { buckets } = useBuckets();
   const { inventory } = useBucketInventory(buckets);
@@ -461,8 +493,44 @@ export default function DistributionsPage() {
     }
   };
 
+  const handleDisable = async (dist: Distribution) => {
+    setDisablingId(dist.id);
+    try {
+      const res = await fetch('/api/distributions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ distributionId: dist.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to disable');
+      }
+      toast.success('Distribution disabled — you can now delete it once it reaches Deployed state');
+      fetchDistributions();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to disable distribution');
+    } finally {
+      setDisablingId(null);
+    }
+  };
+
   const activeCount = distributions.filter((d) => d.enabled).length;
   const disabledCount = distributions.filter((d) => !d.enabled).length;
+  const deployingCount = distributions.filter((d) => d.enabled && d.status === 'InProgress').length;
+
+  // Distribution density rod — enabled / deploying / disabled proportions
+  const distRodSegments = useMemo(() => {
+    const deployed = distributions.filter((d) => d.enabled && d.status !== 'InProgress').length;
+    const deploying = distributions.filter((d) => d.enabled && d.status === 'InProgress').length;
+    const disabled = distributions.filter((d) => !d.enabled).length;
+    const total = distributions.length;
+    if (total === 0) return [];
+    return [
+      { label: 'Active', value: deployed, color: 'var(--chart-1)' },
+      { label: 'Deploying', value: deploying, color: 'var(--chart-3)' },
+      { label: 'Disabled', value: disabled, color: 'var(--chart-5)' },
+    ].filter((s) => s.value > 0);
+  }, [distributions]);
 
   // Map bucket stats by linked bucket id
   const bucketStatsMap = useMemo(() => {
@@ -541,6 +609,13 @@ export default function DistributionsPage() {
               <CheckCircle2 className="size-2.5 text-emerald-500" />
               <span className="font-semibold text-foreground text-xs">{activeCount}</span> active
             </span>
+            {deployingCount > 0 && (
+              <span className="flex items-center gap-0.5">
+                <Loader2 className="size-2.5 text-amber-400 animate-spin" />
+                <span className="font-semibold text-foreground text-xs">{deployingCount}</span>{' '}
+                deploying
+              </span>
+            )}
             {disabledCount > 0 && (
               <span className="flex items-center gap-0.5">
                 <XCircle className="size-2.5 text-red-500" />
@@ -549,6 +624,50 @@ export default function DistributionsPage() {
               </span>
             )}
           </div>
+
+          {/* Distribution density rod */}
+          {distRodSegments.length > 0 && (
+            <>
+              <div className="h-7 w-px bg-border/50 hidden sm:block" />
+              <HoverCard openDelay={200} closeDelay={100}>
+                <HoverCardTrigger asChild>
+                  <div className="w-28 shrink-0 space-y-0.5 cursor-default">
+                    <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Status
+                    </p>
+                    <div className="flex h-1.5 w-full overflow-hidden rounded-full transition-all duration-150 hover:h-2">
+                      {distRodSegments.map((s) => (
+                        <div
+                          key={s.label}
+                          className="h-full"
+                          style={{
+                            width: `${(s.value / distributions.length) * 100}%`,
+                            backgroundColor: s.color,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent side="bottom" className="w-44 p-3">
+                  <div className="space-y-1.5">
+                    {distRodSegments.map((s) => (
+                      <div key={s.label} className="flex items-center justify-between text-[10px]">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="size-2 rounded-full"
+                            style={{ backgroundColor: s.color }}
+                          />
+                          <span className="text-muted-foreground">{s.label}</span>
+                        </div>
+                        <span className="font-medium tabular-nums">{s.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+            </>
+          )}
 
           <div className="h-7 w-px bg-border/50 hidden sm:block" />
 
@@ -616,7 +735,7 @@ export default function DistributionsPage() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 items-stretch">
             <AnimatePresence mode="popLayout">
               {distributions.map((dist) => (
                 <DistributionCard
@@ -626,6 +745,8 @@ export default function DistributionsPage() {
                     dist.linkedBucket ? (bucketStatsMap[dist.linkedBucket.id] ?? null) : null
                   }
                   onDelete={setDeleteTarget}
+                  onDisable={handleDisable}
+                  disabling={disablingId === dist.id}
                 />
               ))}
             </AnimatePresence>

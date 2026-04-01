@@ -1,18 +1,19 @@
 // API route for listing and managing CloudFront distributions
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 import {
   listCloudFrontDistributions,
   deleteCloudFrontDistribution,
-} from "@/lib/aws";
-import { readJsonFile } from "@/lib/filesystem";
-import type { Bucket } from "@/lib/types";
+  disableCloudFrontDistribution,
+} from '@/lib/aws';
+import { readJsonFile } from '@/lib/filesystem';
+import type { Bucket } from '@/lib/types';
 
 export async function GET() {
   try {
     const distributions = await listCloudFrontDistributions();
 
     // Enrich with local bucket data — match by CloudFront domain
-    const buckets = await readJsonFile<Bucket>("buckets.json");
+    const buckets = await readJsonFile<Bucket>('buckets.json');
     const bucketByDomain = new Map<string, Bucket>();
     for (const b of buckets) {
       if (b.cloudFrontDomain) {
@@ -39,12 +40,9 @@ export async function GET() {
   } catch (error) {
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to list distributions",
+        error: error instanceof Error ? error.message : 'Failed to list distributions',
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -55,10 +53,7 @@ export async function DELETE(request: NextRequest) {
     const { distributionId } = body;
 
     if (!distributionId) {
-      return NextResponse.json(
-        { error: "distributionId is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'distributionId is required' }, { status: 400 });
     }
 
     await deleteCloudFrontDistribution(distributionId);
@@ -66,12 +61,28 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to delete distribution",
+        error: error instanceof Error ? error.message : 'Failed to delete distribution',
       },
-      { status: 500 }
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { distributionId } = body;
+    if (!distributionId) {
+      return NextResponse.json({ error: 'distributionId is required' }, { status: 400 });
+    }
+    await disableCloudFrontDistribution(distributionId);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : 'Failed to disable distribution',
+      },
+      { status: 500 },
     );
   }
 }

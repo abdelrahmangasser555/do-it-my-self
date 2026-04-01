@@ -1,8 +1,8 @@
 // Hook for fetching, creating, updating, and deleting projects
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import type { Project, ProjectFormData } from "@/lib/types";
+import { useState, useEffect, useCallback } from 'react';
+import type { Project, ProjectFormData } from '@/lib/types';
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -12,13 +12,13 @@ export function useProjects() {
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/projects");
-      if (!res.ok) throw new Error("Failed to fetch projects");
+      const res = await fetch('/api/projects');
+      if (!res.ok) throw new Error('Failed to fetch projects');
       const data = await res.json();
       setProjects(data);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
@@ -39,18 +39,18 @@ export function useCreateProject() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to create project");
+        throw new Error(err.error || 'Failed to create project');
       }
       return await res.json();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : 'Unknown error');
       return null;
     } finally {
       setLoading(false);
@@ -66,7 +66,7 @@ export function useDeleteProject() {
   const deleteProject = async (id: string): Promise<boolean> => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/projects?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/projects?id=${id}`, { method: 'DELETE' });
       return res.ok;
     } catch {
       return false;
@@ -76,4 +76,30 @@ export function useDeleteProject() {
   };
 
   return { deleteProject, loading };
+}
+
+export function useUpdateProject() {
+  const [loading, setLoading] = useState(false);
+
+  const updateProject = async (
+    id: string,
+    updates: Partial<Pick<Project, 'name' | 'environment' | 'maxFileSizeMB'>>,
+  ): Promise<Project | null> => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/projects', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updates }),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { updateProject, loading };
 }

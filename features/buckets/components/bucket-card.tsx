@@ -26,11 +26,14 @@ import {
   FolderOpen,
   Calendar,
   Link2,
+  Wrench,
+  ShieldAlert,
 } from 'lucide-react';
 import { CircleFlag } from 'react-circle-flags';
 import { Sparklines, SparklinesLine } from 'react-sparklines';
 import { getRegionAlpha2 } from '@/lib/region-flags';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { Alert, AlertDescription, AlertTitle, AlertAction } from '@/components/ui/alert';
 import type { Bucket, BucketAnalytics } from '@/lib/types';
 import { toast } from 'sonner';
 
@@ -44,12 +47,16 @@ export interface BucketCardProps {
   analytics?: BucketAnalytics;
   fileTypeBreakdown?: { type: string; count: number; color: string }[];
   files?: { lastModified: string; size?: number }[];
+  /** undefined = unchecked, true = ok, false = incompatible */
+  compatible?: boolean;
+  compatibilityFixing?: boolean;
   onDelete: (id: string) => void;
   onFullDelete?: (bucket: Bucket) => void;
   onDeploy: (bucket: Bucket) => void;
   onConnectCDN?: (bucket: Bucket) => void;
   onConnectProject?: (bucket: Bucket) => void;
   onFileDrop?: (bucket: Bucket, files: File[]) => void;
+  onMakeCompatible?: (bucket: Bucket) => void;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -235,12 +242,15 @@ export function BucketCard({
   analytics,
   fileTypeBreakdown,
   files,
+  compatible,
+  compatibilityFixing,
   onDelete,
   onFullDelete,
   onDeploy,
   onConnectCDN,
   onConnectProject,
   onFileDrop,
+  onMakeCompatible,
 }: BucketCardProps) {
   const [copied, setCopied] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -253,6 +263,8 @@ export function BucketCard({
   const alpha2 = getRegionAlpha2(bucket.region);
   const isActive = bucket.status === 'active';
   const needsProjectLink = !bucket.projectId;
+  // compatible===false means checked and incompatible; undefined means not yet checked
+  const isIncompatible = compatible === false && isActive;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(bucket.s3BucketName);
@@ -287,7 +299,7 @@ export function BucketCard({
       e.stopPropagation();
       dragCounterRef.current = 0;
       setIsDragOver(false);
-      if (!isActive || !onFileDrop) return;
+      if (!isActive || !onFileDrop || isIncompatible) return;
       const dropped = Array.from(e.dataTransfer.files);
       if (dropped.length === 0) return;
       setIsUploading(true);
@@ -301,7 +313,7 @@ export function BucketCard({
   );
 
   const triggerUpload = () => {
-    if (!onFileDrop) return;
+    if (!onFileDrop || isIncompatible) return;
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
@@ -398,7 +410,35 @@ export function BucketCard({
             </div>
           </div>
 
-          {needsProjectLink && (
+          {isIncompatible && (
+            <Alert className="py-2 border-amber-500/30 bg-amber-500/8 text-amber-800 dark:text-amber-200">
+              <ShieldAlert className="size-3.5" />
+              <AlertTitle className="text-[11px] font-semibold">Upload disabled</AlertTitle>
+              <AlertDescription className="text-[10px]">
+                CORS not configured for browser uploads.
+              </AlertDescription>
+              {onMakeCompatible && (
+                <AlertAction>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-5 text-[10px] border-amber-500/40 hover:bg-amber-500/20"
+                    disabled={compatibilityFixing}
+                    onClick={() => onMakeCompatible(bucket)}
+                  >
+                    {compatibilityFixing ? (
+                      <Loader2 className="size-2.5 mr-1 animate-spin" />
+                    ) : (
+                      <Wrench className="size-2.5 mr-1" />
+                    )}
+                    Fix it
+                  </Button>
+                </AlertAction>
+              )}
+            </Alert>
+          )}
+
+          {needsProjectLink && !isIncompatible && (
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-300">
               <div className="flex items-center justify-between gap-2">
                 <span>Connect this bucket to a project to enable uploads.</span>
@@ -501,7 +541,7 @@ export function BucketCard({
 
             {/* Hover actions */}
             <AnimatePresence>
-              {hovered && isActive && onFileDrop && !needsProjectLink && (
+              {hovered && isActive && onFileDrop && !needsProjectLink && !isIncompatible && (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -551,9 +591,14 @@ export function BucketCard({
             <FolderOpen className="size-3.5" /> Setup
           </Link>
         </ContextMenuItem>
-        {isActive && onFileDrop && (
+        {isActive && onFileDrop && !isIncompatible && (
           <ContextMenuItem onClick={triggerUpload}>
             <Upload className="mr-2 size-3.5" /> Upload Files
+          </ContextMenuItem>
+        )}
+        {isIncompatible && onMakeCompatible && (
+          <ContextMenuItem onClick={() => onMakeCompatible(bucket)}>
+            <Wrench className="mr-2 size-3.5" /> Make Compatible
           </ContextMenuItem>
         )}
         {bucket.status === 'pending' && (

@@ -29,7 +29,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle, AlertAction } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageTransition } from '@/components/page-transition';
 import {
@@ -385,38 +385,37 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
 
         {/* Compatibility alert */}
         {compatibility.checked && !compatibility.compatible && bucket.status === 'active' && (
-          <Alert
-            variant="destructive"
-            className="border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
-          >
-            <AlertTriangle className="size-4" />
-            <AlertTitle className="flex items-center justify-between">
-              <span>Bucket not fully compatible with browser uploads</span>
+          <Alert className="border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+            <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
+            <AlertTitle>Bucket not fully compatible with browser uploads</AlertTitle>
+            <AlertDescription>
+              <ul className="mt-1 space-y-0.5">
+                {compatibility.issues.map((issue, i) => (
+                  <li key={i} className="text-xs">
+                    • {issue}
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+            <AlertAction>
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 border-amber-500/40 hover:bg-amber-500/20"
+                className="border-amber-400/60 hover:bg-amber-100 dark:hover:bg-amber-900"
                 onClick={handleMakeCompatible}
                 disabled={compatibility.fixing}
               >
                 {compatibility.fixing ? (
-                  <Loader2 className="size-3 animate-spin mr-1" />
+                  <Loader2 className="size-3 animate-spin mr-1.5" />
                 ) : (
-                  <Wrench className="size-3 mr-1" />
+                  <Wrench className="size-3 mr-1.5" />
                 )}
                 Make Compatible
               </Button>
-            </AlertTitle>
-            <AlertDescription className="mt-1 space-y-1">
-              {compatibility.issues.map((issue, i) => (
-                <p key={i} className="text-xs">
-                  • {issue}
-                </p>
-              ))}
-              <p className="text-xs opacity-70 mt-2">
-                ⚠ If this bucket is used in production, review changes carefully before applying.
-              </p>
-            </AlertDescription>
+              <div className="text-[11px] text-amber-700/70 dark:text-amber-400/70 ml-1">
+                ⚠ Review before applying to production buckets
+              </div>
+            </AlertAction>
           </Alert>
         )}
         {compatibility.checked && compatibility.compatible && bucket.status === 'active' && (

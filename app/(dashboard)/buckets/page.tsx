@@ -40,6 +40,7 @@ import type { BucketFormValues } from '@/lib/validations';
 import type { Bucket } from '@/lib/types';
 import { useEnvironments } from '@/features/environments/hooks/use-environments';
 import { useAnalytics } from '@/features/infrastructure/hooks/use-analytics';
+import { useCompatibilityCheck } from '@/features/buckets/hooks/use-compatibility';
 
 export default function BucketsPage() {
   const router = useRouter();
@@ -63,6 +64,7 @@ export default function BucketsPage() {
     totals: inventoryTotals,
     refetch: refetchInventory,
   } = useBucketInventory(buckets);
+  const { compatMap, makeCompatible } = useCompatibilityCheck(buckets);
 
   // Filter buckets by search query
   const filteredBuckets = buckets.filter((b) => {
@@ -198,10 +200,23 @@ export default function BucketsPage() {
         return;
       }
 
+      const total = droppedFiles.length;
       let uploaded = 0;
       let failed = 0;
 
-      for (const file of droppedFiles) {
+      // Show overall batch progress toast
+      const batchId = `upload-${bucket.id}-${Date.now()}`;
+      if (total > 1) {
+        toast.loading(`Uploading 0 / ${total} files…`, { id: batchId });
+      }
+
+      for (let i = 0; i < droppedFiles.length; i++) {
+        const file = droppedFiles[i];
+        const fileId = `upload-file-${file.name}-${i}`;
+
+        // Per-file loading toast
+        toast.loading(`Uploading ${file.name}…`, { id: fileId });
+
         try {
           // Request presigned upload URL
           const res = await fetch('/api/files', {
@@ -221,15 +236,18 @@ export default function BucketsPage() {
             const reason = data.error || data.message || `HTTP ${res.status}`;
             const detail = data.details || data.hint || '';
             toast.error(`${file.name} — ${reason}`, {
+              id: fileId,
               description: detail || undefined,
             });
             failed++;
+            if (total > 1)
+              toast.loading(`Uploading ${uploaded + failed} / ${total} files…`, { id: batchId });
             continue;
           }
 
           const { uploadUrl } = await res.json();
 
-          // Upload file to S3 via presigned URL
+          // Upload file directly to S3 via presigned URL
           const uploadRes = await fetch(uploadUrl, {
             method: 'PUT',
             body: file,
@@ -238,41 +256,56 @@ export default function BucketsPage() {
 
           if (uploadRes.ok) {
             uploaded++;
+            toast.success(`${file.name} uploaded`, { id: fileId, duration: 3000 });
           } else {
             failed++;
             let s3Error = `S3 upload failed (HTTP ${uploadRes.status})`;
             try {
               const body = await uploadRes.text();
-              // S3 error responses are XML — pull out the <Message> tag
               const match = body.match(/<Message>(.*?)<\/Message>/);
               const code = body.match(/<Code>(.*?)<\/Code>/);
               if (match?.[1]) s3Error = `${code?.[1] ?? 'S3Error'}: ${match[1]}`;
             } catch {
-              // ignore parse error
+              /* ignore xml parse error */
             }
             toast.error(`${file.name} — ${s3Error}`, {
+              id: fileId,
               description:
                 uploadRes.status === 403
-                  ? 'Check CORS policy on the bucket (use "Make Compatible" on the bucket detail page)'
+                  ? 'CORS not configured — use "Make Compatible" on the bucket'
                   : uploadRes.status === 400
-                    ? 'Presigned URL may have expired or Content-Type mismatch'
+                    ? 'Presigned URL expired or Content-Type mismatch'
                     : undefined,
             });
           }
         } catch (err) {
           failed++;
-          toast.error(`${file.name} — ${err instanceof Error ? err.message : 'Network error'}`);
+          toast.error(`${file.name} — ${err instanceof Error ? err.message : 'Network error'}`, {
+            id: fileId,
+          });
+        }
+
+        // Update batch progress
+        if (total > 1) {
+          toast.loading(`Uploading ${uploaded + failed} / ${total} files…`, { id: batchId });
+        }
+      }
+
+      // Dismiss batch toast and show summary
+      if (total > 1) {
+        if (failed === 0) {
+          toast.success(`All ${uploaded} files uploaded to ${bucket.name}`, { id: batchId });
+        } else if (uploaded === 0) {
+          toast.error(`All ${failed} uploads failed`, { id: batchId });
+        } else {
+          toast.warning(`${uploaded} uploaded, ${failed} failed`, { id: batchId });
         }
       }
 
       if (uploaded > 0) {
-        toast.success(`Uploaded ${uploaded} file${uploaded !== 1 ? 's' : ''} to ${bucket.name}`);
         refetch();
         refetchInventory();
         refetchAnalytics();
-      }
-      if (failed > 0 && uploaded === 0) {
-        toast.error(`All ${failed} upload${failed !== 1 ? 's' : ''} failed`);
       }
     },
     [projects, refetch, refetchAnalytics, refetchInventory],
@@ -437,12 +470,19 @@ export default function BucketsPage() {
                     analytics={analytics}
                     fileTypeBreakdown={fileTypeBreakdown}
                     files={inventory[bucket.id]?.files}
+                    compatible={compatMap[bucket.id]?.compatible}
+                    compatibilityFixing={compatMap[bucket.id]?.fixing}
                     onDelete={handleDelete}
                     onFullDelete={handleFullDelete}
                     onDeploy={handleDeploy}
                     onConnectCDN={(b) => setConnectCdnTarget(b)}
                     onConnectProject={(b) => setConnectProjectTarget(b)}
                     onFileDrop={handleFileDrop}
+                    onMakeCompatible={async (b) => {
+                      const ok = await makeCompatible(b);
+                      if (ok) toast.success(`${b.name} is now compatible`);
+                      else toast.error(`Failed to fix compatibility for ${b.name}`);
+                    }}
                   />
                 );
               })}

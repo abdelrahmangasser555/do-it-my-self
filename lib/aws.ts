@@ -490,16 +490,39 @@ export async function testUploadPermission(
     await client.send(
       new HeadObjectCommand({ Bucket: bucketName, Key: '__dropout_permission_check__' }),
     );
-    return null; // 200 — unexpected but fine
+    return null; // 200 — key accidentally exists, still fine
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    // 404 Not Found → we CAN access the bucket, key just doesn't exist
-    if (msg.includes('404') || msg.includes('NotFound') || msg.includes('NoSuchKey')) return null;
-    // 403 → no access
-    if (msg.includes('403') || msg.includes('Forbidden') || msg.includes('AccessDenied')) {
+    // AWS SDK v3 errors carry $metadata.httpStatusCode and a .name field
+    const err = e as { name?: string; message?: string; $metadata?: { httpStatusCode?: number } };
+    const statusCode = err.$metadata?.httpStatusCode;
+    const name = err.name ?? '';
+    const msg = err.message ?? '';
+
+    // 404 / NoSuchKey → bucket is reachable, the key simply doesn't exist — GOOD
+    if (
+      statusCode === 404 ||
+      name === 'NotFound' ||
+      name === 'NoSuchKey' ||
+      msg.includes('404') ||
+      msg.includes('NotFound') ||
+      msg.includes('NoSuchKey')
+    )
+      return null;
+
+    // 403 / AccessDenied → explicit permission failure — BAD
+    if (
+      statusCode === 403 ||
+      name === 'AccessDenied' ||
+      name === 'Forbidden' ||
+      msg.includes('403') ||
+      msg.includes('Forbidden') ||
+      msg.includes('AccessDenied')
+    ) {
       return 'IAM user does not have s3:GetObject / s3:PutObject permission on this bucket';
     }
-    return `Unexpected error checking permissions: ${msg}`;
+
+    // Unknown / network error — don't block uploads over uncertainty
+    return null;
   }
 }
 

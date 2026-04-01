@@ -472,11 +472,8 @@ export function SetupTab({ bucket }: SetupTabProps) {
           </div>
 
           {/* Credential warning */}
-          <Alert
-            variant="destructive"
-            className="border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-          >
-            <AlertTriangle className="size-4 text-amber-500!" />
+          <Alert variant="destructive" className="">
+            <AlertTriangle className="size-4 " />
             <AlertDescription className="text-xs">
               The generated prompt contains your <strong>real AWS credentials</strong>. Only paste
               it into AI tools you trust, and never share the prompt publicly.

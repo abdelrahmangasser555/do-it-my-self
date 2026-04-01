@@ -250,7 +250,7 @@ function ShareDialog({ target, onClose }: { target: ShareTarget | null; onClose:
 
   return (
     <Dialog open={!!target} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-fit">
         <DialogHeader>
           <DialogTitle className="text-sm font-semibold truncate flex items-center gap-1.5">
             <span className="text-muted-foreground">Share —</span> {target.name}

@@ -44,13 +44,21 @@ pip install -r requirements.txt`;
 }
 
 // --- Environment ---
-export function generateEnvSnippet(bucket: Bucket): string {
+export interface AwsCredentials {
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  region?: string;
+}
+
+export function generateEnvSnippet(bucket: Bucket, creds?: AwsCredentials): string {
+  const keyId = creds?.accessKeyId || 'YOUR_AWS_ACCESS_KEY_ID';
+  const secret = creds?.secretAccessKey || 'YOUR_AWS_SECRET_ACCESS_KEY';
   return `# Environment variables for ${bucket.name}
 NEXT_PUBLIC_S3_BUCKET=${bucket.s3BucketName}
 NEXT_PUBLIC_CLOUDFRONT_DOMAIN=${bucket.cloudFrontDomain || 'your-distribution.cloudfront.net'}
 AWS_REGION=${bucket.region}
-AWS_ACCESS_KEY_ID=your-access-key
-AWS_SECRET_ACCESS_KEY=your-secret-key`;
+AWS_ACCESS_KEY_ID=${keyId}
+AWS_SECRET_ACCESS_KEY=${secret}`;
 }
 
 // --- Upload API Snippets ---
@@ -564,4 +572,207 @@ When calling the upload API, include:
   "linkedModelId": "record-id-123"
 }
 \`\`\``;
+}
+
+// --- AI Assistant Prompt Generator ---
+export function generateAIAssistantPrompt(
+  bucket: Bucket,
+  creds?: AwsCredentials,
+  extraInstructions?: string,
+): string {
+  const keyId = creds?.accessKeyId || 'YOUR_AWS_ACCESS_KEY_ID';
+  const secret = creds?.secretAccessKey || 'YOUR_AWS_SECRET_ACCESS_KEY';
+  const cf = bucket.cloudFrontDomain
+    ? `https://${bucket.cloudFrontDomain}`
+    : 'https://your-distribution.cloudfront.net';
+
+  return `You are an expert full-stack developer helping me set up AWS S3 file storage in my web application.
+
+## My AWS Infrastructure
+
+I have an S3 bucket and CloudFront CDN already provisioned. Here are the exact details:
+
+| Property | Value |
+|----------|-------|
+| Bucket Name | ${bucket.s3BucketName} |
+| Region | ${bucket.region} |
+| CloudFront CDN | ${cf} |
+| Max File Size | ${bucket.config?.maxFileSizeMB ?? 100} MB |
+| Allowed Types | ${bucket.config?.allowedFileTypes ?? 'any'} |
+| Access | ${bucket.config?.access ?? 'private'} |
+| Encryption | ${bucket.config?.encryption?.toUpperCase() ?? 'S3'} |
+
+## AWS Credentials (server-side only — NEVER expose to the browser)
+
+\`\`\`env
+AWS_REGION=${bucket.region}
+AWS_ACCESS_KEY_ID=${keyId}
+AWS_SECRET_ACCESS_KEY=${secret}
+NEXT_PUBLIC_S3_BUCKET=${bucket.s3BucketName}
+NEXT_PUBLIC_CLOUDFRONT_DOMAIN=${bucket.cloudFrontDomain || 'your-distribution.cloudfront.net'}
+\`\`\`
+
+## Upload Architecture
+
+The system uses **presigned URLs** for secure browser uploads:
+
+1. **Browser** calls my server's \`POST /api/upload\` with filename, size, and content type
+2. **Server** uses AWS SDK v3 to generate a presigned S3 PUT URL (expires in 1 hour)
+3. **Browser** uploads the file DIRECTLY to S3 using the presigned URL (no proxy)
+4. **Browser** receives the CloudFront CDN URL for the uploaded file
+
+This means AWS credentials are ONLY on the server. The browser never sees them.
+
+## Server-Side Upload API (Next.js App Router)
+
+\`\`\`typescript
+// app/api/upload/route.ts
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { NextRequest, NextResponse } from "next/server";
+import { v4 as uuidv4 } from "uuid";
+
+const s3 = new S3Client({ region: process.env.AWS_REGION! });
+
+export async function POST(request: NextRequest) {
+  const { fileName, contentType, fileSize, linkedModel, linkedModelId, folderPrefix } =
+    await request.json();
+
+  // Validate (max ${bucket.config?.maxFileSizeMB ?? 100} MB)
+  if (fileSize > ${bucket.config?.maxFileSizeMB ?? 100} * 1024 * 1024) {
+    return NextResponse.json({ error: "File too large" }, { status: 400 });
+  }
+
+  const prefix = folderPrefix || linkedModel?.toLowerCase() || "uploads";
+  const objectKey = \`\${prefix}/\${uuidv4()}-\${fileName}\`;
+
+  const command = new PutObjectCommand({
+    Bucket: process.env.NEXT_PUBLIC_S3_BUCKET!,
+    Key: objectKey,
+    ContentType: contentType,
+  });
+
+  const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+  const cdnUrl = \`https://\${process.env.NEXT_PUBLIC_CLOUDFRONT_DOMAIN}/\${objectKey}\`;
+
+  // Optionally: store file metadata in your database here
+  // await db.fileRecord.create({ objectKey, cdnUrl, linkedModel, linkedModelId })
+
+  return NextResponse.json({ uploadUrl, objectKey, cdnUrl });
+}
+\`\`\`
+
+## Frontend Upload Component
+
+\`\`\`typescript
+// components/file-upload.tsx
+"use client";
+import { useState, useCallback } from "react";
+
+interface FileUploadProps {
+  /** Pass the app model name to link the file (prevents orphan status) */
+  linkedModel?: string;
+  /** Pass the specific record ID to link the file */
+  linkedModelId?: string;
+  /** Optional S3 folder to organize uploads */
+  folderPrefix?: string;
+  onUploadComplete?: (cdnUrl: string, objectKey: string) => void;
+}
+
+export function FileUpload({ linkedModel, linkedModelId, folderPrefix, onUploadComplete }: FileUploadProps) {
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const upload = useCallback(async (file: File) => {
+    setUploading(true);
+    setError(null);
+
+    try {
+      // Get presigned URL
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          contentType: file.type,
+          fileSize: file.size,
+          linkedModel,   // ← links the file to your model (prevents orphan)
+          linkedModelId, // ← links the file to the specific record
+          folderPrefix,  // ← organizes files in S3 folder
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Upload failed");
+      }
+
+      const { uploadUrl, cdnUrl, objectKey } = await res.json();
+
+      // Upload to S3 with progress tracking via XHR
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error(\`S3 error: \${xhr.status}\`)));
+        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.open("PUT", uploadUrl);
+        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.send(file);
+      });
+
+      onUploadComplete?.(cdnUrl, objectKey);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      setProgress(0);
+    }
+  }, [linkedModel, linkedModelId, folderPrefix, onUploadComplete]);
+
+  return (
+    <div>
+      <input
+        type="file"
+        disabled={uploading}
+        onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
+      />
+      {uploading && <p>Uploading... {progress}%</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
+    </div>
+  );
+}
+
+// Usage — LINKED (recommended):
+// <FileUpload linkedModel="User" linkedModelId={user.id} folderPrefix="avatars" onUploadComplete={(url) => setAvatarUrl(url)} />
+
+// Usage — ORPHAN (avoid unless intentional):
+// <FileUpload onUploadComplete={(url) => console.log(url)} />
+\`\`\`
+
+## File Deletion API
+
+\`\`\`typescript
+// app/api/upload/route.ts — add DELETE handler
+export async function DELETE(request: NextRequest) {
+  const { objectKey } = await request.json();
+  await s3.send(new DeleteObjectCommand({ Bucket: process.env.NEXT_PUBLIC_S3_BUCKET!, Key: objectKey }));
+  return NextResponse.json({ success: true });
+}
+\`\`\`
+
+## Key Rules to Follow
+
+1. **NEVER** put AWS credentials in client-side code or NEXT_PUBLIC_ vars (except bucket name and CDN domain)
+2. **Always** pass \`linkedModel\` and \`linkedModelId\` when you know which record the file belongs to
+3. **Store the CDN URL** (\`cdnUrl\`) in your database, not the S3 URL
+4. **Validate file size and type** on the server before generating the presigned URL
+5. The presigned URL expires in **1 hour** — generate it just before the upload
+
+## Your Task
+
+Set up a complete file upload system in my ${bucket.config?.allowedFileTypes === 'images' ? 'image' : 'file'} upload feature following the exact API convention and architecture described above.
+${extraInstructions ? `\n## Additional Instructions from Developer\n${extraInstructions}` : ''}`;
 }

@@ -11,6 +11,9 @@ import {
   CopyObjectCommand,
   ListBucketsCommand,
   GetBucketLocationCommand,
+  GetBucketCorsCommand,
+  PutBucketCorsCommand,
+  HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import {
   CloudFrontClient,
@@ -406,6 +409,98 @@ export async function deleteStack(s3BucketName: string, region?: string): Promis
   const client = getCloudFormationClient(region);
   const stackName = `SCR-${s3BucketName}`;
   await client.send(new DeleteStackCommand({ StackName: stackName }));
+}
+
+// ── S3 CORS management ────────────────────────────────────────────────────────
+
+export interface CorsCheckResult {
+  hasCors: boolean;
+  allowsPut: boolean;
+  allowsGet: boolean;
+  issues: string[];
+}
+
+/** Check whether a bucket's CORS config permits browser uploads (PUT) and reads (GET). */
+export async function checkBucketCors(
+  bucketName: string,
+  region?: string,
+): Promise<CorsCheckResult> {
+  const client = getS3Client(region);
+  try {
+    const res = await client.send(new GetBucketCorsCommand({ Bucket: bucketName }));
+    const rules = res.CORSRules ?? [];
+    let allowsPut = false;
+    let allowsGet = false;
+    for (const rule of rules) {
+      const methods = rule.AllowedMethods ?? [];
+      if (methods.includes('PUT') || methods.includes('*')) allowsPut = true;
+      if (methods.includes('GET') || methods.includes('*')) allowsGet = true;
+    }
+    const issues: string[] = [];
+    if (!allowsPut) issues.push('CORS does not allow PUT (required for browser uploads)');
+    if (!allowsGet) issues.push('CORS does not allow GET (required for public reads)');
+    return { hasCors: true, allowsPut, allowsGet, issues };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('NoSuchCORSConfiguration') || msg.includes('NoSuchCorsConfiguration')) {
+      return {
+        hasCors: false,
+        allowsPut: false,
+        allowsGet: false,
+        issues: ['No CORS configuration — browser uploads will be blocked'],
+      };
+    }
+    throw e;
+  }
+}
+
+/**
+ * Put a permissive CORS config onto the bucket that allows browser uploads from any origin.
+ * Safe to call on any bucket — it only modifies CORS, not ACL or bucket policy.
+ */
+export async function putCompatibleCors(bucketName: string, region?: string): Promise<void> {
+  const client = getS3Client(region);
+  await client.send(
+    new PutBucketCorsCommand({
+      Bucket: bucketName,
+      CORSConfiguration: {
+        CORSRules: [
+          {
+            AllowedOrigins: ['*'],
+            AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
+            AllowedHeaders: ['*'],
+            ExposeHeaders: ['ETag'],
+            MaxAgeSeconds: 3000,
+          },
+        ],
+      },
+    }),
+  );
+}
+
+/** Quick test: try to HEAD a known key (will 404 but not 403) to verify PutObject permission.
+ *  Returns null if permission is fine, or an error message string if likely denied. */
+export async function testUploadPermission(
+  bucketName: string,
+  region?: string,
+): Promise<string | null> {
+  const client = getS3Client(region);
+  try {
+    // HeadObject on a non-existent key: 404 = accessible, 403 = permission denied
+    await client.send(
+      new HeadObjectCommand({ Bucket: bucketName, Key: '__dropout_permission_check__' }),
+    );
+    return null; // 200 — unexpected but fine
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // 404 Not Found → we CAN access the bucket, key just doesn't exist
+    if (msg.includes('404') || msg.includes('NotFound') || msg.includes('NoSuchKey')) return null;
+    // 403 → no access
+    if (msg.includes('403') || msg.includes('Forbidden') || msg.includes('AccessDenied')) {
+      return 'IAM user does not have s3:GetObject / s3:PutObject permission on this bucket';
+    }
+    return `Unexpected error checking permissions: ${msg}`;
+  }
 }
 
 // ── S3 bucket size metrics ───────────────────────────────────────────────────

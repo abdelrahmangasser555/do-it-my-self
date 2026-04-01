@@ -43,7 +43,7 @@ export interface BucketCardProps {
   totalSizeBytes: number;
   analytics?: BucketAnalytics;
   fileTypeBreakdown?: { type: string; count: number; color: string }[];
-  files?: { lastModified: string }[];
+  files?: { lastModified: string; size?: number }[];
   onDelete: (id: string) => void;
   onFullDelete?: (bucket: Bucket) => void;
   onDeploy: (bucket: Bucket) => void;
@@ -189,25 +189,36 @@ export function FileTypeRod({
 
 // ── Activity Sparkline ───────────────────────────────────────────────────────
 
-function buildActivityData(files: { lastModified: string }[], days = 10): number[] {
+// Weight each file by sqrt(sizeKB) capped at 8 so large files raise the spike
+// without completely dominating small-file activity
+function buildActivityData(files: { lastModified: string; size?: number }[], days = 12): number[] {
   const now = Date.now();
   const data = new Array(days).fill(0);
   for (const f of files) {
     const age = (now - new Date(f.lastModified).getTime()) / (1000 * 60 * 60 * 24);
     const idx = days - 1 - Math.floor(age);
-    if (idx >= 0 && idx < days) data[idx]++;
+    if (idx >= 0 && idx < days) {
+      const sizeKB = (f.size ?? 0) / 1024;
+      const weight = sizeKB > 0 ? Math.min(Math.sqrt(sizeKB), 8) : 1;
+      data[idx] += weight;
+    }
   }
   return data;
 }
 
-function ActivitySparkline({ files }: { files: { lastModified: string }[] }) {
+function ActivitySparkline({ files }: { files: { lastModified: string; size?: number }[] }) {
   const data = buildActivityData(files);
+  const hasActivity = data.some((v) => v > 0);
   return (
-    <div style={{ width: 70, height: 22 }} className="opacity-80 shrink-0">
-      <Sparklines data={data} height={22} min={0}>
+    <div style={{ width: 72, height: 22 }} className="opacity-80 shrink-0">
+      <Sparklines
+        data={hasActivity ? data : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
+        height={22}
+        min={0}
+      >
         <SparklinesLine
-          color="var(--chart-2)"
-          style={{ fill: 'var(--chart-2)', fillOpacity: 0.15, strokeWidth: 1.5 }}
+          color="#22c55e"
+          style={{ fill: '#22c55e', fillOpacity: 0.18, strokeWidth: 1.5 }}
         />
       </Sparklines>
     </div>
@@ -507,8 +518,8 @@ export function BucketCard({
                     <Upload className="mr-1 size-3" /> Upload
                   </Button>
                   <Button variant="outline" size="sm" className="h-7 text-[10px] flex-1" asChild>
-                    <Link href={`/buckets/${bucket.id}`}>
-                      <FolderOpen className="mr-1 size-3" /> Open
+                    <Link href={`/buckets/${bucket.id}?tab=setup`}>
+                      <FolderOpen className="mr-1 size-3" /> Setup
                     </Link>
                   </Button>
                 </motion.div>
@@ -533,6 +544,11 @@ export function BucketCard({
         <ContextMenuItem asChild>
           <Link href={`/buckets/${bucket.id}`} className="flex items-center gap-2">
             <Eye className="size-3.5" /> View Details
+          </Link>
+        </ContextMenuItem>
+        <ContextMenuItem asChild>
+          <Link href={`/buckets/${bucket.id}?tab=setup`} className="flex items-center gap-2">
+            <FolderOpen className="size-3.5" /> Setup
           </Link>
         </ContextMenuItem>
         {isActive && onFileDrop && (

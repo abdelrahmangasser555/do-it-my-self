@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Plus,
   RefreshCw,
@@ -41,6 +42,7 @@ import { useEnvironments } from '@/features/environments/hooks/use-environments'
 import { useAnalytics } from '@/features/infrastructure/hooks/use-analytics';
 
 export default function BucketsPage() {
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Bucket | null>(null);
   const [syncOpen, setSyncOpen] = useState(false);
@@ -74,16 +76,17 @@ export default function BucketsPage() {
     );
   });
 
-  const handleCreate = async (data: BucketFormValues, deploy?: boolean) => {
+  const handleCreate = async (data: BucketFormValues, deployNow?: boolean) => {
     const result = await createBucket(data);
     if (result) {
       toast.success(`Bucket "${result.name}" created`);
       setDialogOpen(false);
       refetch();
-      if (deploy) {
-        // Trigger deploy via infrastructure API
+      if (deployNow) {
         await handleDeploy(result);
       }
+      // Navigate to the setup tab of the new bucket
+      router.push(`/buckets/${result.id}?tab=setup`);
     } else {
       toast.error('Failed to create bucket');
     }
@@ -214,8 +217,12 @@ export default function BucketsPage() {
           });
 
           if (!res.ok) {
-            const data = await res.json();
-            toast.error(`Failed: ${file.name} — ${data.error || 'Unknown error'}`);
+            const data = await res.json().catch(() => ({}));
+            const reason = data.error || data.message || `HTTP ${res.status}`;
+            const detail = data.details || data.hint || '';
+            toast.error(`${file.name} — ${reason}`, {
+              description: detail || undefined,
+            });
             failed++;
             continue;
           }
@@ -233,11 +240,28 @@ export default function BucketsPage() {
             uploaded++;
           } else {
             failed++;
-            toast.error(`Upload failed: ${file.name}`);
+            let s3Error = `S3 upload failed (HTTP ${uploadRes.status})`;
+            try {
+              const body = await uploadRes.text();
+              // S3 error responses are XML — pull out the <Message> tag
+              const match = body.match(/<Message>(.*?)<\/Message>/);
+              const code = body.match(/<Code>(.*?)<\/Code>/);
+              if (match?.[1]) s3Error = `${code?.[1] ?? 'S3Error'}: ${match[1]}`;
+            } catch {
+              // ignore parse error
+            }
+            toast.error(`${file.name} — ${s3Error}`, {
+              description:
+                uploadRes.status === 403
+                  ? 'Check CORS policy on the bucket (use "Make Compatible" on the bucket detail page)'
+                  : uploadRes.status === 400
+                    ? 'Presigned URL may have expired or Content-Type mismatch'
+                    : undefined,
+            });
           }
-        } catch {
+        } catch (err) {
           failed++;
-          toast.error(`Upload error: ${file.name}`);
+          toast.error(`${file.name} — ${err instanceof Error ? err.message : 'Network error'}`);
         }
       }
 

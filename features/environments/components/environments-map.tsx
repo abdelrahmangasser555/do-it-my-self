@@ -73,9 +73,17 @@ export interface EnvironmentsMapProps {
 const chartConfig: ChartConfig = {
   buckets: {
     label: 'Buckets',
-    color: 'var(--color-chart-1)',
+    color: 'var(--chart-1)',
   },
 };
+
+const PIE_COLORS = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+];
 
 // ── Color intensity based on bucket count ───────────────────────────────────
 
@@ -164,7 +172,7 @@ export function EnvironmentsMap({
         name: e.region.split('-').slice(0, 2).join('-'),
         region: e.region,
         value: bucketCountMap.get(e.region) || 0,
-        fill: `var(--color-chart-${(i % 5) + 1})`,
+        fill: PIE_COLORS[i % PIE_COLORS.length],
       }))
       .filter((d) => d.value > 0)
       .sort((a, b) => b.value - a.value)
@@ -439,13 +447,13 @@ export function EnvironmentsMap({
 
         {/* ── Overview card (top-left) ──────────────────────── */}
         {!compact && (
-          <Card className="bg-card/80 backdrop-blur-md absolute top-3 left-3 z-10 w-56 shadow-lg border">
-            <CardHeader className=" px-3">
-              <p className="text-[10px] tracking-wider uppercase text-muted-foreground">
+          <Card className="bg-card/70 absolute top-4 left-4 z-10 w-60 backdrop-blur-sm shadow-lg border">
+            <CardHeader>
+              <p className="pb-2 text-[10px] tracking-wider uppercase text-muted-foreground">
                 Region Distribution
               </p>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold">{activeCount}</span>
+                <span className="text-3xl leading-none font-semibold">{activeCount}</span>
                 <span className="text-xs text-muted-foreground">
                   region{activeCount !== 1 ? 's' : ''} active
                 </span>
@@ -455,8 +463,8 @@ export function EnvironmentsMap({
               </p>
             </CardHeader>
             {chartData.length > 0 && (
-              <CardContent className="px-2 pb-3">
-                <ChartContainer config={chartConfig} className="mx-auto aspect-square h-28 w-28">
+              <CardContent>
+                <ChartContainer config={chartConfig} className="mx-auto aspect-square h-32 w-32">
                   <PieChart>
                     <RechartsTooltip
                       content={({ payload }) => {
@@ -474,10 +482,9 @@ export function EnvironmentsMap({
                       data={chartData}
                       dataKey="value"
                       nameKey="name"
-                      innerRadius={26}
-                      outerRadius={44}
+                      innerRadius={32}
+                      outerRadius={52}
                       strokeWidth={2}
-                      paddingAngle={2}
                     >
                       {chartData.map((entry, i) => (
                         <Cell key={i} fill={entry.fill} />
@@ -485,15 +492,19 @@ export function EnvironmentsMap({
                     </Pie>
                   </PieChart>
                 </ChartContainer>
-                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+                <div className="mt-4 grid grid-cols-2 gap-2">
                   {chartData.map((d) => (
-                    <div key={d.region} className="flex items-center gap-1.5 text-[9px]">
-                      <span
-                        className="size-1.5 rounded-full shrink-0"
-                        style={{ backgroundColor: d.fill }}
-                      />
-                      <span className="text-muted-foreground truncate">{d.name}</span>
-                      <span className="font-medium ml-auto">{d.value}</span>
+                    <div key={d.region} className="text-center">
+                      <p className="flex items-center justify-center gap-1.5 text-[10px] tracking-wide uppercase text-muted-foreground">
+                        <span
+                          className="size-2 rounded-full shrink-0"
+                          style={{ backgroundColor: d.fill }}
+                        />
+                        {d.name}
+                      </p>
+                      <p className="mt-1 leading-none font-medium tabular-nums text-foreground">
+                        {d.value}
+                      </p>
                     </div>
                   ))}
                 </div>

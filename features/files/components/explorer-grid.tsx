@@ -163,7 +163,7 @@ function DraggableFile({
               className="group flex flex-col items-center gap-1.5 rounded-lg p-3 cursor-default select-none transition-colors hover:bg-accent/50 focus:outline-none focus:ring-1 focus:ring-ring w-25"
               onDoubleClick={() => file.cdnUrl && window.open(file.cdnUrl, '_blank')}
             >
-              <FileIcon fileName={fileName} size="md" />
+              <FileIcon fileName={fileName} size="md" cdnUrl={file.cdnUrl} />
               <span
                 className="text-[11px] text-center leading-tight truncate w-full text-foreground"
                 title={fileName}

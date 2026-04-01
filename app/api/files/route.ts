@@ -9,7 +9,7 @@ import {
 } from '@/lib/filesystem';
 import { generatePresignedUploadUrl, buildCloudFrontUrl } from '@/lib/aws';
 import { uploadSchema } from '@/lib/validations';
-import type { FileRecord, Bucket, Project } from '@/lib/types';
+import type { FileRecord, Bucket } from '@/lib/types';
 
 const FILE = 'files.json';
 
@@ -90,15 +90,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Validate project exists and check limits
-    const project = await findInJsonFile<Project>('projects.json', parsed.projectId);
-    if (!project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    // Find the bucket — strict match first (projectId + s3BucketName), then name-only fallback
+    // (name-only fallback handles buckets synced from AWS that don't have a project yet)
+    const buckets = await readJsonFile<Bucket>('buckets.json');
+    let bucket = parsed.projectId
+      ? buckets.find(
+          (b) => b.s3BucketName === parsed.bucketName && b.projectId === parsed.projectId,
+        )
+      : undefined;
+    if (!bucket) {
+      bucket = buckets.find((b) => b.s3BucketName === parsed.bucketName);
+    }
+    if (!bucket) {
+      return NextResponse.json({ error: 'Bucket not found' }, { status: 404 });
     }
 
-    // Check MIME type against allowed list
-    // If inferred type is still octet-stream, allow it as a wildcard fallback
+    // Resolve project — optional; when absent, skip project-level checks
+    let project: import('@/lib/types').Project | null = null;
+    if (parsed.projectId) {
+      project = await findInJsonFile<import('@/lib/types').Project>(
+        'projects.json',
+        parsed.projectId,
+      );
+    }
+    // If still no project try via bucket's own projectId
+    if (!project && bucket.projectId) {
+      project = await findInJsonFile<import('@/lib/types').Project>(
+        'projects.json',
+        bucket.projectId,
+      );
+    }
+
+    // MIME type check — only enforce when we have a project with a restricted list
     if (
+      project &&
       !project.allowedMimeTypes.includes(resolvedMimeType) &&
       resolvedMimeType !== 'application/octet-stream'
     ) {
@@ -110,30 +135,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find the bucket
-    const buckets = await readJsonFile<Bucket>('buckets.json');
-    const bucket = buckets.find(
-      (b) => b.s3BucketName === parsed.bucketName && b.projectId === parsed.projectId,
-    );
-    if (!bucket) {
-      return NextResponse.json({ error: 'Bucket not found for this project' }, { status: 404 });
-    }
-
-    // Check file size limit — bucket-level is authoritative, project-level is the default fallback
-    const bucketMaxMB = bucket.config?.maxFileSizeMB ?? project.maxFileSizeMB;
-    const effectiveMaxMB = Math.min(bucketMaxMB, project.maxFileSizeMB);
+    // File size check — bucket config is authoritative, project is fallback
+    const bucketMaxMB = bucket.config?.maxFileSizeMB ?? project?.maxFileSizeMB ?? 500;
+    const projectMaxMB = project?.maxFileSizeMB ?? bucketMaxMB;
+    const effectiveMaxMB = Math.min(bucketMaxMB, projectMaxMB);
     const maxBytes = effectiveMaxMB * 1024 * 1024;
     const fileSizeMB = (parsed.fileSize / (1024 * 1024)).toFixed(2);
 
     if (parsed.fileSize > maxBytes) {
-      const source = bucketMaxMB <= project.maxFileSizeMB ? 'bucket' : 'project';
+      const source = bucketMaxMB <= projectMaxMB ? 'bucket' : 'project';
       return NextResponse.json(
         {
           error: `File size (${fileSizeMB} MB) exceeds the ${source}-level limit of ${effectiveMaxMB} MB.`,
           details: {
             fileSizeMB: Number(fileSizeMB),
             bucketLimitMB: bucketMaxMB,
-            projectLimitMB: project.maxFileSizeMB,
+            projectLimitMB: projectMaxMB,
             effectiveLimitMB: effectiveMaxMB,
             enforcedBy: source,
           },
@@ -168,7 +185,7 @@ export async function POST(request: NextRequest) {
     // Store file metadata
     const fileRecord: FileRecord = {
       id: uuidv4(),
-      projectId: parsed.projectId,
+      projectId: project?.id ?? bucket.projectId ?? parsed.projectId,
       bucketName: bucket.s3BucketName,
       objectKey,
       cloudFrontUrl,

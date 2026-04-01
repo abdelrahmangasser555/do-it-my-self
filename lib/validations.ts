@@ -70,7 +70,7 @@ export const bucketSchema = z.object({
 });
 
 export const uploadSchema = z.object({
-  projectId: z.string().min(1),
+  projectId: z.string().default(''),
   bucketName: z.string().min(1),
   fileName: z.string().min(1),
   fileSize: z.number().positive(),

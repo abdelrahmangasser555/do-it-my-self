@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import type { DateRange } from 'react-day-picker';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -121,8 +122,7 @@ export function FileExplorer() {
   const [bucketData, setBucketData] = useState<BucketS3Data[]>([]);
   const [currentPath, setCurrentPath] = useState('');
   const [search, setSearch] = useState('');
-  const [modifiedFrom, setModifiedFrom] = useState<Date | undefined>();
-  const [modifiedTo, setModifiedTo] = useState<Date | undefined>();
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [modifiedFromTime, setModifiedFromTime] = useState('00:00');
   const [modifiedToTime, setModifiedToTime] = useState('23:59');
   const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>([]);
@@ -219,15 +219,15 @@ export function FileExplorer() {
       }
 
       const lastModified = new Date(file.lastModified);
-      const fromDateTime = mergeDateAndTime(modifiedFrom, modifiedFromTime);
-      const toDateTime = mergeDateAndTime(modifiedTo, modifiedToTime, true);
+      const fromDateTime = mergeDateAndTime(dateRange?.from, modifiedFromTime);
+      const toDateTime = mergeDateAndTime(dateRange?.to, modifiedToTime, true);
 
       if (fromDateTime && lastModified < fromDateTime) return false;
       if (toDateTime && lastModified > toDateTime) return false;
 
       return true;
     },
-    [modifiedFrom, modifiedFromTime, modifiedTo, modifiedToTime, selectedFileTypes],
+    [dateRange, modifiedFromTime, modifiedToTime, selectedFileTypes],
   );
 
   const searchResults = useMemo(() => {
@@ -366,10 +366,6 @@ export function FileExplorer() {
     async (fileList: File[], prefix: string) => {
       if (!selectedBucket) return;
       const project = selectedBucket.projectId;
-      if (!project) {
-        toast.error('Bucket has no project');
-        return;
-      }
 
       setIsUploading(true);
       let uploaded = 0;
@@ -467,7 +463,7 @@ export function FileExplorer() {
   const totalFiles = bucketData.reduce((s, b) => s + b.totalFiles, 0);
   const totalSize = bucketData.reduce((s, b) => s + b.totalSize, 0);
   const activeBuckets = buckets.filter((b) => b.status === 'active');
-  const hasFilters = !!modifiedFrom || !!modifiedTo || selectedFileTypes.length > 0;
+  const hasFilters = !!(dateRange?.from || dateRange?.to) || selectedFileTypes.length > 0;
 
   // ── Render ─────────────────────────────────────────────────────────────
 
@@ -534,41 +530,47 @@ export function FileExplorer() {
                 Modified Range
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-82 p-3" align="end">
-              <div className="flex flex-col gap-4">
-                <div className="grid gap-2 md:grid-cols-2">
-                  <div className="flex flex-col gap-2">
-                    <span className="text-xs font-medium">From</span>
-                    <Calendar mode="single" selected={modifiedFrom} onSelect={setModifiedFrom} />
+            <PopoverContent className="w-auto p-3" align="end">
+              <div className="flex flex-col gap-3">
+                <Calendar
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={1}
+                  className="rounded-md"
+                />
+                <div className="grid grid-cols-2 gap-2 border-t pt-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-muted-foreground font-medium">From time</span>
                     <Input
                       type="time"
                       value={modifiedFromTime}
                       onChange={(e) => setModifiedFromTime(e.target.value)}
+                      className="h-8 text-xs"
                     />
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <span className="text-xs font-medium">To</span>
-                    <Calendar mode="single" selected={modifiedTo} onSelect={setModifiedTo} />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-muted-foreground font-medium">To time</span>
                     <Input
                       type="time"
                       value={modifiedToTime}
                       onChange={(e) => setModifiedToTime(e.target.value)}
+                      className="h-8 text-xs"
                     />
                   </div>
                 </div>
-                {(modifiedFrom || modifiedTo) && (
+                {(dateRange?.from || dateRange?.to) && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="justify-start"
+                    className="h-7 justify-start text-xs"
                     onClick={() => {
-                      setModifiedFrom(undefined);
-                      setModifiedTo(undefined);
+                      setDateRange(undefined);
                       setModifiedFromTime('00:00');
                       setModifiedToTime('23:59');
                     }}
                   >
-                    <X className="size-3.5" /> Clear range
+                    <X className="size-3.5 mr-1" /> Clear range
                   </Button>
                 )}
               </div>
@@ -647,8 +649,7 @@ export function FileExplorer() {
             size="sm"
             className="h-7 text-xs"
             onClick={() => {
-              setModifiedFrom(undefined);
-              setModifiedTo(undefined);
+              setDateRange(undefined);
               setModifiedFromTime('00:00');
               setModifiedToTime('23:59');
               setSelectedFileTypes([]);

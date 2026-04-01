@@ -1,4 +1,4 @@
-// Settings page — AWS credentials, OpenAI key, default environment, theme
+﻿// Settings page â€” AWS credentials, OpenAI key, default environment, theme
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -13,12 +13,16 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  Save,
   Bot,
   MapPin,
   Moon,
   Sun,
   Monitor,
+  Copy,
+  Check,
+  RefreshCw,
+  User,
+  Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -41,15 +45,32 @@ import { AWS_REGIONS } from '@/lib/validations';
 import { getRegionAlpha2 } from '@/lib/region-flags';
 import { CircleFlag } from 'react-circle-flags';
 
-interface SettingsData {
-  awsAccessKeyId: string;
-  awsSecretAccessKey: string;
-  awsDefaultRegion: string;
-  openaiApiKey: string;
-  defaultEnvironment: string;
-  theme: Theme;
-  hasAwsCredentials: boolean;
-  hasOpenaiKey: boolean;
+interface CliCredentials {
+  accessKeyId: string;
+  secretAccessKey: string;
+  region: string;
+  hasCredentials: boolean;
+}
+
+interface IamPermission {
+  action: string;
+  service: string;
+  allowed: boolean;
+}
+
+interface IamPermissionsData {
+  identity: {
+    account: string;
+    arn: string;
+    userId: string;
+    username: string;
+    isRoot: boolean;
+    isAssumedRole: boolean;
+  };
+  policies: { name: string; arn: string; source: string }[];
+  hasAdminPolicy: boolean;
+  permissionResults: IamPermission[];
+  allPermissionsGranted: boolean;
 }
 
 interface Environment {
@@ -67,10 +88,13 @@ const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Moon }[] = [
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const [settings, setSettings] = useState<SettingsData | null>(null);
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [cliCreds, setCliCreds] = useState<CliCredentials | null>(null);
+  const [iamData, setIamData] = useState<IamPermissionsData | null>(null);
+  const [iamLoading, setIamLoading] = useState(false);
+  const [iamError, setIamError] = useState<string | null>(null);
 
   // Form state
   const [awsKeyId, setAwsKeyId] = useState('');
@@ -84,24 +108,61 @@ export default function SettingsPage() {
   const [showAwsSecret, setShowAwsSecret] = useState(false);
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
 
-  const fetchSettings = useCallback(async () => {
+  // Copy button feedback states
+  const [copied, setCopied] = useState<Record<string, boolean>>({});
+
+  const copyToClipboard = async (value: string, key: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied((prev) => ({ ...prev, [key]: true }));
+      setTimeout(() => setCopied((prev) => ({ ...prev, [key]: false })), 2000);
+    } catch {
+      toast.error('Failed to copy to clipboard');
+    }
+  };
+
+  const loadIamPermissions = useCallback(async () => {
+    setIamLoading(true);
+    setIamError(null);
+    try {
+      const res = await fetch('/api/aws-identity/permissions');
+      if (res.ok) {
+        setIamData(await res.json());
+      } else {
+        const err = await res.json();
+        setIamError(err.error || 'Failed to load permissions');
+      }
+    } catch {
+      setIamError('Failed to load permissions');
+    } finally {
+      setIamLoading(false);
+    }
+  }, []);
+
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [settingsRes, envsRes] = await Promise.all([
-        fetch('/api/settings?raw=true'),
+      // Fetch CLI credentials (authoritative source), environments, and settings (for openai + prefs)
+      const [credsRes, envsRes, settingsRes] = await Promise.all([
+        fetch('/api/aws-identity/credentials'),
         fetch('/api/environments'),
+        fetch('/api/settings?raw=true'),
       ]);
-      if (settingsRes.ok) {
-        const data = await settingsRes.json();
-        setSettings(data);
-        setAwsKeyId(data.awsAccessKeyId || '');
-        setAwsSecret(data.awsSecretAccessKey || '');
-        setAwsRegion(data.awsDefaultRegion || 'us-east-1');
-        setOpenaiKey(data.openaiApiKey || '');
-        setDefaultEnv(data.defaultEnvironment || '');
+      if (credsRes.ok) {
+        const creds: CliCredentials = await credsRes.json();
+        setCliCreds(creds);
+        setAwsKeyId(creds.accessKeyId || '');
+        setAwsSecret(creds.secretAccessKey || '');
+        setAwsRegion(creds.region || 'us-east-1');
       }
       if (envsRes.ok) {
         setEnvironments(await envsRes.json());
+      }
+      if (settingsRes.ok) {
+        const s = await settingsRes.json();
+        setOpenaiKey(s.openaiApiKey || '');
+        setDefaultEnv(s.defaultEnvironment || '');
       }
     } catch {
       toast.error('Failed to load settings');
@@ -111,13 +172,19 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    fetchSettings();
-  }, [fetchSettings]);
+    fetchData();
+  }, [fetchData]);
 
-  // Sync theme changes to server settings
+  // Auto-load IAM permissions once credentials are confirmed
+  useEffect(() => {
+    if (!loading && cliCreds?.hasCredentials) {
+      loadIamPermissions();
+    }
+  }, [loading, cliCreds?.hasCredentials, loadIamPermissions]);
+
+  // Auto-save theme on change
   const handleThemeChange = (t: Theme) => {
     setTheme(t);
-    // Fire-and-forget save to server
     fetch('/api/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -125,26 +192,44 @@ export default function SettingsPage() {
     });
   };
 
+  // Auto-save default environment on change
+  const handleDefaultEnvChange = (value: string) => {
+    const newEnv = value === 'none' ? '' : value;
+    setDefaultEnv(newEnv);
+    fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ defaultEnvironment: newEnv }),
+    });
+  };
+
   const handleSaveAws = async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/settings', {
+      const res = await fetch('/api/aws-identity/credentials', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          awsAccessKeyId: awsKeyId,
-          awsSecretAccessKey: awsSecret,
-          awsDefaultRegion: awsRegion,
+          accessKeyId: awsKeyId,
+          secretAccessKey: awsSecret,
+          region: awsRegion,
         }),
       });
+      const data = await res.json();
       if (res.ok) {
         toast.success('AWS credentials updated');
-        await fetchSettings();
+        setCliCreds({
+          accessKeyId: awsKeyId,
+          secretAccessKey: awsSecret,
+          region: awsRegion,
+          hasCredentials: true,
+        });
+        loadIamPermissions();
       } else {
-        toast.error('Failed to save AWS settings');
+        toast.error(data.error || 'Failed to save AWS credentials');
       }
     } catch {
-      toast.error('Failed to save AWS settings');
+      toast.error('Failed to save AWS credentials');
     } finally {
       setSaving(false);
     }
@@ -160,32 +245,11 @@ export default function SettingsPage() {
       });
       if (res.ok) {
         toast.success('OpenAI API key updated');
-        await fetchSettings();
       } else {
         toast.error('Failed to save OpenAI key');
       }
     } catch {
       toast.error('Failed to save OpenAI key');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSavePreferences = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ defaultEnvironment: defaultEnv, theme }),
-      });
-      if (res.ok) {
-        toast.success('Preferences saved');
-      } else {
-        toast.error('Failed to save preferences');
-      }
-    } catch {
-      toast.error('Failed to save preferences');
     } finally {
       setSaving(false);
     }
@@ -203,11 +267,19 @@ export default function SettingsPage() {
 
   const activeEnvironments = environments.filter((e) => e.status === 'active');
 
+  // Group IAM permission results by AWS service for display
+  const permissionsByService = (iamData?.permissionResults ?? []).reduce(
+    (acc, p) => {
+      if (!acc[p.service]) acc[p.service] = [];
+      acc[p.service].push(p);
+      return acc;
+    },
+    {} as Record<string, IamPermission[]>,
+  );
+
   return (
     <PageTransition>
       <div className="mx-auto max-w-2xl space-y-8">
-        {/* Header */}
-
         {/* General Section */}
         <div className="space-y-1">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -217,7 +289,7 @@ export default function SettingsPage() {
 
         <Card>
           <CardContent className="divide-y">
-            {/* Theme */}
+            {/* Theme â€” auto-saves on change */}
             <div className="flex items-center justify-between py-4">
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
@@ -244,7 +316,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Default Environment */}
+            {/* Default Environment â€” auto-saves on change */}
             <div className="flex items-center justify-between py-4">
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
@@ -253,10 +325,7 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">Default region for new buckets.</p>
               </div>
-              <Select
-                value={defaultEnv || 'none'}
-                onValueChange={(v) => setDefaultEnv(v === 'none' ? '' : v)}
-              >
+              <Select value={defaultEnv || 'none'} onValueChange={handleDefaultEnvChange}>
                 <SelectTrigger className="w-50">
                   <SelectValue placeholder="Select region" />
                 </SelectTrigger>
@@ -277,17 +346,6 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button size="sm" onClick={handleSavePreferences} disabled={saving}>
-            {saving ? (
-              <Loader2 className="size-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Save className="size-3.5 mr-1.5" />
-            )}
-            Save Preferences
-          </Button>
-        </div>
-
         <Separator />
 
         {/* AWS Credentials Section */}
@@ -304,7 +362,7 @@ export default function SettingsPage() {
                 <Cloud className="size-5 text-muted-foreground" />
                 <CardTitle className="text-base">AWS Account</CardTitle>
               </div>
-              {settings?.hasAwsCredentials ? (
+              {cliCreds?.hasCredentials ? (
                 <Badge className="gap-1 bg-green-500/10 text-green-500 border-green-500/20">
                   <CheckCircle className="size-3" />
                   Configured
@@ -316,9 +374,12 @@ export default function SettingsPage() {
                 </Badge>
               )}
             </div>
-            <CardDescription>Stored locally — never sent externally.</CardDescription>
+            <CardDescription>
+              Read from your AWS CLI default profile. Updates both CLI config and local settings.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Access Key ID */}
             <div className="space-y-2">
               <Label htmlFor="awsKeyId">Access Key ID</Label>
               <div className="relative">
@@ -328,18 +389,33 @@ export default function SettingsPage() {
                   value={awsKeyId}
                   onChange={(e) => setAwsKeyId(e.target.value)}
                   placeholder="AKIA..."
-                  className="pr-10 font-mono text-sm"
+                  className="pr-20 font-mono text-sm"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowAwsKey(!showAwsKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showAwsKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(awsKeyId, 'keyId')}
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                    title="Copy"
+                  >
+                    {copied.keyId ? (
+                      <Check className="size-3.5 text-green-500" />
+                    ) : (
+                      <Copy className="size-3.5" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAwsKey(!showAwsKey)}
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                  >
+                    {showAwsKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
               </div>
             </div>
 
+            {/* Secret Access Key */}
             <div className="space-y-2">
               <Label htmlFor="awsSecret">Secret Access Key</Label>
               <div className="relative">
@@ -349,18 +425,33 @@ export default function SettingsPage() {
                   value={awsSecret}
                   onChange={(e) => setAwsSecret(e.target.value)}
                   placeholder="Enter secret access key"
-                  className="pr-10 font-mono text-sm"
+                  className="pr-20 font-mono text-sm"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowAwsSecret(!showAwsSecret)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showAwsSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(awsSecret, 'secret')}
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                    title="Copy"
+                  >
+                    {copied.secret ? (
+                      <Check className="size-3.5 text-green-500" />
+                    ) : (
+                      <Copy className="size-3.5" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAwsSecret(!showAwsSecret)}
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                  >
+                    {showAwsSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
               </div>
             </div>
 
+            {/* Default Region */}
             <div className="space-y-2">
               <Label>Default Region</Label>
               <Select value={awsRegion} onValueChange={setAwsRegion}>
@@ -397,6 +488,140 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* IAM Identity & Permissions */}
+        <Card>
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <User className="size-5 text-muted-foreground" />
+                <CardTitle className="text-base">IAM Identity &amp; Permissions</CardTitle>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={loadIamPermissions}
+                disabled={iamLoading || !cliCreds?.hasCredentials}
+                className="h-7 px-2"
+                title="Refresh"
+              >
+                <RefreshCw className={`size-3.5 ${iamLoading ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+            <CardDescription>Permissions available to the current IAM identity.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!cliCreds?.hasCredentials ? (
+              <p className="text-sm text-muted-foreground">
+                Configure AWS credentials to view permissions.
+              </p>
+            ) : iamLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                <Loader2 className="size-4 animate-spin" />
+                Checking permissionsâ€¦
+              </div>
+            ) : iamError ? (
+              <div className="flex items-center gap-2 text-sm text-destructive py-2">
+                <AlertCircle className="size-4 shrink-0" />
+                {iamError}
+              </div>
+            ) : iamData ? (
+              <div className="space-y-4">
+                {/* Identity card */}
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="size-4 text-muted-foreground shrink-0" />
+                    <span className="text-muted-foreground">Account:</span>
+                    <span className="font-mono">{iamData.identity.account}</span>
+                    <button
+                      onClick={() => copyToClipboard(iamData.identity.account, 'account')}
+                      className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+                      title="Copy account ID"
+                    >
+                      {copied.account ? (
+                        <Check className="size-3.5 text-green-500" />
+                      ) : (
+                        <Copy className="size-3.5" />
+                      )}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <User className="size-4 text-muted-foreground shrink-0" />
+                    <span className="text-muted-foreground shrink-0">ARN:</span>
+                    <span className="font-mono text-xs truncate flex-1">
+                      {iamData.identity.arn}
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard(iamData.identity.arn, 'arn')}
+                      className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                      title="Copy ARN"
+                    >
+                      {copied.arn ? (
+                        <Check className="size-3.5 text-green-500" />
+                      ) : (
+                        <Copy className="size-3.5" />
+                      )}
+                    </button>
+                  </div>
+                  {iamData.hasAdminPolicy && (
+                    <Badge className="gap-1 bg-green-500/10 text-green-500 border-green-500/20">
+                      <CheckCircle className="size-3" />
+                      AdministratorAccess
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Permission results grouped by service */}
+                {iamData.permissionResults.length > 0 && !iamData.hasAdminPolicy && (
+                  <div className="space-y-3">
+                    {Object.entries(permissionsByService).map(([service, perms]) => (
+                      <div key={service}>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                          {service}
+                        </p>
+                        <div className="grid grid-cols-2 gap-1">
+                          {perms.map((p) => (
+                            <div
+                              key={p.action}
+                              className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs ${
+                                p.allowed
+                                  ? 'bg-green-500/5 text-green-600 dark:text-green-400'
+                                  : 'bg-red-500/5 text-red-600 dark:text-red-400'
+                              }`}
+                            >
+                              {p.allowed ? (
+                                <CheckCircle className="size-3 shrink-0" />
+                              ) : (
+                                <AlertCircle className="size-3 shrink-0" />
+                              )}
+                              <span className="font-mono truncate">{p.action}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Attached policies */}
+                {iamData.policies.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                      Attached Policies
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {iamData.policies.map((p, i) => (
+                        <Badge key={i} variant="outline" className="font-mono text-xs">
+                          {p.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+
         <Separator />
 
         {/* OpenAI Section */}
@@ -413,7 +638,7 @@ export default function SettingsPage() {
                 <Bot className="size-5 text-muted-foreground" />
                 <CardTitle className="text-base">OpenAI API Key</CardTitle>
               </div>
-              {settings?.hasOpenaiKey ? (
+              {openaiKey ? (
                 <Badge className="gap-1 bg-green-500/10 text-green-500 border-green-500/20">
                   <CheckCircle className="size-3" />
                   Configured
@@ -436,15 +661,29 @@ export default function SettingsPage() {
                   value={openaiKey}
                   onChange={(e) => setOpenaiKey(e.target.value)}
                   placeholder="sk-..."
-                  className="pr-10 font-mono text-sm"
+                  className="pr-20 font-mono text-sm"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowOpenaiKey(!showOpenaiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showOpenaiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(openaiKey, 'openai')}
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                    title="Copy"
+                  >
+                    {copied.openai ? (
+                      <Check className="size-3.5 text-green-500" />
+                    ) : (
+                      <Copy className="size-3.5" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowOpenaiKey(!showOpenaiKey)}
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                  >
+                    {showOpenaiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
               </div>
             </div>
 

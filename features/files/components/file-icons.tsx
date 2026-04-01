@@ -1,4 +1,5 @@
 // File extension → icon + color mapping for the file explorer
+import Image from 'next/image';
 import {
   FileText,
   FileImage,
@@ -16,7 +17,23 @@ interface FileIconInfo {
   icon: LucideIcon;
   color: string;
   bg: string;
+  /** Optional custom image path — overrides the Lucide icon when present */
+  imageIconSrc?: string;
 }
+
+const IMAGE_EXTS = new Set([
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'webp',
+  'svg',
+  'bmp',
+  'ico',
+  'avif',
+  'tiff',
+  'heic',
+]);
 
 const EXT_MAP: Record<string, FileIconInfo> = {
   // Images
@@ -83,17 +100,77 @@ export function getFileIconInfo(fileName: string): FileIconInfo {
   return EXT_MAP[ext] ?? DEFAULT;
 }
 
+export function isImageFile(fileName: string): boolean {
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+  return IMAGE_EXTS.has(ext);
+}
+
+// ── FileIcon ────────────────────────────────────────────────────────────────
+// Props:
+//   cdnUrl        — if provided AND the file is an image, render an inline thumbnail
+//   imageIconSrc  — override the icon with a custom image (e.g. logo path) via next/image
+
 export function FileIcon({
   fileName,
   size = 'md',
+  cdnUrl,
+  imageIconSrc,
 }: {
   fileName: string;
   size?: 'sm' | 'md' | 'lg';
+  cdnUrl?: string;
+  imageIconSrc?: string;
 }) {
-  const { icon: Icon, color, bg } = getFileIconInfo(fileName);
+  const { icon: Icon, color, bg, imageIconSrc: mappedSrc } = getFileIconInfo(fileName);
   const sizeMap = { sm: 'size-8', md: 'size-12', lg: 'size-16' };
   const iconSize = { sm: 'size-4', md: 'size-6', lg: 'size-8' };
+  const pxMap = { sm: 32, md: 48, lg: 64 };
+  const px = pxMap[size];
 
+  const customSrc = imageIconSrc ?? mappedSrc;
+
+  // Priority 1: CDN URL for image files → show actual image thumbnail
+  if (cdnUrl && isImageFile(fileName)) {
+    return (
+      <div
+        className={`${sizeMap[size]} rounded-lg overflow-hidden flex items-center justify-center`}
+        style={{ background: 'transparent' }}
+      >
+        <Image
+          src={cdnUrl}
+          alt={fileName}
+          width={px}
+          height={px}
+          className="rounded-lg object-cover w-full h-full"
+          unoptimized // CDN URLs are already optimized
+          onError={(e) => {
+            // fallback: hide and show nothing (parent stays sized)
+            (e.target as HTMLImageElement).style.display = 'none';
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Priority 2: custom imageIconSrc (from EXT_MAP or explicit prop)
+  if (customSrc) {
+    return (
+      <div
+        className={`${sizeMap[size]} rounded-lg overflow-hidden flex items-center justify-center`}
+        style={{ background: 'transparent' }}
+      >
+        <Image
+          src={customSrc}
+          alt={fileName}
+          width={px}
+          height={px}
+          className="rounded-lg object-contain w-full h-full"
+        />
+      </div>
+    );
+  }
+
+  // Default: Lucide icon
   return (
     <div className={`${sizeMap[size]} ${bg} rounded-lg flex items-center justify-center`}>
       <Icon className={`${iconSize[size]} ${color}`} />

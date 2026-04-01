@@ -25,9 +25,11 @@ import {
   Upload,
   FolderOpen,
   Calendar,
+  Link2,
 } from 'lucide-react';
 import { CircleFlag } from 'react-circle-flags';
 import { getRegionAlpha2 } from '@/lib/region-flags';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import type { Bucket, BucketAnalytics } from '@/lib/types';
 import { toast } from 'sonner';
 
@@ -117,35 +119,67 @@ function ProgressRing({ percent, size = 80 }: { percent: number; size?: number }
   );
 }
 
-// ── File Type Bar ───────────────────────────────────────────────────────────
+// ── File Type Rod ────────────────────────────────────────────────────────────
 
-function FileTypeBar({
+function FileTypeRod({
   breakdown,
 }: {
   breakdown: { type: string; count: number; color: string }[];
 }) {
   const total = breakdown.reduce((s, b) => s + b.count, 0);
-  if (total === 0) return <div className="h-1.5 w-full rounded-full bg-muted/20" />;
+  if (total === 0)
+    return <div className="h-2 w-full rounded-full bg-muted/20" title="No files yet" />;
+
   return (
-    <div className="space-y-1">
-      <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-muted/20">
-        {breakdown.map((b) => (
-          <div
-            key={b.type}
-            className="h-full transition-all duration-500"
-            style={{ width: `${(b.count / total) * 100}%`, backgroundColor: b.color }}
-          />
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-        {breakdown.slice(0, 4).map((b) => (
-          <span key={b.type} className="flex items-center gap-1 text-[9px] text-muted-foreground">
-            <span className="size-1.5 rounded-full" style={{ backgroundColor: b.color }} />
-            {b.type}
-          </span>
-        ))}
-      </div>
-    </div>
+    <HoverCard openDelay={200} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <div
+          className="flex h-2 w-full cursor-default overflow-hidden rounded-full bg-muted/20 transition-all hover:h-2.5"
+          role="img"
+          aria-label="File type distribution"
+        >
+          {breakdown
+            .filter((b) => b.count > 0)
+            .map((b) => (
+              <div
+                key={b.type}
+                className="h-full transition-all duration-500"
+                style={{ width: `${(b.count / total) * 100}%`, backgroundColor: b.color }}
+              />
+            ))}
+        </div>
+      </HoverCardTrigger>
+      <HoverCardContent side="top" align="center" className="w-48 p-3">
+        <p className="text-[11px] font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
+          File Types
+        </p>
+        <div className="space-y-1.5">
+          {breakdown
+            .filter((b) => b.count > 0)
+            .map((b) => (
+              <div key={b.type} className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="size-2 rounded-full shrink-0"
+                    style={{ backgroundColor: b.color }}
+                  />
+                  <span className="text-xs text-foreground">{b.type}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium tabular-nums">{b.count}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    ({Math.round((b.count / total) * 100)}%)
+                  </span>
+                </div>
+              </div>
+            ))}
+        </div>
+        <div className="border-t mt-2 pt-2 flex justify-between text-[10px] text-muted-foreground">
+          <span>Total</span>
+          <span className="font-medium text-foreground">{total} files</span>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
@@ -321,7 +355,7 @@ export function BucketCard({
             </div>
           </div>
 
-          {needsProjectLink ? (
+          {needsProjectLink && (
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-300">
               <div className="flex items-center justify-between gap-2">
                 <span>Connect this bucket to a project to enable uploads.</span>
@@ -337,18 +371,12 @@ export function BucketCard({
                 )}
               </div>
             </div>
-          ) : projectName ? (
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-              <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
-                {projectName}
-              </Badge>
-            </div>
-          ) : null}
+          )}
 
           {/* Center: progress ring + stats */}
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
-              <ProgressRing percent={usage} size={80} />
+              <ProgressRing percent={usage} size={90} />
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-sm font-bold leading-none">
                   {formatBytes(analytics?.totalSizeBytes ?? totalSizeBytes)}
@@ -375,21 +403,37 @@ export function BucketCard({
                   </div>
                 </>
               )}
+              {projectName && !needsProjectLink && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Project</span>
+                  <span className="font-medium truncate max-w-28 text-right" title={projectName}>
+                    {projectName}
+                  </span>
+                </div>
+              )}
               {bucket.cloudFrontDomain && (
-                <Badge
-                  variant="outline"
-                  className="text-[9px] h-4 px-1 border-blue-500/20 text-blue-600 dark:text-blue-400"
-                >
-                  CDN
-                </Badge>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">CDN</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`https://${bucket.cloudFrontDomain}`);
+                      toast.success('CDN URL copied');
+                    }}
+                    className="flex items-center gap-1 text-blue-500 hover:text-blue-400 font-mono transition-colors max-w-28"
+                    title={bucket.cloudFrontDomain}
+                  >
+                    <Link2 className="size-2.5 shrink-0" />
+                    <span className="truncate text-[10px]">{bucket.cloudFrontDomain}</span>
+                  </button>
+                </div>
               )}
             </div>
           </div>
 
           <div className="mt-auto flex flex-col gap-3">
-            {/* File type distribution bar */}
+            {/* File type distribution rod */}
             {fileTypeBreakdown && fileTypeBreakdown.length > 0 ? (
-              <FileTypeBar breakdown={fileTypeBreakdown} />
+              <FileTypeRod breakdown={fileTypeBreakdown} />
             ) : (
               <ActivityPulse active={isActive || bucket.status === 'deploying'} />
             )}

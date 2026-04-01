@@ -38,6 +38,8 @@ import { PageTransition } from '@/components/page-transition';
 import { APP_CONFIG } from '@/lib/config';
 import { useTheme, type Theme } from '@/lib/theme-context';
 import { AWS_REGIONS } from '@/lib/validations';
+import { getRegionAlpha2 } from '@/lib/region-flags';
+import { CircleFlag } from 'react-circle-flags';
 
 interface SettingsData {
   awsAccessKeyId: string;
@@ -368,7 +370,10 @@ export default function SettingsPage() {
                 <SelectContent>
                   {AWS_REGIONS.map((r) => (
                     <SelectItem key={r.value} value={r.value}>
-                      {r.label}
+                      <div className="flex items-center gap-2">
+                        <CircleFlag countryCode={getRegionAlpha2(r.value)} height={12} />
+                        {r.label}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>

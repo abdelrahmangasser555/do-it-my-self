@@ -34,6 +34,8 @@ import {
   CloudUpload,
 } from 'lucide-react';
 import type { Bucket } from '@/lib/types';
+import { getRegionAlpha2 } from '@/lib/region-flags';
+import { CircleFlag } from 'react-circle-flags';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -140,7 +142,12 @@ export function BucketsTable({
                 </button>
               </div>
             </TableCell>
-            <TableCell>{bucket.region}</TableCell>
+            <TableCell>
+              <div className="flex items-center gap-1.5">
+                <CircleFlag countryCode={getRegionAlpha2(bucket.region)} height={12} />
+                <span className="text-xs">{bucket.region}</span>
+              </div>
+            </TableCell>
             <TableCell className="max-w-50 truncate font-mono text-xs">
               {bucket.cloudFrontDomain || '—'}
             </TableCell>

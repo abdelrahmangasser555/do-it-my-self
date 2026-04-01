@@ -27,6 +27,8 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { AlertTriangle, ChevronDown, ChevronUp, Rocket, RefreshCw } from 'lucide-react';
 import { bucketSchema, type BucketFormValues, AWS_REGIONS } from '@/lib/validations';
+import { getRegionAlpha2 } from '@/lib/region-flags';
+import { CircleFlag } from 'react-circle-flags';
 import type { Project, BootstrappedEnvironment } from '@/lib/types';
 import { AnimatedDialog } from '@/components/animated-dialog';
 
@@ -211,7 +213,14 @@ export function CreateBucketDialog({
                 <SelectContent>
                   {regionOptions.map((r) => (
                     <SelectItem key={r.value} value={r.value}>
-                      {r.label}
+                      <div className="flex items-center gap-2">
+                        <CircleFlag
+                          countryCode={getRegionAlpha2(r.value)}
+                          height={12}
+                          className="w-6"
+                        />
+                        {r.label}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>

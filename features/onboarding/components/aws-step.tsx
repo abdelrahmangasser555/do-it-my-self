@@ -1,7 +1,7 @@
 // Step 2 — AWS Connection & IAM Permissions
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 import {
   CheckCircle,
   XCircle,
@@ -20,25 +20,27 @@ import {
   Save,
   ShieldAlert,
   ShieldCheck,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { TerminalOutput } from "./terminal-output";
-import { AWS_REGIONS } from "@/lib/validations";
-import { motion, AnimatePresence } from "framer-motion";
-import type { AwsIdentity, TerminalLine } from "../hooks/use-aws-validation";
+} from '@/components/ui/select';
+import { TerminalOutput } from './terminal-output';
+import { AWS_REGIONS } from '@/lib/validations';
+import { getRegionAlpha2 } from '@/lib/region-flags';
+import { CircleFlag } from 'react-circle-flags';
+import { motion, AnimatePresence } from 'framer-motion';
+import type { AwsIdentity, TerminalLine } from '../hooks/use-aws-validation';
 
 export interface IamPolicy {
   name: string;
@@ -97,11 +99,7 @@ function CopySnippet({ text }: { text: string }) {
           setTimeout(() => setCopied(false), 1500);
         }}
       >
-        {copied ? (
-          <Check className="size-3 text-green-500" />
-        ) : (
-          <Copy className="size-3" />
-        )}
+        {copied ? <Check className="size-3 text-green-500" /> : <Copy className="size-3" />}
       </Button>
     </div>
   );
@@ -136,19 +134,15 @@ export function AwsStep({
 }: AwsStepProps) {
   const [showCredentialForm, setShowCredentialForm] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
-  const [accessKeyId, setAccessKeyId] = useState("");
-  const [secretAccessKey, setSecretAccessKey] = useState("");
-  const [credentialRegion, setCredentialRegion] = useState("us-east-1");
+  const [accessKeyId, setAccessKeyId] = useState('');
+  const [secretAccessKey, setSecretAccessKey] = useState('');
+  const [credentialRegion, setCredentialRegion] = useState('us-east-1');
 
   const handleSaveCredentials = async () => {
-    const success = await onUpdateCredentials(
-      accessKeyId,
-      secretAccessKey,
-      credentialRegion,
-    );
+    const success = await onUpdateCredentials(accessKeyId, secretAccessKey, credentialRegion);
     if (success) {
-      setAccessKeyId("");
-      setSecretAccessKey("");
+      setAccessKeyId('');
+      setSecretAccessKey('');
       setShowCredentialForm(false);
     }
   };
@@ -174,18 +168,18 @@ export function AwsStep({
             <Badge
               variant={
                 awsPassed && allPermissionsGranted
-                  ? "default"
+                  ? 'default'
                   : awsPassed
-                    ? "secondary"
-                    : "destructive"
+                    ? 'secondary'
+                    : 'destructive'
               }
               className="text-xs"
             >
               {awsPassed && allPermissionsGranted
-                ? "Connected"
+                ? 'Connected'
                 : awsPassed
-                  ? "Limited Permissions"
-                  : "Not Connected"}
+                  ? 'Limited Permissions'
+                  : 'Not Connected'}
             </Badge>
           )}
           {awsLoading || iamLoading ? (
@@ -225,9 +219,7 @@ export function AwsStep({
           {awsLoading && (
             <div className="flex items-center gap-2 py-2">
               <Loader2 className="size-4 animate-spin" />
-              <span className="text-sm text-muted-foreground">
-                Verifying AWS credentials...
-              </span>
+              <span className="text-sm text-muted-foreground">Verifying AWS credentials...</span>
             </div>
           )}
 
@@ -251,9 +243,7 @@ export function AwsStep({
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">ARN</span>
-                <span className="font-mono truncate max-w-75">
-                  {identity.arn}
-                </span>
+                <span className="font-mono truncate max-w-75">{identity.arn}</span>
               </div>
             </div>
           )}
@@ -285,16 +275,14 @@ export function AwsStep({
                   ) : (
                     <RefreshCw className="mr-2 size-3.5" />
                   )}
-                  {iamPermissions.length > 0 ? "Recheck" : "Check Permissions"}
+                  {iamPermissions.length > 0 ? 'Recheck' : 'Check Permissions'}
                 </Button>
               </div>
 
               {iamLoading && (
                 <div className="flex items-center gap-2 py-2">
                   <Loader2 className="size-4 animate-spin" />
-                  <span className="text-sm text-muted-foreground">
-                    Checking IAM permissions...
-                  </span>
+                  <span className="text-sm text-muted-foreground">Checking IAM permissions...</span>
                 </div>
               )}
 
@@ -316,16 +304,10 @@ export function AwsStep({
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {iamPolicies.map((p, i) => (
-                      <Badge
-                        key={i}
-                        variant="secondary"
-                        className="text-xs font-mono"
-                      >
+                      <Badge key={i} variant="secondary" className="text-xs font-mono">
                         {p.name}
-                        {p.source !== "user" && (
-                          <span className="ml-1 opacity-60">
-                            ({p.source})
-                          </span>
+                        {p.source !== 'user' && (
+                          <span className="ml-1 opacity-60">({p.source})</span>
                         )}
                       </Badge>
                     ))}
@@ -340,58 +322,47 @@ export function AwsStep({
                     Permission Check Results
                   </p>
                   <div className="space-y-2">
-                    {Object.entries(permissionGroups).map(
-                      ([service, perms]) => (
-                        <div
-                          key={service}
-                          className="rounded-md border border-border p-3 space-y-1.5"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium">
-                              {service}
-                            </span>
-                            {perms.every((p) => p.allowed) ? (
-                              <CheckCircle className="size-3.5 text-green-500" />
-                            ) : (
-                              <XCircle className="size-3.5 text-red-500" />
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-x-3 gap-y-1">
-                            {perms.map((p) => (
-                              <div
-                                key={p.action}
-                                className="flex items-center gap-1.5 text-xs"
-                              >
-                                <div
-                                  className={`size-1.5 rounded-full ${
-                                    p.allowed ? "bg-green-500" : "bg-red-500"
-                                  }`}
-                                />
-                                <span className="text-muted-foreground font-mono">
-                                  {p.action.split(":")[1]}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
+                    {Object.entries(permissionGroups).map(([service, perms]) => (
+                      <div
+                        key={service}
+                        className="rounded-md border border-border p-3 space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium">{service}</span>
+                          {perms.every((p) => p.allowed) ? (
+                            <CheckCircle className="size-3.5 text-green-500" />
+                          ) : (
+                            <XCircle className="size-3.5 text-red-500" />
+                          )}
                         </div>
-                      ),
-                    )}
+                        <div className="flex flex-wrap gap-x-3 gap-y-1">
+                          {perms.map((p) => (
+                            <div key={p.action} className="flex items-center gap-1.5 text-xs">
+                              <div
+                                className={`size-1.5 rounded-full ${
+                                  p.allowed ? 'bg-green-500' : 'bg-red-500'
+                                }`}
+                              />
+                              <span className="text-muted-foreground font-mono">
+                                {p.action.split(':')[1]}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
                   {!allPermissionsGranted && (
                     <Alert variant="destructive">
                       <ShieldAlert className="size-4" />
                       <AlertDescription className="space-y-1">
-                        <p className="text-sm font-medium">
-                          Missing required permissions
-                        </p>
+                        <p className="text-sm font-medium">Missing required permissions</p>
                         <p className="text-xs opacity-90">
-                          Your IAM user is missing some permissions needed for
-                          CDK bootstrap and resource management. Attach the{" "}
-                          <span className="font-medium">
-                            AdministratorAccess
-                          </span>{" "}
-                          policy or add the specific missing permissions.
+                          Your IAM user is missing some permissions needed for CDK bootstrap and
+                          resource management. Attach the{' '}
+                          <span className="font-medium">AdministratorAccess</span> policy or add the
+                          specific missing permissions.
                         </p>
                         <div className="flex flex-wrap gap-3 pt-1">
                           <a
@@ -422,8 +393,7 @@ export function AwsStep({
               {/* Empty state if no permissions checked yet and not loading */}
               {iamPermissions.length === 0 && !iamLoading && (
                 <p className="text-xs text-muted-foreground py-1">
-                  Click &quot;Check Permissions&quot; to see what your IAM user
-                  can access.
+                  Click &quot;Check Permissions&quot; to see what your IAM user can access.
                 </p>
               )}
             </div>
@@ -443,9 +413,7 @@ export function AwsStep({
               >
                 <div className="flex items-center gap-2">
                   <KeyRound className="size-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">
-                    Switch IAM User / Update Credentials
-                  </span>
+                  <span className="text-sm font-medium">Switch IAM User / Update Credentials</span>
                 </div>
                 {showCredentialForm ? (
                   <ChevronUp className="size-4 text-muted-foreground" />
@@ -458,15 +426,15 @@ export function AwsStep({
                 {showCredentialForm && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
+                    animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden"
                   >
                     <div className="space-y-4 pt-2">
                       <p className="text-xs text-muted-foreground">
-                        Enter new AWS credentials to switch IAM user. This will
-                        update your local AWS CLI configuration.
+                        Enter new AWS credentials to switch IAM user. This will update your local
+                        AWS CLI configuration.
                       </p>
 
                       <div className="space-y-3">
@@ -491,12 +459,10 @@ export function AwsStep({
                           <div className="relative">
                             <Input
                               id="secretAccessKey"
-                              type={showSecret ? "text" : "password"}
+                              type={showSecret ? 'text' : 'password'}
                               placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
                               value={secretAccessKey}
-                              onChange={(e) =>
-                                setSecretAccessKey(e.target.value)
-                              }
+                              onChange={(e) => setSecretAccessKey(e.target.value)}
                               className="font-mono text-xs pr-10"
                               autoComplete="off"
                             />
@@ -520,21 +486,20 @@ export function AwsStep({
                           <Label htmlFor="credRegion" className="text-xs">
                             Default Region
                           </Label>
-                          <Select
-                            value={credentialRegion}
-                            onValueChange={setCredentialRegion}
-                          >
+                          <Select value={credentialRegion} onValueChange={setCredentialRegion}>
                             <SelectTrigger id="credRegion" className="text-xs">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               {AWS_REGIONS.map((r) => (
-                                <SelectItem
-                                  key={r.value}
-                                  value={r.value}
-                                  className="text-xs"
-                                >
-                                  {r.label}
+                                <SelectItem key={r.value} value={r.value} className="text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <CircleFlag
+                                      countryCode={getRegionAlpha2(r.value)}
+                                      height={14}
+                                    />
+                                    {r.label}
+                                  </div>
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -544,11 +509,7 @@ export function AwsStep({
 
                       <Button
                         onClick={handleSaveCredentials}
-                        disabled={
-                          !accessKeyId ||
-                          !secretAccessKey ||
-                          credentialUpdating
-                        }
+                        disabled={!accessKeyId || !secretAccessKey || credentialUpdating}
                         size="sm"
                         className="w-full"
                       >

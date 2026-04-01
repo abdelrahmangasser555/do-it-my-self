@@ -273,7 +273,7 @@ export function AwsSyncDialog({
                               <Globe className="mr-1 size-3" />
                               {b.region}
                             </Badge>
-                          </TableCell>{' '}
+                          </TableCell>
                           <TableCell>
                             {b.cloudFrontDomain ? (
                               <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs">
@@ -283,7 +283,7 @@ export function AwsSyncDialog({
                             ) : (
                               <span className="text-xs text-muted-foreground">—</span>
                             )}
-                          </TableCell>{' '}
+                          </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {b.creationDate ? new Date(b.creationDate).toLocaleDateString() : '—'}
                           </TableCell>

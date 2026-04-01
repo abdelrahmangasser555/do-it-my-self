@@ -56,9 +56,80 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ExplorerGrid } from './explorer-grid';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { FileIcon } from './file-icons';
 import type { MergedS3File } from '@/features/files/hooks/use-files';
 import type { Bucket } from '@/lib/types';
+
+// ── File type breakdown rod (folder intensity) ──────────────────────────────
+
+const FILE_TYPE_CATEGORIES = [
+  {
+    label: 'Images',
+    exts: new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'tiff']),
+    color: 'var(--chart-1)',
+  },
+  { label: 'Videos', exts: new Set(['mp4', 'mov', 'avi', 'webm', 'mkv']), color: 'var(--chart-2)' },
+  {
+    label: 'Documents',
+    exts: new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'txt', 'csv', 'md']),
+    color: 'var(--chart-3)',
+  },
+  {
+    label: 'Code',
+    exts: new Set(['js', 'ts', 'tsx', 'jsx', 'json', 'html', 'css', 'xml', 'yml', 'yaml']),
+    color: 'var(--chart-4)',
+  },
+  { label: 'Other', exts: new Set<string>(), color: 'var(--chart-5)' },
+] as const;
+
+function categorizFile(key: string): number {
+  const ext = key.split('.').pop()?.toLowerCase() ?? '';
+  for (let i = 0; i < FILE_TYPE_CATEGORIES.length - 1; i++) {
+    if ((FILE_TYPE_CATEGORIES[i].exts as Set<string>).has(ext)) return i;
+  }
+  return FILE_TYPE_CATEGORIES.length - 1;
+}
+
+function FolderIntensityBar({ files }: { files: MergedS3File[] }) {
+  const actual = files.filter((f) => !f.key.endsWith('/'));
+  if (actual.length === 0) return null;
+  const counts = Array(FILE_TYPE_CATEGORIES.length).fill(0) as number[];
+  for (const f of actual) counts[categorizFile(f.key)]++;
+  const segments = FILE_TYPE_CATEGORIES.map((cat, i) => ({
+    label: cat.label,
+    count: counts[i],
+    pct: (counts[i] / actual.length) * 100,
+    color: cat.color,
+  })).filter((s) => s.count > 0);
+  return (
+    <HoverCard openDelay={300} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <div className="flex h-1.5 w-24 overflow-hidden rounded-full gap-px cursor-default">
+          {segments.map((s) => (
+            <div
+              key={s.label}
+              style={{ width: `${s.pct}%`, backgroundColor: s.color }}
+              className="h-full transition-all hover:brightness-110"
+            />
+          ))}
+        </div>
+      </HoverCardTrigger>
+      <HoverCardContent side="bottom" align="start" className="w-44 text-xs p-2 space-y-1.5">
+        <p className="font-medium text-foreground mb-1">{actual.length} files</p>
+        {segments.map((s) => (
+          <div key={s.label} className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+              <span className="text-muted-foreground">{s.label}</span>
+            </div>
+            <span className="font-mono text-foreground">{s.count}</span>
+          </div>
+        ))}
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -284,6 +355,26 @@ export function FileExplorer() {
       });
       if (!res.ok) throw new Error('Failed to create folder');
       toast.success(`Folder created: ${folderPath}`);
+      // Optimistically inject the folder marker so it appears immediately
+      const markerKey = folderPath.endsWith('/') ? folderPath : `${folderPath}/`;
+      setBucketData((prev) =>
+        prev.map((bd) => {
+          if (bd.bucketId !== selectedBucketId) return bd;
+          if (bd.files.some((f) => f.key === markerKey)) return bd;
+          return {
+            ...bd,
+            files: [
+              ...bd.files,
+              {
+                key: markerKey,
+                size: 0,
+                lastModified: new Date().toISOString(),
+                uploadedFromSystem: false,
+              } as MergedS3File,
+            ],
+          };
+        }),
+      );
       fetchS3Data();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create folder');
@@ -386,6 +477,17 @@ export function FileExplorer() {
             }),
           });
           if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}) as Record<string, unknown>);
+            const errMsg = (errBody.error as string) || `HTTP ${res.status}`;
+            const errDetails = errBody.details
+              ? Object.entries(errBody.details as Record<string, unknown>)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(' · ')
+              : undefined;
+            toast.error(`${file.name} — ${errMsg}`, {
+              description: errDetails,
+              duration: 6000,
+            });
             failed++;
             continue;
           }
@@ -395,8 +497,16 @@ export function FileExplorer() {
             body: file,
             headers: { 'Content-Type': file.type || 'application/octet-stream' },
           });
-          if (uploadRes.ok) uploaded++;
-          else failed++;
+          if (uploadRes.ok) {
+            uploaded++;
+          } else {
+            const uploadErrText = await uploadRes.text().catch(() => '');
+            toast.error(`${file.name} — S3 upload failed (HTTP ${uploadRes.status})`, {
+              description: uploadErrText ? uploadErrText.slice(0, 200) : undefined,
+              duration: 6000,
+            });
+            failed++;
+          }
         } catch {
           failed++;
         }
@@ -406,7 +516,6 @@ export function FileExplorer() {
         toast.success(`Uploaded ${uploaded} file${uploaded !== 1 ? 's' : ''}`);
         fetchS3Data();
       }
-      if (failed > 0) toast.error(`${failed} upload${failed !== 1 ? 's' : ''} failed`);
     },
     [selectedBucket, fetchS3Data],
   );
@@ -693,6 +802,30 @@ export function FileExplorer() {
               </button>
             </div>
           ))}
+          {/* Folder intensity bar + file count inline at end of breadcrumbs */}
+          {selectedData && (
+            <div className="ml-2 flex items-center gap-2">
+              <FolderIntensityBar
+                files={selectedData.files.filter((f) => {
+                  if (f.key.endsWith('/') && f.size === 0) return false;
+                  if (!f.key.startsWith(currentPath)) return false;
+                  const rel = f.key.slice(currentPath.length);
+                  return !rel.includes('/');
+                })}
+              />
+              <span className="text-[10px] text-muted-foreground">
+                {
+                  selectedData.files.filter((f) => {
+                    if (f.key.endsWith('/') && f.size === 0) return false;
+                    if (!f.key.startsWith(currentPath)) return false;
+                    const rel = f.key.slice(currentPath.length);
+                    return !rel.includes('/');
+                  }).length
+                }{' '}
+                files
+              </span>
+            </div>
+          )}
           {syncedAt && (
             <span className="ml-auto text-[10px] text-muted-foreground">
               Synced {new Date(syncedAt).toLocaleTimeString()}

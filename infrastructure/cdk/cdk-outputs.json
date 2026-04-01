@@ -1,9 +1,9 @@
 {
-  "SCR-scr-bright-files-3237-1774991492156": {
-    "BucketArn": "arn:aws:s3:::scr-bright-files-3237-1774991492156",
-    "BucketName": "scr-bright-files-3237-1774991492156",
-    "DistributionId": "EXGH99P5KZLI6",
-    "CloudFrontDomain": "d3oelrq06p2oh2.cloudfront.net",
-    "UploadPolicyArn": "arn:aws:iam::006545530824:policy/SCR-scr-bright-files-3237-1774991492156-UploadPolicy81A9CED6-FsPtDGfCEWKq"
+  "SCR-scr-private-access-1775026722997": {
+    "BucketArn": "arn:aws:s3:::scr-private-access-1775026722997",
+    "BucketName": "scr-private-access-1775026722997",
+    "DistributionId": "E271SZ23GKAAG4",
+    "CloudFrontDomain": "d2ulqlcwtstmm5.cloudfront.net",
+    "UploadPolicyArn": "arn:aws:iam::006545530824:policy/SCR-scr-private-access-1775026722997-UploadPolicy81A9CED6-hmJKfL7TFRVi"
   }
 }

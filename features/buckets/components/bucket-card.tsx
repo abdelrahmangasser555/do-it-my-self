@@ -123,7 +123,7 @@ function ProgressRing({ percent, size = 80 }: { percent: number; size?: number }
 
 // ── File Type Rod ────────────────────────────────────────────────────────────
 
-function FileTypeRod({
+export function FileTypeRod({
   breakdown,
 }: {
   breakdown: { type: string; count: number; color: string }[];

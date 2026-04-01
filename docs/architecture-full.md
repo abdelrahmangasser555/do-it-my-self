@@ -1,61 +1,72 @@
-# Full Architecture Documentation
+﻿# Architecture — Full Reference
 
-## Overview
+## What is DropOut?
 
-Storage Control Room is a **local-only, internal Next.js dashboard** for managing AWS S3 buckets and CloudFront distributions. It is not a SaaS product, is not multi-tenant, and requires no hosting — it runs exclusively on your machine via `npm run dev`.
+**DropOut** is a **local-only, internal Next.js dashboard** for managing AWS S3 buckets and CloudFront distributions. It is not a SaaS product, is not multi-tenant, and requires no hosting — it runs exclusively on your machine via `pnpm dev`.
 
 The system lets you:
-- Organize upload infrastructure into **Projects** (e.g. one per client or app)
-- Provision **S3 buckets + CloudFront** distributions per project via AWS CDK
-- Generate **pre-signed upload URLs** so your apps upload directly to S3
+- Organize upload infrastructure into **Projects** (one per client app or internal service)
+- Bootstrap **AWS CDK environments** per region
+- Provision **S3 buckets + CloudFront distributions** per project via AWS CDK
+- Generate **pre-signed upload URLs** so your external apps upload directly to S3
+- **Browse S3 files** via an Explorer-style interface
 - Track every uploaded **file's metadata** locally
-- View **analytics** across buckets and projects
+- View **analytics and cost estimates** across buckets and projects
 - Generate **copy-paste integration snippets** for your own Next.js apps
+- Run **AWS commands and AI diagnostics** from a built-in terminal
+
+---
+
+## Auto-Update on Dev Start
+
+Every time you run `pnpm dev`, DropOut pulls the latest code from `origin/master` via `scripts/pull-latest.js`:
+
+1. Checks git and remote availability
+2. Fetches from `origin/master`
+3. Stashes uncommitted local changes (if any)
+4. Fast-forward merges new commits
+5. Pops the stash
+6. Warns if `package.json` or `pnpm-lock.yaml` changed
+
+This is implemented as a `predev` npm lifecycle hook and never blocks the server on failure.
 
 ---
 
 ## System Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                  Your Browser (localhost:3000)           │
-│                                                         │
-│   ┌─────────────┐    ┌─────────────┐   ┌────────────┐  │
-│   │  Dashboard  │    │  Projects   │   │  Buckets   │  │
-│   │  (/ route)  │    │  (/projects)│   │ (/buckets) │  │
-│   └──────┬──────┘    └──────┬──────┘   └─────┬──────┘  │
-│          │                  │                 │         │
-└──────────┼──────────────────┼─────────────────┼─────────┘
-           │                  │                 │
-           ▼                  ▼                 ▼
-┌─────────────────────────────────────────────────────────┐
-│              Next.js API Routes (Server-side)            │
-│                                                         │
-│   /api/projects   /api/buckets   /api/files             │
-│   /api/analytics  /api/infrastructure                   │
-│                                                         │
-│         Reads / Writes JSON  │  Executes CDK            │
-└──────────────┬───────────────┴──────────┬───────────────┘
-               │                          │
-       ┌───────▼───────┐         ┌────────▼────────┐
-       │  /data/*.json │         │ infrastructure/ │
-       │  projects.json│         │    cdk/         │
-       │  buckets.json │         │  (CDK Stack)    │
-       │  files.json   │         └────────┬────────┘
-       └───────────────┘                  │
-                                          │ cdk deploy
-                                          ▼
-                          ┌───────────────────────────┐
-                          │         AWS Cloud          │
-                          │                           │
-                          │  ┌─────────┐  ┌────────┐ │
-                          │  │   S3    │  │  CDN   │ │
-                          │  │ Bucket  │◄─│ Cloud  │ │
-                          │  │         │  │ Front  │ │
-                          │  └────┬────┘  └────────┘ │
-                          │       │                   │
-                          │  IAM Policy (min perms)   │
-                          └───────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                  Browser (localhost:3000)                       │
+│                                                                │
+│  Dashboard  Projects  Buckets  Files  Envs  Distros  Commands  │
+│     /          /projects  /buckets  /files  /envs   /commands  │
+└───────────────────────────┬────────────────────────────────────┘
+                            │ HTTP (same process)
+┌───────────────────────────▼────────────────────────────────────┐
+│               Next.js API Routes (Server-side)                  │
+│                                                                │
+│  /api/projects  /api/buckets  /api/files  /api/environments    │
+│  /api/analytics  /api/expenses  /api/infrastructure            │
+│  /api/distributions  /api/terminal  /api/commands  /api/ai     │
+│  /api/aws-identity  /api/settings  /api/system  /api/docs-chat │
+│                                                                │
+│         ┌─────────────┐          ┌──────────────────────────┐  │
+│         │  lib/        │          │  child_process (CDK)     │  │
+│         │  filesystem  │          │  spawn → cdk deploy      │  │
+│         │  .ts         │          │  → NDJSON stream         │  │
+│         └──────┬───────┘          └──────────┬───────────────┘  │
+└────────────────┼─────────────────────────────┼──────────────────┘
+                 │ fs.read/write               │ AWS CDK CLI
+    ┌────────────▼────────────┐    ┌───────────▼────────────────┐
+    │   /data/*.json          │    │   AWS            (remote)  │
+    │   projects.json         │    │   S3 Buckets               │
+    │   buckets.json          │    │   CloudFront Distributions │
+    │   files.json            │    │   CloudFormation Stacks    │
+    │   environments.json     │    │   IAM Policies             │
+    │   settings.json         │    └────────────────────────────┘
+    │   system.json           │
+    │   custom-commands.json  │
+    └─────────────────────────┘
 ```
 
 ---
@@ -65,69 +76,102 @@ The system lets you:
 | Layer | Technology | Purpose |
 |---|---|---|
 | Framework | Next.js 16 (App Router) | Full-stack React framework |
+| React | React 19 | UI library |
 | UI Components | shadcn/ui (new-york, neutral) | Accessible component library |
 | Styling | Tailwind CSS v4 | Utility-first CSS |
-| Animations | framer-motion | Sidebar, modals, cards |
+| Animations | framer-motion | Sidebar, modals, cards, transitions |
 | Icons | lucide-react | Consistent icon set |
-| Charts | recharts (via shadcn chart) | File analytics, storage charts |
+| Charts | recharts (via shadcn chart) | Analytics and cost charts |
+| Sparklines | react-sparklines | Inline mini-charts on cards |
 | Forms | React Hook Form + Zod | Type-safe form validation |
-| AI | Vercel AI SDK v6 + OpenAI | Command generation, error debugging |
-| AWS SDK | @aws-sdk/client-s3, client-cloudfront v3 | S3, CloudFront, pre-signed URLs |
-| Syntax Highlighting | prism-react-renderer | Code snippets, terminal output |
+| AI | Vercel AI SDK v6 + OpenAI GPT-4o-mini | Command generation, error debugging |
+| AWS SDK | @aws-sdk v3 (S3, CloudFront, CloudFormation, IAM, STS) | AWS operations |
+| S3 Presigner | @aws-sdk/s3-request-presigner | Pre-signed PutObject URLs |
+| Maps | maplibre-gl | Region world map in Environments |
+| Flags | react-circle-flags | Region flag icons |
+| Syntax | prism-react-renderer | Code blocks |
 | Infrastructure | AWS CDK v2 (TypeScript) | S3 + CloudFront provisioning |
+| DnD | @dnd-kit | Drag-and-drop in file explorer |
 | Data Storage | Node.js fs (JSON files) | Local persistence, no database |
-| Runtime | Node.js 20 | Local only |
+| Runtime | Node.js 20 | Local only, Windows + macOS + Linux |
+| Package Manager | pnpm | Faster installs |
 
 ---
 
 ## Folder Structure
 
 ```
-storage-control-room/
+dropout/
+│
+├── scripts/
+│   └── pull-latest.js           ← Auto-update hook (runs before pnpm dev)
 │
 ├── app/                          ← Next.js App Router
 │   ├── (dashboard)/              ← Route group (no URL segment)
 │   │   ├── layout.tsx            ← Sidebar + header shell
 │   │   ├── page.tsx              ← Dashboard / Overview
 │   │   ├── projects/
-│   │   │   ├── page.tsx          ← Projects list
+│   │   │   ├── page.tsx          ← Projects list (card grid)
 │   │   │   └── [id]/page.tsx     ← Project detail
 │   │   ├── buckets/
-│   │   │   ├── page.tsx          ← Buckets list
-│   │   │   └── [id]/page.tsx     ← Bucket detail (S3 files, analytics)
-│   │   ├── files/page.tsx        ← Files list
-│   │   ├── distributions/page.tsx ← CloudFront distributions
-│   │   ├── infrastructure/page.tsx ← CDK controls
+│   │   │   ├── page.tsx          ← Buckets list (card grid)
+│   │   │   └── [id]/page.tsx     ← Bucket detail (6 tabs: S3 files, analytics, cost, records, setup, sync)
+│   │   ├── files/page.tsx        ← Windows Explorer-style S3 file browser
+│   │   ├── environments/page.tsx ← CDK bootstrap region manager + world map
+│   │   ├── distributions/page.tsx ← CloudFront distributions management
+│   │   ├── infrastructure/page.tsx ← CDK synth/deploy controls
 │   │   ├── snippets/page.tsx     ← Code snippet generator
 │   │   ├── commands/page.tsx     ← Quick actions + AI tools
+│   │   └── settings/page.tsx     ← AWS credentials, OpenAI key, theme
 │   │   └── docs/                 ← Documentation viewer
 │   │
+│   ├── landing/                  ← Marketing page (before onboarding)
+│   ├── onboarding/               ← 6-step setup wizard
+│   │
 │   └── api/                      ← Next.js API Routes
-│       ├── projects/route.ts     ← GET/POST/PUT/DELETE projects
-│       ├── buckets/route.ts      ← GET/POST/PUT/DELETE buckets
-│       ├── files/route.ts        ← GET/POST/DELETE files + presign
-│       ├── files/s3/route.ts     ← GET actual S3 objects
-│       ├── distributions/route.ts ← GET/DELETE CloudFront distributions
-│       ├── infrastructure/route.ts ← CDK synth/deploy
-│       ├── analytics/route.ts    ← Aggregated stats
-│       ├── terminal/route.ts     ← Run/output/kill terminal commands
-│       ├── commands/route.ts     ← Saved commands CRUD
-│       └── ai/route.ts           ← AI generate/debug
+│       ├── projects/route.ts
+│       ├── buckets/route.ts
+│       ├── files/route.ts        ← GET/POST (pre-sign), DELETE
+│       ├── files/s3/route.ts     ← List actual S3 objects
+│       ├── environments/route.ts ← CRUD + CDK bootstrap
+│       ├── distributions/route.ts
+│       ├── infrastructure/route.ts ← CDK synth/deploy (streaming NDJSON)
+│       ├── analytics/route.ts
+│       ├── expenses/route.ts     ← Cost estimation per bucket/project
+│       ├── terminal/route.ts     ← Run/output/kill shell commands
+│       ├── commands/route.ts     ← Saved custom commands CRUD
+│       ├── ai/route.ts           ← Generate + debug via OpenAI
+│       ├── aws-identity/route.ts ← STS identity + IAM permission check
+│       ├── settings/route.ts     ← Read/write settings.json
+│       ├── system/route.ts       ← Read/write system.json (onboarding state)
+│       └── docs-chat/route.ts    ← AI chat over the docs
 │
 ├── features/                     ← Feature-based code modules
 │   ├── projects/
-│   │   ├── components/           ← Presentational components only
-│   │   └── hooks/                ← All business logic in hooks
+│   │   ├── components/           ← ProjectCards, CreateProjectDialog, etc.
+│   │   └── hooks/                ← useProjects, useCreateProject, useDeleteProject
 │   ├── buckets/
-│   │   ├── components/
-│   │   └── hooks/
+│   │   ├── components/           ← BucketCard, BucketsTable, CreateBucketDialog, SetupTab, DeleteBucketDialog
+│   │   └── hooks/                ← useBuckets, useCreateBucket, useDeleteBucket, useBucketInventory
 │   ├── files/
-│   │   ├── components/           ← Files table, S3 table, upload dialog, folder tree
-│   │   └── hooks/                ← useFiles, useS3Files, useGeneratePresignedUrl
-│   └── infrastructure/
-│       ├── components/           ← Analytics cards, CDK deploy UI, storage charts
-│       ├── hooks/                ← useDeployBucket, useAnalytics
-│       └── utils/                ← Snippet generator functions
+│   │   ├── components/           ← FileExplorer, FilesTable, S3FilesTable, FolderStructure,
+│   │   │                            UploadDialog, CreateFolderDialog, MoveFileDialog, ContextMenu
+│   │   └── hooks/                ← useFiles, useS3Files, useDeleteFile, useGeneratePresignedUrl
+│   ├── environments/
+│   │   ├── components/           ← EnvironmentsMap (maplibre)
+│   │   └── hooks/                ← useEnvironments, useBootstrapEnvironment
+│   ├── infrastructure/
+│   │   ├── components/           ← BucketAnalyticsTable, StorageCharts, CostTables, SyncStatusDialog, CodeSnippets
+│   │   ├── hooks/                ← useDeployBucket, useAnalytics, useExpenses
+│   │   └── utils/                ← Snippet generator, analytics export (CSV/JSON)
+│   ├── onboarding/
+│   │   ├── components/           ← OnboardingPage, EnvironmentStep, AwsStep, BootstrapStep,
+│   │   │                            AiStep, BucketSyncStep, StarRepoStep, ProductTour
+│   │   ├── hooks/                ← useOnboardingState, useEnvironmentValidation, useAwsValidation, useAiOptionalSetup
+│   │   └── utils/                ← Error diagnosis helpers
+│   ├── docs/
+│   │   └── components/           ← DocsContent, TableOfContents
+│   └── landing/                  ← Landing page components
 │
 ├── components/                   ← Shared presentational components
 │   ├── ui/                       ← shadcn/ui components
@@ -135,44 +179,72 @@ storage-control-room/
 │   ├── animated-card.tsx         ← Card with hover lift animation
 │   ├── animated-dialog.tsx       ← Modal with fade+scale animation
 │   ├── code-block.tsx            ← Copy-paste code display
-│   └── page-transition.tsx       ← Page fade transition
+│   ├── page-transition.tsx       ← Page fade transition wrapper
+│   ├── terminal-panel.tsx        ← Xterm.js terminal panel
+│   ├── dashboard-shell.tsx       ← Page header + content wrapper
+│   └── markdown-renderer.tsx     ← React Markdown with custom renderers
 │
 ├── lib/                          ← Core utilities
 │   ├── types.ts                  ← All TypeScript interfaces
-│   ├── filesystem.ts             ← JSON CRUD helpers
-│   ├── aws.ts                    ← S3, CloudFront, pre-signed URL helpers
-│   ├── validations.ts            ← Zod schemas
-│   ├── terminal-context.ts       ← Shared terminal state provider
+│   ├── config.ts                 ← APP_CONFIG (name, logo, GitHub, etc.)
+│   ├── filesystem.ts             ← JSON CRUD: readJsonFile, appendToJsonFile, updateInJsonFile, deleteFromJsonFile
+│   ├── aws.ts                    ← S3, CloudFront, STS, IAM helpers
+│   ├── validations.ts            ← Zod schemas + AWS_REGIONS constant
+│   ├── terminal-context.tsx      ← Shared terminal state provider
+│   ├── theme-context.tsx         ← Light/dark/system theme context
+│   ├── deletion-context.tsx      ← Multi-step bucket deletion state
+│   ├── region-flags.ts           ← Region → country code mapping
 │   └── utils.ts                  ← cn() + misc helpers
 │
-├── data/                         ← Local JSON persistence
+├── data/                         ← Local JSON persistence (gitignored)
 │   ├── projects.json
 │   ├── buckets.json
 │   ├── files.json
+│   ├── environments.json
+│   ├── settings.json             ← AWS credentials + OpenAI key (never commit)
+│   ├── system.json               ← Onboarding state flags
 │   └── custom-commands.json
 │
-├── docs/                         ← Documentation source (Markdown)
+├── docs/                         ← Documentation Markdown source
+│   ├── user-guide.md
+│   ├── setup-guide.md
+│   ├── architecture-full.md      (this file)
+│   └── architecture-short.md
 │
 └── infrastructure/
     └── cdk/                      ← AWS CDK TypeScript project
         ├── bin/app.ts            ← CDK app entry point
-        └── lib/storage-bucket-stack.ts ← S3 + CloudFront stack
+        └── lib/storage-bucket-stack.ts  ← S3 + CloudFront + OAI + IAM stack
 ```
 
 ---
 
 ## Data Models
 
+### BootstrappedEnvironment
+
+```typescript
+interface BootstrappedEnvironment {
+  id: string;
+  accountId: string;
+  region: string;      // e.g. "us-east-1"
+  alias: string;       // e.g. "EU Production"
+  status: 'bootstrapping' | 'active' | 'failed';
+  bootstrappedAt: string;
+  createdAt: string;
+}
+```
+
 ### Project
 
 ```typescript
 interface Project {
-  id: string;              // UUID
-  name: string;            // "my-project"
-  environment: "dev" | "prod";
-  maxFileSizeMB: number;   // Upload size limit
-  allowedMimeTypes: string[]; // ["image/jpeg", "application/pdf"]
-  createdAt: string;       // ISO 8601
+  id: string;             // UUID
+  name: string;
+  environment: 'dev' | 'prod';
+  maxFileSizeMB: number;
+  allowedMimeTypes: string[];
+  createdAt: string;
   updatedAt: string;
 }
 ```
@@ -182,16 +254,41 @@ interface Project {
 ```typescript
 interface Bucket {
   id: string;
-  projectId: string;           // FK → Project.id
-  name: string;                // Human-readable label
-  s3BucketName: string;        // Actual AWS bucket name
-  s3BucketArn: string;         // ARN (populated after CDK deploy)
-  cloudFrontDomain: string;    // e.g. abc123.cloudfront.net
+  projectId: string;
+  name: string;                    // display name (slug)
+  s3BucketName: string;            // actual AWS bucket: "scr-<name>-<timestamp>"
+  s3BucketArn: string;
+  cloudFrontDomain: string;
   cloudFrontDistributionId: string;
-  region: string;              // AWS region
-  status: "pending" | "deploying" | "active" | "failed";
+  region: string;
+  status: 'pending' | 'deploying' | 'active' | 'failed' | 'deleting';
+  config: BucketConfig;            // full config (CORS, encryption, versioning, etc.)
   createdAt: string;
   updatedAt: string;
+}
+```
+
+### BucketConfig (key fields)
+
+```typescript
+interface BucketConfig {
+  access: 'private' | 'public';
+  maxFileSizeMB: number;
+  allowedFileTypes: 'images' | 'videos' | 'documents' | 'any';
+  autoDelete: boolean;
+  autoDeleteDays?: number;
+  signedUrlExpiration: number;     // seconds
+  corsOrigins: string[];
+  corsMethods: string[];
+  versioning: boolean;
+  lifecycleTransitionDays?: number;
+  enableCDN: boolean;
+  cacheControl: string;
+  encryptionType: 'S3' | 'KMS' | 'none';
+  kmsKeyId?: string;
+  enableAccessLogs: boolean;
+  enableMetrics: boolean;
+  monthlyBudgetAlertUSD?: number;
 }
 ```
 
@@ -200,15 +297,28 @@ interface Bucket {
 ```typescript
 interface FileRecord {
   id: string;
-  projectId: string;      // FK → Project.id
-  bucketName: string;     // S3 bucket name
-  objectKey: string;      // e.g. "proj-id/uuid-filename.jpg"
-  cloudFrontUrl: string;  // Full CDN URL
-  size: number;           // File size in bytes
-  mimeType: string;       // "image/jpeg"
-  linkedModel: string;    // e.g. "User" — what entity owns this file
-  linkedModelId: string;  // e.g. "user-123"
+  projectId: string;
+  bucketName: string;      // s3BucketName
+  objectKey: string;       // e.g. "proj-id/uuid-filename.jpg"
+  cloudFrontUrl: string;
+  size: number;            // bytes
+  mimeType: string;
+  linkedModel: string;     // e.g. "User" — empty = orphan
+  linkedModelId: string;   // e.g. "user-123"
   createdAt: string;
+}
+```
+
+### system.json
+
+```typescript
+{
+  environmentValidated: boolean;
+  awsValidated: boolean;
+  cdkBootstrapped: boolean;
+  aiConfigured: boolean;
+  onboardingComplete: boolean;
+  tourCompleted: boolean;
 }
 ```
 
@@ -216,124 +326,112 @@ interface FileRecord {
 
 ## API Routes Reference
 
-### `GET /api/projects`
-Returns all projects from `data/projects.json`.
+### Projects
 
-### `POST /api/projects`
-Creates a new project. Body is validated against `projectSchema` (Zod). Assigns a UUID, timestamps, and appends to `projects.json`.
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/projects` | List all projects |
+| POST | `/api/projects` | Create a project (Zod-validated) |
+| PUT | `/api/projects` | Update project by `{ id, ...updates }` |
+| DELETE | `/api/projects?id=<id>` | Delete project by ID |
 
-### `PUT /api/projects`
-Updates an existing project by `{ id, ...updates }`.
+### Buckets
 
-### `DELETE /api/projects?id=<id>`
-Removes project by ID.
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/buckets?projectId=<id>` | List all buckets, optionally by project |
+| POST | `/api/buckets` | Create a `pending` bucket record |
+| PUT | `/api/buckets` | Update bucket (e.g. after CDK deploy) |
+| DELETE | `/api/buckets?id=<id>` | Delete bucket record |
 
----
+### Files
 
-### `GET /api/buckets?projectId=<id>`
-Returns all buckets, optionally filtered by `projectId`.
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/files?projectId=<id>&bucketName=<name>` | List file metadata |
+| POST | `/api/files` | Validate + generate pre-signed PutObject URL + store metadata |
+| DELETE | `/api/files?id=<id>` | Delete file metadata record (not the S3 object) |
+| GET | `/api/files/s3?bucketName=<n>&region=<r>&prefix=<p>` | List actual S3 objects, merged with local metadata |
 
-### `POST /api/buckets`
-Creates a bucket record with `status: "pending"`. Generates the S3 bucket name as `scr-<name>-<timestamp>`. Does **not** deploy to AWS — that happens via `/api/infrastructure`.
+### Environments
 
-### `PUT /api/buckets`
-Updates a bucket record (used internally after CDK deploy to store ARN + CloudFront domain).
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/environments` | List bootstrapped environments |
+| POST | `/api/environments` | Bootstrap a new region (runs `cdk bootstrap`, streams output) |
+| DELETE | `/api/environments?id=<id>` | Remove environment record |
 
-### `DELETE /api/buckets?id=<id>`
-Removes bucket record by ID.
+### Infrastructure
 
----
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/infrastructure` | Run CDK synth or deploy (streaming NDJSON) |
 
-### `GET /api/files?projectId=<id>&bucketName=<name>`
-Returns file metadata, optionally filtered.
-
-### `POST /api/files`
-- Validates project exists and size/MIME type are within the project's limits
-- Finds the matching bucket record
-- Generates a **pre-signed S3 PutObject URL** (1 hour expiry)
-- Stores the file metadata in `files.json`
-- Returns `{ uploadUrl, objectKey, cloudFrontUrl, file }`
-
-> Your external app calls this, then uploads directly to S3 using `uploadUrl`.
-
-### `DELETE /api/files?id=<id>`
-Removes file metadata record.
-
----
-
-### `POST /api/infrastructure`
-Executes CDK commands via `child_process.exec`.
-
+Request body:
 ```json
 {
-  "action": "deploy",
+  "action": "deploy" | "synth",
   "bucketId": "uuid",
   "s3BucketName": "scr-my-bucket-1234",
-  "region": "us-east-1"
+  "region": "us-east-1",
+  "config": { ...BucketConfig }
 }
 ```
 
-- Sets `status: "deploying"` before running
-- Reads `cdk-outputs.json` after deploy to extract CloudFront domain and ARN
-- Sets `status: "active"` on success, `"failed"` on error
+### Distributions
 
----
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/distributions` | List all CloudFront distributions |
+| DELETE | `/api/distributions?distributionId=<id>` | Delete a disabled distribution |
 
-### `GET /api/analytics?projectId=<id>`
-Aggregates across all three JSON stores:
-- Total projects, buckets, files
-- Total storage bytes
-- Per-bucket breakdown: file count, storage, orphaned files
+### Analytics & Expenses
 
----
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/analytics?projectId=<id>` | Aggregate stats (totals, per-bucket, orphans) |
+| GET | `/api/expenses` | Estimated cost breakdown per bucket and project |
 
-### `GET /api/files/s3?bucketName=<name>&region=<region>&prefix=<prefix>`
-Lists **actual S3 objects** in a bucket (not just local metadata). Merges with `files.json` to identify which files were uploaded through the system.
+### Terminal & Commands
 
-Returns: `{ files: MergedS3File[], totalSize, totalFiles, systemUploaded, bucketName }`
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/terminal` | Spawn a shell command, returns `{ id, pid }` |
+| GET | `/api/terminal?id=<id>` | Get command output and status |
+| DELETE | `/api/terminal?id=<id>` | Kill a running process |
+| GET | `/api/commands` | List saved custom commands |
+| POST | `/api/commands` | Save a new custom command |
+| DELETE | `/api/commands?id=<id>` | Delete a saved command |
 
----
+### AI
 
-### `GET /api/distributions`
-Lists all CloudFront distributions in the AWS account. Enriches each with linked bucket info by matching domain names against `buckets.json`.
-
-### `DELETE /api/distributions?distributionId=<id>`
-Deletes a disabled CloudFront distribution.
-
----
-
-### `POST /api/terminal`
-Spawns a child process to run a shell command. Returns `{ id, pid }` for tracking.
-
-### `GET /api/terminal?id=<id>`
-Returns the output and status of a running/completed terminal session.
-
-### `DELETE /api/terminal?id=<id>`
-Kills a running terminal process by PID.
-
----
-
-### `GET /api/commands`
-Returns all saved custom commands from `data/custom-commands.json`.
-
-### `POST /api/commands`
-Saves a new custom command with label, description, and command string.
-
-### `DELETE /api/commands?id=<id>`
-Removes a saved command by ID.
-
----
-
-### `POST /api/ai`
-AI-powered command generation and error debugging via GPT-4o-mini.
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/ai` | Generate a command or debug an error via GPT-4o-mini |
 
 ```json
-// Generate a command
-{ "action": "generate", "prompt": "list all S3 buckets" }
+// Generate
+{ "action": "generate", "prompt": "list S3 buckets by size" }
 
-// Debug an error
-{ "action": "debug", "error": "Error: AccessDenied..." }
+// Debug
+{ "action": "debug", "error": "AccessDenied when running cdk deploy..." }
 ```
+
+### Settings & System
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/settings` | Read settings.json |
+| PUT | `/api/settings` | Update settings.json |
+| GET | `/api/system` | Read system.json (onboarding flags) |
+| PUT | `/api/system` | Update system.json |
+| GET | `/api/aws-identity` | Get STS identity + IAM permission check |
+
+### Docs Chat
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/docs-chat` | AI chat over the documentation Markdown files |
 
 ---
 
@@ -341,108 +439,138 @@ AI-powered command generation and error debugging via GPT-4o-mini.
 
 Location: `infrastructure/cdk/lib/storage-bucket-stack.ts`
 
-Each CDK stack creates:
+### Stack inputs (environment variables)
+
+| Variable | Description |
+|---|---|
+| `SCR_BUCKET_NAME` | Full S3 bucket name (e.g. `scr-my-bucket-1234`) |
+| `SCR_REGION` | AWS region to deploy to |
+| `SCR_CONFIG` | JSON-serialized `BucketConfig` object |
+
+### Resources created per stack
 
 ```
-StorageBucketStack
+StorageBucketStack  (CloudFormation stack name: SCR-<s3BucketName>)
+│
 ├── S3 Bucket
-│   ├── CORS: GET, PUT, POST from any origin
-│   ├── BlockPublicAccess: BLOCK_ALL
-│   ├── Encryption: S3_MANAGED
-│   └── RemovalPolicy: RETAIN (safe against accidental deletion)
+│   ├── Name: scr-<name>-<timestamp>
+│   ├── BlockPublicAccess: BLOCK_ALL (private) or public reads allowed
+│   ├── Encryption: SSE-S3 (default) or SSE-KMS
+│   ├── Versioning: enabled if configured
+│   ├── CORS: configured origins + methods
+│   ├── Lifecycle rules: transition to Glacier + expiry if configured
+│   └── RemovalPolicy: RETAIN (safe against accidental destroy)
 │
 ├── CloudFront Origin Access Identity (OAI)
-│   └── Grants read access from CloudFront to S3
+│   └── Grants CloudFront read access to private S3
 │
-├── CloudFront Distribution
+├── CloudFront Distribution  (only if enableCDN = true)
 │   ├── Origin: S3 via OAI
 │   ├── ViewerProtocolPolicy: REDIRECT_TO_HTTPS
-│   └── CachePolicy: CACHING_OPTIMIZED
+│   ├── CachePolicy: CACHING_OPTIMIZED
+│   └── Custom cache-control if configured
 │
 └── IAM Managed Policy
-    ├── s3:PutObject, s3:GetObject, s3:DeleteObject on bucket/*
+    ├── s3:PutObject, GetObject, DeleteObject on bucket/*
     └── s3:ListBucket on bucket
 ```
 
-### CDK Outputs (used by the dashboard)
+### CDK Outputs (read by dashboard after deploy)
 
-| Output Key | Value |
+| Key | Value |
 |---|---|
 | `BucketArn` | Full S3 ARN |
-| `CloudFrontDomain` | e.g. `abc.cloudfront.net` |
+| `CloudFrontDomain` | e.g. `abc123.cloudfront.net` |
 | `DistributionId` | CloudFront distribution ID |
-| `UploadPolicyArn` | IAM policy ARN to attach to your app's role |
+| `UploadPolicyArn` | IAM policy ARN |
 
 ---
 
 ## Upload Flow (End-to-End)
 
 ```
-Your App                 Storage Control Room      AWS
-─────────                ────────────────────      ───
-POST /api/files ──────► Validate size + MIME
-                        Find bucket record
-                        Generate presigned URL ──► S3 PutObject (signed)
-◄── { uploadUrl,
+Your External App              DropOut (localhost:3000)          AWS
+─────────────────              ────────────────────────          ───
+
+POST /api/files ─────────────► Validate size + MIME type
+                               Find bucket record
+                               Check bucket is active
+                               Generate presigned URL ─────────► S3: PutObject (signed, 1h TTL)
+                               Store FileRecord in files.json
+◄── { uploadUrl,               ◄────────────────────────────────
       objectKey,
-      cloudFrontUrl }
+      cloudFrontUrl,
+      file }
 
-PUT uploadUrl ───────────────────────────────────► S3 Bucket
-(direct to S3, no proxy)
-
-Access file ─────────────────────────────────────► CloudFront
-via cloudFrontUrl                                   └── S3 (origin)
+PUT <uploadUrl> ──────────────────────────────────────────────► S3 Bucket (direct, no proxy)
+(raw file bytes)
+                               
+GET cloudFrontUrl ────────────────────────────────────────────► CloudFront → S3
+(serve to users)
 ```
 
 ---
 
-## Security Model
+## Onboarding State Machine
 
-- **No public API** — runs only on localhost
-- **S3 is fully private** — access only via CloudFront (OAI) or pre-signed URLs
-- **Pre-signed URLs expire in 1 hour** — uploads must happen within that window
-- **Minimal IAM** — the CDK stack creates the least-privilege policy scoped to the specific bucket
-- **MIME + size validation** — enforced server-side before a pre-signed URL is issued; limits are set per project
-
----
-
-## Animation System
-
-All animations use `framer-motion` only:
-
-| Element | Effect | Details |
-|---|---|---|
-| Page navigation | Opacity fade | `initial: 0 → animate: 1`, 200ms |
-| Dialogs (modals) | Fade + scale | `scale: 0.95 → 1`, 150ms |
-| Cards | Hover lift | `y: -2px` on hover, 200ms |
-| Sidebar | shadcn built-in | Controlled by `SidebarProvider` |
-
----
-
-## Local Data Persistence
-
-All state is stored as JSON arrays in `/data/`. There is no database, no ORM, and no migrations.
+The `data/system.json` file tracks wizard completion:
 
 ```
-Read  → fs.readFile  → JSON.parse
-Write → JSON.stringify → fs.writeFile (atomic overwrite)
-```
+initial state:
+  { environmentValidated: false, awsValidated: false,
+    cdkBootstrapped: false, aiConfigured: false,
+    onboardingComplete: false, tourCompleted: false }
 
-Helper functions in `lib/filesystem.ts`:
-- `readJsonFile<T>(fileName)` — read + parse, auto-creates empty array if missing
-- `appendToJsonFile<T>(fileName, item)` — read, push, write
-- `updateInJsonFile<T>(fileName, id, updates)` — read, splice, write
-- `deleteFromJsonFile<T>(fileName, id)` — filter out by id, write
-- `findInJsonFile<T>(fileName, id)` — find by id
-- `filterJsonFile<T>(fileName, predicate)` — filter by predicate
+OnboardingGuard:
+  if onboardingComplete === false → redirect to /onboarding
+  else → render dashboard
+
+Steps update the flags in sequence via PUT /api/system
+```
 
 ---
 
-## Design Principles
+## Global Application Config
 
-1. **Feature-based isolation** — each feature (projects, buckets, files, infrastructure) is a self-contained module
-2. **Hooks carry all logic** — components are purely presentational, hooks do all fetching and state management
-3. **One responsibility per hook** — `useProjects`, `useCreateProject`, `useDeleteProject` are separate exports
-4. **Local-only** — zero cloud services for the dashboard itself; AWS is only for the provisioned storage resources
-5. **No global state** — no Redux, no Zustand; each page fetches its own data via hooks
-6. **Minimal abstraction** — code is readable and direct; no over-engineering
+All branding is centralized in `lib/config.ts`:
+
+```typescript
+export const APP_CONFIG = {
+  name: "DropOut",
+  description: "Internal S3 + CloudFront management dashboard",
+  logoDark: "/logos/white transparent background.png",
+  logoLight: "/logos/white transparent background.png",
+  githubRepo: "abdelrahmangasser555/do-it-my-self",
+  tagline: "Local-only · No hosting",
+  setupVideoUrl: "https://www.youtube.com/embed/...",
+  tutorialVideoUrl: "https://www.youtube.com/embed/...",
+  creatorWebsite: "https://example.com",
+} as const;
+```
+
+---
+
+## Security Considerations
+
+- `data/settings.json` contains AWS credentials and the OpenAI key — this file is **gitignored** by default (`data/*.json` is in `.gitignore`)
+- Pre-signed URLs are time-limited (configurable, default 3600 s)
+- All CDK-created S3 buckets are **private** by default with `BlockPublicAccess: BLOCK_ALL`
+- CloudFront uses OAI so S3 is never directly accessible from the internet
+- The dashboard has no authentication — it is designed to run locally only; never expose port 3000 publicly
+- No AWS credentials are ever passed through the browser — all AWS SDK calls happen server-side in API routes
+
+---
+
+## Code Organization Rules
+
+| Rule | Details |
+|---|---|
+| Feature-based | All domain logic in `features/<domain>/` |
+| Hooks = business logic | Data fetching, mutations, state → `features/*/hooks/` |
+| Components = presentational | No API calls, no side effects → `features/*/components/` |
+| API routes only | All file I/O (`fs`) and AWS SDK calls happen in `app/api/*/route.ts` |
+| Shared utilities | `lib/` only |
+| No global state libraries | React hooks + context only |
+| APP_CONFIG | Never hardcode the app name; always import from `lib/config.ts` |
+| Types | All interfaces in `lib/types.ts` |
+| Zod schemas | In `lib/validations.ts` |

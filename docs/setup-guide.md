@@ -1,6 +1,6 @@
-# Setup Guide
+﻿# Setup Guide
 
-Everything you need to go from zero to a running Storage Control Room — on Windows, macOS, or Linux.
+Everything you need to go from zero to a running DropOut dashboard — on Windows, macOS, or Linux.
 
 ---
 
@@ -9,7 +9,7 @@ Everything you need to go from zero to a running Storage Control Room — on Win
 | Requirement | Minimum version |
 |---|---|
 | Node.js | 20.x or newer |
-| npm | 10.x (ships with Node 20) |
+| pnpm | 8.x (recommended) or npm 10.x |
 | Git | 2.x |
 | AWS CLI | 2.x |
 | AWS CDK | 2.x |
@@ -20,7 +20,7 @@ Everything you need to go from zero to a running Storage Control Room — on Win
 
 ### Windows
 
-Download the LTS installer from [nodejs.org](https://nodejs.org) and run it.  
+Download the LTS installer from [nodejs.org](https://nodejs.org) and run it.
 After installation, open a new **PowerShell** or **Command Prompt** window and verify:
 
 ```powershell
@@ -54,35 +54,50 @@ sudo dnf install -y nodejs
 
 ---
 
-## Step 2 — Install AWS CLI
+## Step 2 — Install pnpm
 
-The AWS CLI lets you authenticate with your AWS account from the terminal.
+DropOut uses **pnpm** as its package manager (faster installs, strict dependency isolation).
+
+```bash
+npm install -g pnpm
+```
+
+Verify:
+
+```bash
+pnpm -v   # 8.x.x or newer
+```
+
+> You can still use `npm` if you prefer — all pnpm commands have npm equivalents (`pnpm dev` = `npm run dev`).
+
+---
+
+## Step 3 — Install AWS CLI
 
 ### Windows
 
-Download and run the MSI installer:
-
-```
-https://awscli.amazonaws.com/AWSCLIV2.msi
-```
-
-Or use **winget**:
+Use **winget**:
 
 ```powershell
 winget install --id Amazon.AWSCLI
 ```
 
+Or download the MSI from:
+```
+https://awscli.amazonaws.com/AWSCLIV2.msi
+```
+
 ### macOS
+
+```bash
+brew install awscli
+```
+
+Or using the package:
 
 ```bash
 curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
 sudo installer -pkg AWSCLIV2.pkg -target /
-```
-
-Or via Homebrew:
-
-```bash
-brew install awscli
 ```
 
 ### Linux
@@ -101,20 +116,20 @@ aws --version   # aws-cli/2.x.x
 
 ---
 
-## Step 3 — Configure AWS Credentials
+## Step 4 — Configure AWS Credentials
 
-You need an IAM user or role with permissions for **S3**, **CloudFront**, and **IAM** (CDK creates and manages these resources).
+You need an IAM user (or role) with permissions for S3, CloudFront, IAM, and CloudFormation (CDK creates and manages these).
 
 ### Create an IAM user
 
 1. Sign in to the [AWS Console](https://console.aws.amazon.com/iam)
 2. Go to **IAM → Users → Create user**
-3. Give the user a name (e.g. `storage-control-room-dev`)
-4. Attach the **AdministratorAccess** policy (or a scoped policy — see note below)
+3. Name it (e.g. `dropout-dev`)
+4. Attach **AdministratorAccess** (or a scoped policy — see below)
 5. Go to **Security credentials → Create access key → Command Line Interface (CLI)**
-6. Download the CSV — you will need **Access Key ID** and **Secret Access Key**
+6. Download the CSV — you need the **Access Key ID** and **Secret Access Key**
 
-> **Note:** For a scoped policy instead of AdminAccess, attach: `AmazonS3FullAccess`, `CloudFrontFullAccess`, `IAMFullAccess`, `AWSCloudFormationFullAccess`.
+> **Scoped policy alternative:** Attach `AmazonS3FullAccess`, `CloudFrontFullAccess`, `IAMFullAccess`, `AWSCloudFormationFullAccess`.
 
 ### Run aws configure
 
@@ -122,7 +137,7 @@ You need an IAM user or role with permissions for **S3**, **CloudFront**, and **
 aws configure
 ```
 
-You will be prompted for:
+Enter your values:
 
 ```
 AWS Access Key ID [None]: AKIAIOSFODNN7EXAMPLE
@@ -131,9 +146,7 @@ Default region name [None]: us-east-1
 Default output format [None]: json
 ```
 
-Replace the values with your own. The region must match the region you want to deploy buckets to.
-
-Verify the credentials work:
+Verify:
 
 ```bash
 aws sts get-caller-identity
@@ -145,169 +158,212 @@ Expected output:
 {
   "UserId": "AIDIOSFODNN7EXAMPLE",
   "Account": "123456789012",
-  "Arn": "arn:aws:iam::123456789012:user/storage-control-room-dev"
+  "Arn": "arn:aws:iam::123456789012:user/dropout-dev"
 }
 ```
 
 ---
 
-## Step 4 — Install AWS CDK
-
-CDK is used by this project to deploy S3 buckets and CloudFront distributions per project.
+## Step 5 — Install AWS CDK
 
 ```bash
 npm install -g aws-cdk
-```
-
-Verify:
-
-```bash
 cdk --version   # 2.x.x
 ```
 
-### Windows note
+### Windows execution policy note
 
-If you get a script execution policy error on Windows PowerShell:
+If PowerShell blocks the `cdk` command:
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-Then re-run the npm install command.
-
 ---
 
-## Step 5 — Bootstrap CDK in your AWS account
+## Step 6 — CDK Bootstrap (one-time per region)
 
-CDK bootstrap creates the S3 bucket and IAM roles CDK needs to deploy.  
-This is a **one-time** step per AWS account + region combination.
+CDK requires a bootstrap stack to be deployed once per AWS account + region combination.
 
 ```bash
 cdk bootstrap aws://ACCOUNT_ID/REGION
+
+# Auto-fill values from current CLI config:
+cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output text)/$(aws configure get region)
 ```
 
-Replace `ACCOUNT_ID` and `REGION` with your values, for example:
-
-```bash
-cdk bootstrap aws://123456789012/us-east-1
-```
-
-> **Tip:** To get your account ID without checking the console: `aws sts get-caller-identity --query Account --output text`
-
-Expected output ends with:
+Expected output ending with:
 
 ```
 ✅  Environment aws://123456789012/us-east-1 bootstrapped.
 ```
 
----
-
-## Step 6 — Clone and Install the Project
-
-```bash
-git clone https://github.com/your-org/storage-control-room.git
-cd storage-control-room
-npm install
-```
-
-### Install CDK infrastructure dependencies
-
-```bash
-cd infrastructure/cdk
-npm install
-cd ../..
-```
+> You do **not** need to run this manually — the DropOut onboarding wizard handles it. This command is shown here for reference or automated CI pipelines.
 
 ---
 
-## Step 7 — Run the Development Server
+## Step 7 — Clone and Install
 
 ```bash
-npm run dev
+git clone https://github.com/abdelrahmangasser555/do-it-my-self.git dropout
+cd dropout
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-You should see the **Storage Control Room** dashboard with the sidebar on the left.
+`pnpm install` automatically installs the CDK infrastructure dependencies via the `postinstall` script.
 
 ---
 
-## Step 8 — Verify Everything is Working
+## Step 8 — Run the Dashboard
 
-Run through this quick checklist:
+```bash
+pnpm dev
+```
+
+Every time you run this, DropOut automatically:
+1. Pulls the latest code from `origin/master` via `scripts/pull-latest.js`
+2. Warns if `package.json` changed (run `pnpm install` to update dependencies)
+3. Starts the Next.js server at [http://localhost:3000](http://localhost:3000)
+
+The **auto-update** feature means you never have to manually pull updates. If the pull fails (offline, non-fast-forward), a warning is printed and the dev server still starts normally.
+
+---
+
+## Step 9 — Complete the Onboarding Wizard
+
+On first launch you will see the **Onboarding Wizard**. Walk through all 6 steps:
+
+1. **Environment Check** — validates Node.js, AWS CLI, CDK, Git
+2. **AWS Validation** — confirms credentials are active
+3. **Bootstrap Environments** — select regions to CDK-bootstrap (the wizard runs `cdk bootstrap` for you)
+4. **AI Configuration** — optional OpenAI API key
+5. **Bucket Sync** — re-imports existing CDK stacks
+6. **Star the Repo** — click "Go to Dashboard" to finish
+
+---
+
+## Step 10 — Verify Everything is Working
 
 ```
 ✅ Dashboard loads at localhost:3000
-✅ "aws sts get-caller-identity" returns your account info
-✅ "cdk --version" prints a 2.x version
-✅ "node -v" prints v20 or higher
+✅ aws sts get-caller-identity returns your account info
+✅ cdk --version prints 2.x.x
+✅ node -v prints v20.x.x
+✅ Onboarding wizard completes all green checks
 ```
 
-To confirm CDK is connected to your account, run from the project root:
+---
+
+## Optional — Enable AI Features
+
+The **Commands** page includes an AI command generator and error debugger powered by GPT-4o-mini.
+
+1. Get a key from [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+2. Open DropOut → **Settings** and paste the key into **OpenAI API Key**
+   — OR —
+   Add it to `.env.local`:
 
 ```bash
-cd infrastructure/cdk && cdk list
+# .env.local
+OPENAI_API_KEY=sk-proj-your-key-here
 ```
 
-This should print the CDK stack name (`StorageBucketStack`) without errors. If it does, you are ready to deploy buckets from the Infrastructure page in the dashboard.
+3. Restart the dev server
+
+> AI features are optional. The dashboard works fully without them.
+
+---
+
+## Environment Variables Reference
+
+Create a `.env.local` file in the project root to override defaults:
+
+```bash
+# .env.local (optional)
+
+# Override the AWS region for API calls
+AWS_REGION=us-east-1
+
+# Override the data directory path
+DATA_DIR=./data
+
+# Enable AI features (command generator + error debugger)
+OPENAI_API_KEY=sk-proj-your-key-here
+```
+
+All AWS credentials come from the standard AWS credential chain — never hardcode them in `.env.local`.
+
+---
+
+## Keeping DropOut Up To Date
+
+DropOut keeps itself updated automatically every time you run `pnpm dev`. If you want to manually trigger an update without starting the dev server:
+
+```bash
+pnpm update
+# equivalent to: node scripts/pull-latest.js
+```
+
+To check if your local code is on the latest commit:
+
+```bash
+git log --oneline -5
+git fetch origin master && git log HEAD..origin/master --oneline
+```
 
 ---
 
 ## Debugging Common Issues
 
+### `pnpm install` fails — "ERR_PNPM_OUTDATED_LOCKFILE"
+
+```bash
+pnpm install --frozen-lockfile=false
+```
+
+Or delete the lockfile and reinstall:
+
+```bash
+Remove-Item pnpm-lock.yaml   # Windows PowerShell
+pnpm install
+```
+
+---
+
 ### `aws configure` — "command not found" / "not recognized"
 
-The AWS CLI binary is not on your PATH.
-
-- **Windows:** Re-run the MSI installer and restart your terminal. Or add `C:\Program Files\Amazon\AWSCLIV2` manually to your system PATH.
-- **macOS / Linux:** Run `which aws`. If nothing is returned, the install did not complete. Re-run the installer steps in Step 2.
+- **Windows:** Re-run the MSI installer and restart the terminal. Or add `C:\Program Files\Amazon\AWSCLIV2` to your system PATH.
+- **macOS/Linux:** Run `which aws`. If nothing is returned, re-run the installer steps.
 
 ---
 
 ### `aws sts get-caller-identity` — "InvalidClientTokenId" or "AuthFailure"
 
-Your credentials are wrong or expired.
-
-1. Re-check the Access Key ID and Secret in the IAM console.
-2. Run `aws configure` again and re-enter the values carefully — no leading/trailing spaces.
-3. If using an IAM role instead of a user, make sure you have the correct `~/.aws/credentials` profile active.
+1. Re-check the credentials in the IAM console
+2. Run `aws configure` again (no leading/trailing spaces)
+3. If using SSO: `aws sso login --profile YOUR_PROFILE`
 
 ---
 
 ### `cdk bootstrap` — "ExpiredTokenException"
 
-Your AWS session token has expired (common with SSO or temporary credentials).
+Your session token expired:
 
 ```bash
 aws sso login --profile YOUR_PROFILE
+# or re-run: aws configure
 ```
-
-Or re-run `aws configure` with fresh long-term credentials.
 
 ---
 
-### `cdk bootstrap` — "This stack uses assets, so the toolkit stack must be deployed to the environment"
+### CDK synth/deploy fails with "EPERM" on Windows
 
-Run the full bootstrap command with your account ID:
+Stale `synth.lock` files in `cdk.out/` cause this. The infrastructure API route cleans these automatically, but if running CDK manually:
 
-```bash
-cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output text)/$(aws configure get region)
-```
-
-This auto-fills both values from current CLI config.
-
----
-
-### `npm install` — EACCES permission errors (macOS / Linux)
-
-Do **not** use `sudo npm install -g`. Instead, fix npm's global prefix:
-
-```bash
-mkdir -p ~/.npm-global
-npm config set prefix '~/.npm-global'
-echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
-source ~/.bashrc
-npm install -g aws-cdk
+```powershell
+Remove-Item infrastructure\cdk\cdk.out\synth.lock* -ErrorAction SilentlyContinue
+cd infrastructure\cdk
+npx cdk deploy --require-approval never
 ```
 
 ---
@@ -315,26 +371,41 @@ npm install -g aws-cdk
 ### `npm run dev` — port 3000 already in use
 
 ```bash
-# macOS / Linux — find and kill the process on port 3000:
+# macOS / Linux
 lsof -ti:3000 | xargs kill -9
 
-# Windows PowerShell:
+# Windows PowerShell
 netstat -ano | findstr :3000
-# Look for the PID in the last column, then:
 taskkill /PID <PID> /F
 ```
 
-Or run on a different port:
+Or use a different port:
 
 ```bash
-npm run dev -- -p 3001
+pnpm dev -- -p 3001
 ```
 
 ---
 
-### `cdk list` — "Cannot find module" or TypeScript errors
+### Auto-update shows "Already up to date" but changes are missing
 
-CDK dependencies in the infrastructure folder may not be installed:
+Your local branch may point to a different commit than you expect:
+
+```bash
+git log --oneline -5
+git diff HEAD origin/master --stat
+```
+
+If you are on a different branch than `master`:
+
+```bash
+git checkout master
+git pull origin master
+```
+
+---
+
+### CDK dependencies not found
 
 ```bash
 cd infrastructure/cdk
@@ -345,67 +416,32 @@ cd ../..
 
 ---
 
-### Dashboard shows blank page / 404 on all routes
+### Dashboard shows blank page / 404
 
-Make sure you are running `npm run dev` (not `npm start` — that requires a production build).  
-Also confirm there is no `app/page.tsx` file — it conflicts with the `app/(dashboard)/page.tsx` route.
+Make sure you are running `pnpm dev`, not `pnpm start` (which requires a production build). Also confirm there is no `app/page.tsx` file — it conflicts with `app/(dashboard)/page.tsx`.
 
 ```bash
-# Check:
-ls app/page.tsx    # Should not exist
+# Windows PowerShell
+Test-Path app\page.tsx   # Should return False
 ```
 
 ---
 
-### AWS region mismatch — buckets deploy to wrong region
-
-Every resource (bucket, CloudFront, IAM) is deployed to the region you set in `aws configure`. To check:
+### AWS region mismatch
 
 ```bash
 aws configure get region
+
+# Override for the current session:
+# macOS / Linux
+export AWS_DEFAULT_REGION=eu-west-1
+
+# Windows PowerShell
+$env:AWS_DEFAULT_REGION = "eu-west-1"
 ```
-
-To change it, either re-run `aws configure` or set the env variable:
-
-```bash
-export AWS_DEFAULT_REGION=eu-west-1   # macOS / Linux
-$env:AWS_DEFAULT_REGION="eu-west-1"   # Windows PowerShell
-```
-
----
-
-## Environment Reference
-
-The project reads these environment variables at runtime. You can create a `.env.local` file in the project root to override them:
-
-```bash
-# .env.local (optional overrides)
-AWS_REGION=us-east-1
-DATA_DIR=./data
-
-# Required for AI features (command generation + error debugging)
-OPENAI_API_KEY=sk-...
-```
-
-All AWS credentials come from the standard AWS credential chain (CLI config, env vars, IAM role) — no AWS keys are stored in `.env.local`.
-
-### AI Features (Optional)
-
-The **Commands** page includes an AI command generator and error debugger powered by OpenAI GPT-4o-mini. To enable these features:
-
-1. Get an API key from [platform.openai.com](https://platform.openai.com/api-keys)
-2. Add it to `.env.local`:
-
-```bash
-OPENAI_API_KEY=sk-proj-your-key-here
-```
-
-3. Restart the dev server
-
-> **Note:** AI features are optional. The dashboard works fully without an OpenAI key — the AI tab on the Commands page will simply return an error when used.
 
 ---
 
 ## Next Steps
 
-Once the setup is complete, open the [User Guide](/docs/user-guide) to learn how to create your first project and deploy a bucket.
+Once setup is complete, open the [User Guide](user-guide.md) to create your first project and deploy a bucket.

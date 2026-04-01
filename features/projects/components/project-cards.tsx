@@ -780,9 +780,10 @@ export function ProjectCards({ projects, buckets, onDelete, onAddBucket }: Proje
                 )}
                 <ContextMenuSeparator />
                 <ContextMenuItem
-                  className="text-destructive focus:text-destructive"
+                  className=""
                   disabled={hasBuckets}
                   onClick={() => handleDeleteAttempt(project)}
+                  variant="destructive"
                 >
                   <Trash2 className="mr-2 size-3.5" />
                   {hasBuckets ? "Has buckets — can't delete" : 'Delete Project'}
@@ -798,7 +799,7 @@ export function ProjectCards({ projects, buckets, onDelete, onAddBucket }: Proje
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-5 text-yellow-500" />
+              <AlertTriangle className="size-5 " />
               Cannot Delete Project
             </AlertDialogTitle>
             <AlertDialogDescription>

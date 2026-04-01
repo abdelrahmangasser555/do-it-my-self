@@ -87,19 +87,15 @@ export function StarRepoStep() {
             transition={{ delay: 0.2 }}
             className="flex flex-col items-center gap-3 text-center"
           >
-            <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
-              Hey! I build open-source tools to help developers move faster. DropOut is one of them
-              — all free, all local, no strings attached.
-            </p>
             <div className="max-w-md rounded-2xl border border-border/60 bg-muted/30 px-4 py-3 text-left shadow-sm backdrop-blur-sm">
               <div className="flex items-start gap-3">
                 <Quote className="mt-0.5 shrink-0 text-primary/70" />
                 <div className="flex flex-col gap-1">
                   <p className="text-sm font-medium leading-relaxed text-foreground">
-                    Build tools that respect time, stay local, and quietly remove friction.
+                    I hate file storage
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Practical software should feel calm, useful, and easy to trust.
+                    it should be easy and you shouldn't pay for easier service
                   </p>
                 </div>
               </div>

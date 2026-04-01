@@ -497,6 +497,7 @@ export function AwsStep({
                                     <CircleFlag
                                       countryCode={getRegionAlpha2(r.value)}
                                       height={14}
+                                      className="w-6"
                                     />
                                     {r.label}
                                   </div>

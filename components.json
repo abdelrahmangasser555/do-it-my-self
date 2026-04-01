@@ -21,6 +21,7 @@
   },
   "registries": {
     "@tour": "https://onboarding-tour.vercel.app/r/{name}.json",
-    "@mapcn": "https://mapcn.dev/r/{name}.json"
+    "@mapcn": "https://mapcn.dev/r/{name}.json",
+    "@magicui": "https://magicui.design/r/{name}"
   }
 }

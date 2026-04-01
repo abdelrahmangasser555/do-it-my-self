@@ -30,14 +30,14 @@ import {
   Settings,
   BookOpen,
   Zap,
-  Compass,
-  HardDrive,
+  Video,
   Plus,
   FolderPlus,
 } from 'lucide-react';
-import { useTour } from '@/components/ui/tour';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTheme } from '@/lib/theme-context';
+import { HeroVideoDialog } from '@/components/ui/hero-video-dialog';
 import { APP_CONFIG } from '@/lib/config';
 import { toast } from 'sonner';
 import { GitHubStarsButton } from '@/components/ui/github-stars-button';
@@ -74,25 +74,27 @@ const navItems = [
 ];
 
 type FooterLink = { label: string; icon: ElementType; href: string };
-type FooterAction = { label: string; icon: ElementType; action: 'tour' | 'reset' };
+type FooterAction = { label: string; icon: ElementType; action: 'tutorial' | 'reset' };
 type FooterItem = FooterLink | FooterAction;
 
 const footerActions: FooterItem[] = [
   { label: 'Settings', icon: Settings, href: '/settings' },
   { label: 'Documentation', icon: BookOpen, href: '/docs/setup-guide' },
   { label: 'Commands', icon: Zap, href: '/commands' },
-  { label: 'Start Tour', icon: Compass, action: 'tour' },
+  { label: 'Watch Tutorial', icon: Video, action: 'tutorial' },
   { label: 'Reset Local Data', icon: RotateCcw, action: 'reset' },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const tour = useTour();
   const router = useRouter();
+  const { resolvedTheme } = useTheme();
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [bucketDialogOpen, setBucketDialogOpen] = useState(false);
+  const logoSrc = resolvedTheme === 'dark' ? APP_CONFIG.logoDark : APP_CONFIG.logoLight;
 
   const { createProject, loading: creatingProject } = useCreateProject();
   const { createBucket, loading: creatingBucket } = useCreateBucket();
@@ -141,16 +143,57 @@ export function AppSidebar() {
     }
   };
 
-  const handleFooterClick = (action: 'tour' | 'reset') => {
-    if (action === 'tour') tour.start('product-tour');
+  const handleFooterClick = (action: 'tutorial' | 'reset') => {
+    if (action === 'tutorial') setTutorialOpen(true);
     if (action === 'reset') setResetOpen(true);
   };
 
   return (
     <Sidebar>
+      {/* Tutorial video dialog */}
+      <HeroVideoDialog
+        videoSrc={APP_CONFIG.tutorialVideoUrl}
+        thumbnailSrc={logoSrc}
+        animationStyle="from-center"
+        className="hidden"
+      />
+      {tutorialOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md"
+          onClick={() => setTutorialOpen(false)}
+        >
+          <div
+            className="relative mx-4 aspect-video w-full max-w-4xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute -top-12 right-0 rounded-full bg-neutral-900/50 p-2 text-white ring-1 backdrop-blur-md"
+              onClick={() => setTutorialOpen(false)}
+            >
+              <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+            <div className="size-full overflow-hidden rounded-2xl border-2 border-white">
+              <iframe
+                src={APP_CONFIG.tutorialVideoUrl}
+                title="Tutorial"
+                className="size-full rounded-2xl"
+                allowFullScreen
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              />
+            </div>
+          </div>
+        </div>
+      )}
       <SidebarHeader className="border-b px-4 h-14">
         <div className="flex items-center justify-between">
-          <HardDrive className="size-5 text-primary shrink-0" />
+          <img src={logoSrc} alt={APP_CONFIG.name} className="h-7 w-auto object-contain shrink-0" />
           <div className="flex items-center gap-1">
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>

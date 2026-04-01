@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, AlertCircle, Loader2, ArrowRight, HardDrive } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, ArrowRight, Video } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -21,7 +21,10 @@ import { EnvironmentStep } from './environment-step';
 import { AwsStep } from './aws-step';
 import { BootstrapEnvironmentsStep } from './bootstrap-environments-step';
 import { AiStep } from './ai-step';
+import { BucketSyncStep } from './bucket-sync-step';
 import { StarRepoStep } from './star-repo-step';
+import { HeroVideoDialog } from '@/components/ui/hero-video-dialog';
+import { APP_CONFIG } from '@/lib/config';
 
 // Animation variants for step cards
 const stepVariants = {
@@ -41,6 +44,7 @@ export function OnboardingPage() {
   const router = useRouter();
   const { state, loading: stateLoading, updateState } = useOnboardingState();
   const [showStarStep, setShowStarStep] = useState(false);
+  const [showBucketSync, setShowBucketSync] = useState(false);
 
   const envHook = useEnvironmentValidation();
   const awsHook = useAwsValidation();
@@ -137,6 +141,10 @@ export function OnboardingPage() {
   };
 
   const handleFinish = async () => {
+    setShowBucketSync(true);
+  };
+
+  const handleFinishBucketSync = () => {
     setShowStarStep(true);
   };
 
@@ -186,11 +194,15 @@ export function OnboardingPage() {
         >
           <div className="flex items-center gap-3">
             <motion.div
-              initial={{ rotate: -15, scale: 0.8 }}
-              animate={{ rotate: 0, scale: 1 }}
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 200, damping: 12 }}
             >
-              <HardDrive className="size-6 text-primary" />
+              <img
+                src={APP_CONFIG.logoDark}
+                alt={APP_CONFIG.name}
+                className="h-8 w-auto object-contain"
+              />
             </motion.div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Environment Setup</h1>
@@ -224,11 +236,32 @@ export function OnboardingPage() {
           <Progress value={progress} className="h-2" />
         </motion.div>
 
+        {/* Setup video */}
+        {!showStarStep && !showBucketSync && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="space-y-2"
+          >
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Video className="size-4 text-primary" />
+              Setup Guide Video
+            </div>
+            <HeroVideoDialog
+              videoSrc={APP_CONFIG.setupVideoUrl}
+              thumbnailSrc="/logos/white transparent background.png"
+              animationStyle="from-center"
+              className="rounded-xl overflow-hidden border border-border"
+            />
+          </motion.div>
+        )}
+
         <Separator />
 
         {/* Steps */}
         <AnimatePresence mode="wait">
-          {!showStarStep ? (
+          {!showStarStep && !showBucketSync ? (
             <motion.div
               key="steps"
               initial={{ opacity: 1 }}
@@ -311,6 +344,15 @@ export function OnboardingPage() {
                 />
               </motion.div>
             </motion.div>
+          ) : showBucketSync && !showStarStep ? (
+            <motion.div
+              key="bucket-sync"
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+            >
+              <BucketSyncStep />
+            </motion.div>
           ) : (
             <motion.div
               key="star"
@@ -332,7 +374,7 @@ export function OnboardingPage() {
           transition={{ delay: 0.5 }}
           className="flex items-center justify-between"
         >
-          {!showStarStep ? (
+          {!showBucketSync && !showStarStep ? (
             <>
               <div className="text-sm text-muted-foreground">
                 {isReady
@@ -344,10 +386,20 @@ export function OnboardingPage() {
                 <ArrowRight className="ml-2 size-4" />
               </Button>
             </>
+          ) : showBucketSync && !showStarStep ? (
+            <>
+              <Button variant="ghost" onClick={() => setShowBucketSync(false)} size="sm">
+                Back to setup
+              </Button>
+              <Button onClick={handleFinishBucketSync} size="lg">
+                Continue
+                <ArrowRight className="ml-2 size-4" />
+              </Button>
+            </>
           ) : (
             <>
               <Button variant="ghost" onClick={() => setShowStarStep(false)} size="sm">
-                Back to setup
+                Back
               </Button>
               <Button onClick={handleEnterDashboard} size="lg">
                 Enter Dashboard

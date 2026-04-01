@@ -75,7 +75,7 @@ export function ExplorerContextMenu({
             )}
             <ContextMenuSeparator />
             {onDelete && (
-              <ContextMenuItem className="text-destructive" onClick={onDelete}>
+              <ContextMenuItem variant="destructive" onClick={onDelete}>
                 <Trash2 className="mr-2 size-3.5" /> Delete
               </ContextMenuItem>
             )}

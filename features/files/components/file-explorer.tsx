@@ -5,12 +5,15 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -36,7 +39,21 @@ import {
   FolderUp,
   Cloud,
   FileUp,
+  Filter,
+  CalendarIcon,
+  X,
 } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ExplorerGrid } from './explorer-grid';
 import { FileIcon } from './file-icons';
 import type { MergedS3File } from '@/features/files/hooks/use-files';
@@ -64,6 +81,37 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
 }
 
+function getFileTypeLabel(key: string): string {
+  const ext = key.split('.').pop()?.toLowerCase() ?? '';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif'].includes(ext))
+    return 'Images';
+  if (['mp4', 'mov', 'avi', 'webm', 'mkv'].includes(ext)) return 'Videos';
+  if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) return 'Audio';
+  if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv'].includes(ext))
+    return 'Documents';
+  if (['js', 'ts', 'tsx', 'jsx', 'json', 'html', 'css', 'md', 'xml', 'yml', 'yaml'].includes(ext))
+    return 'Code';
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'Archives';
+  return 'Other';
+}
+
+function mergeDateAndTime(
+  date: Date | undefined,
+  time: string,
+  endOfRange = false,
+): Date | undefined {
+  if (!date) return undefined;
+  const [hours, minutes] = time.split(':').map((value) => Number.parseInt(value, 10));
+  const nextDate = new Date(date);
+  nextDate.setHours(
+    Number.isNaN(hours) ? 0 : hours,
+    Number.isNaN(minutes) ? 0 : minutes,
+    endOfRange ? 59 : 0,
+    endOfRange ? 999 : 0,
+  );
+  return nextDate;
+}
+
 // ── Main Component ──────────────────────────────────────────────────────────
 
 export function FileExplorer() {
@@ -73,6 +121,11 @@ export function FileExplorer() {
   const [bucketData, setBucketData] = useState<BucketS3Data[]>([]);
   const [currentPath, setCurrentPath] = useState('');
   const [search, setSearch] = useState('');
+  const [modifiedFrom, setModifiedFrom] = useState<Date | undefined>();
+  const [modifiedTo, setModifiedTo] = useState<Date | undefined>();
+  const [modifiedFromTime, setModifiedFromTime] = useState('00:00');
+  const [modifiedToTime, setModifiedToTime] = useState('23:59');
+  const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -86,6 +139,15 @@ export function FileExplorer() {
 
   const selectedBucket = buckets.find((b) => b.id === selectedBucketId);
   const selectedData = bucketData.find((bd) => bd.bucketId === selectedBucketId);
+  const availableFileTypes = useMemo(() => {
+    const fileTypes = new Set<string>();
+    for (const bucket of bucketData) {
+      for (const file of bucket.files) {
+        if (!file.key.endsWith('/')) fileTypes.add(getFileTypeLabel(file.key));
+      }
+    }
+    return Array.from(fileTypes).sort();
+  }, [bucketData]);
 
   // ── Fetch ──────────────────────────────────────────────────────────────
 
@@ -148,6 +210,26 @@ export function FileExplorer() {
 
   // ── Search across all buckets ──────────────────────────────────────────
 
+  const matchesFilters = useCallback(
+    (file: MergedS3File) => {
+      if (file.key.endsWith('/')) return false;
+
+      if (selectedFileTypes.length > 0 && !selectedFileTypes.includes(getFileTypeLabel(file.key))) {
+        return false;
+      }
+
+      const lastModified = new Date(file.lastModified);
+      const fromDateTime = mergeDateAndTime(modifiedFrom, modifiedFromTime);
+      const toDateTime = mergeDateAndTime(modifiedTo, modifiedToTime, true);
+
+      if (fromDateTime && lastModified < fromDateTime) return false;
+      if (toDateTime && lastModified > toDateTime) return false;
+
+      return true;
+    },
+    [modifiedFrom, modifiedFromTime, modifiedTo, modifiedToTime, selectedFileTypes],
+  );
+
   const searchResults = useMemo(() => {
     if (!search.trim()) return null;
     const q = search.toLowerCase();
@@ -155,7 +237,7 @@ export function FileExplorer() {
       [];
     for (const bd of bucketData) {
       for (const f of bd.files) {
-        if (f.key.toLowerCase().includes(q)) {
+        if (f.key.toLowerCase().includes(q) && matchesFilters(f)) {
           results.push({
             ...f,
             _bucket: bd.displayName,
@@ -166,7 +248,13 @@ export function FileExplorer() {
       }
     }
     return results;
-  }, [search, bucketData]);
+  }, [search, bucketData, matchesFilters]);
+
+  const filteredSelectedFiles = useMemo(() => {
+    return (selectedData?.files ?? []).filter(matchesFilters);
+  }, [matchesFilters, selectedData?.files]);
+
+  const visibleResultCount = search ? (searchResults?.length ?? 0) : filteredSelectedFiles.length;
 
   // ── Breadcrumb ─────────────────────────────────────────────────────────
 
@@ -289,16 +377,16 @@ export function FileExplorer() {
 
       for (const file of fileList) {
         try {
-          const fileName = prefix ? `${prefix}${file.name}` : file.name;
           const res = await fetch('/api/files', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              fileName,
+              fileName: file.name,
               fileSize: file.size,
               mimeType: file.type || 'application/octet-stream',
               projectId: project,
               bucketName: selectedBucket.s3BucketName,
+              folderPrefix: prefix.replace(/^\/+|\/+$/g, ''),
             }),
           });
           if (!res.ok) {
@@ -379,6 +467,7 @@ export function FileExplorer() {
   const totalFiles = bucketData.reduce((s, b) => s + b.totalFiles, 0);
   const totalSize = bucketData.reduce((s, b) => s + b.totalSize, 0);
   const activeBuckets = buckets.filter((b) => b.status === 'active');
+  const hasFilters = !!modifiedFrom || !!modifiedTo || selectedFileTypes.length > 0;
 
   // ── Render ─────────────────────────────────────────────────────────────
 
@@ -400,14 +489,14 @@ export function FileExplorer() {
               <SelectValue placeholder="Select a bucket" />
             </SelectTrigger>
             <SelectContent>
-              {activeBuckets.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
-                  <div className="flex items-center gap-2">
-                    <Database className="size-3.5 text-muted-foreground" />
+              <SelectGroup>
+                <SelectLabel>Buckets</SelectLabel>
+                {activeBuckets.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
                     {b.name}
-                  </div>
-                </SelectItem>
-              ))}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
 
@@ -425,15 +514,110 @@ export function FileExplorer() {
 
         <div className="flex items-center gap-2">
           {/* Search */}
-          <div className="flex items-center w-64 rounded-md border border-input bg-transparent">
-            <Search className="ml-2.5 size-3.5 text-muted-foreground shrink-0" />
-            <Input
+          <InputGroup className="w-80">
+            <InputGroupInput
               placeholder="Search files across all buckets..."
-              className="border-0 shadow-none h-9 text-xs focus-visible:ring-0"
+              className="h-9 text-xs"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-          </div>
+            <InputGroupAddon>
+              <Search />
+            </InputGroupAddon>
+            <InputGroupAddon align="inline-end">{visibleResultCount} results</InputGroupAddon>
+          </InputGroup>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-2">
+                <CalendarIcon className="size-3.5" />
+                Modified Range
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-82 p-3" align="end">
+              <div className="flex flex-col gap-4">
+                <div className="grid gap-2 md:grid-cols-2">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-xs font-medium">From</span>
+                    <Calendar mode="single" selected={modifiedFrom} onSelect={setModifiedFrom} />
+                    <Input
+                      type="time"
+                      value={modifiedFromTime}
+                      onChange={(e) => setModifiedFromTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-xs font-medium">To</span>
+                    <Calendar mode="single" selected={modifiedTo} onSelect={setModifiedTo} />
+                    <Input
+                      type="time"
+                      value={modifiedToTime}
+                      onChange={(e) => setModifiedToTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {(modifiedFrom || modifiedTo) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start"
+                    onClick={() => {
+                      setModifiedFrom(undefined);
+                      setModifiedTo(undefined);
+                      setModifiedFromTime('00:00');
+                      setModifiedToTime('23:59');
+                    }}
+                  >
+                    <X className="size-3.5" /> Clear range
+                  </Button>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-2">
+                <Filter className="size-3.5" />
+                File Types{selectedFileTypes.length > 0 ? ` (${selectedFileTypes.length})` : ''}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Filter By Type</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                {availableFileTypes.map((fileType) => (
+                  <DropdownMenuCheckboxItem
+                    key={fileType}
+                    checked={selectedFileTypes.includes(fileType)}
+                    onCheckedChange={(checked) => {
+                      setSelectedFileTypes((current) =>
+                        checked
+                          ? [...current, fileType]
+                          : current.filter((value) => value !== fileType),
+                      );
+                    }}
+                  >
+                    {fileType}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuGroup>
+              {selectedFileTypes.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => setSelectedFileTypes([])}
+                  >
+                    <X className="size-3.5" /> Clear types
+                  </Button>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button
             variant="outline"
             size="sm"
@@ -454,6 +638,26 @@ export function FileExplorer() {
           </Button>
         </div>
       </div>
+
+      {hasFilters && !search && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Badge variant="outline">{filteredSelectedFiles.length} matching files</Badge>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              setModifiedFrom(undefined);
+              setModifiedTo(undefined);
+              setModifiedFromTime('00:00');
+              setModifiedToTime('23:59');
+              setSelectedFileTypes([]);
+            }}
+          >
+            <X className="size-3.5" /> Clear filters
+          </Button>
+        </div>
+      )}
 
       {/* Breadcrumb bar */}
       {selectedBucket && !search && (
@@ -595,7 +799,7 @@ export function FileExplorer() {
         ) : (
           /* ── Explorer Grid ──────────────────────────────────────── */
           <ExplorerGrid
-            files={selectedData?.files ?? []}
+            files={filteredSelectedFiles}
             currentPath={currentPath}
             bucketName={selectedBucket.s3BucketName}
             region={selectedBucket.region}

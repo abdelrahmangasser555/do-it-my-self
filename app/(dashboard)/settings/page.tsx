@@ -371,7 +371,11 @@ export default function SettingsPage() {
                   {AWS_REGIONS.map((r) => (
                     <SelectItem key={r.value} value={r.value}>
                       <div className="flex items-center gap-2">
-                        <CircleFlag countryCode={getRegionAlpha2(r.value)} height={12} />
+                        <CircleFlag
+                          countryCode={getRegionAlpha2(r.value)}
+                          height={12}
+                          className="w-6"
+                        />
                         {r.label}
                       </div>
                     </SelectItem>

@@ -15,19 +15,25 @@ import {
 import { toast } from 'sonner';
 import { AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { PageTransition } from '@/components/page-transition';
 import { BucketCard } from '@/features/buckets/components/bucket-card';
 import { CreateBucketDialog } from '@/features/buckets/components/create-bucket-dialog';
 import { DeleteBucketDialog } from '@/features/buckets/components/delete-bucket-dialog';
 import { AwsSyncDialog } from '@/features/buckets/components/aws-sync-dialog';
 import { ConnectCdnDialog } from '@/features/buckets/components/connect-cdn-dialog';
+import { ConnectProjectDialog } from '@/features/buckets/components/connect-project-dialog';
 import { SyncStatusDialog } from '@/features/infrastructure/components/sync-status-dialog';
-import { useBuckets, useCreateBucket, useDeleteBucket } from '@/features/buckets/hooks/use-buckets';
+import {
+  useBuckets,
+  useCreateBucket,
+  useDeleteBucket,
+  useUpdateBucket,
+} from '@/features/buckets/hooks/use-buckets';
+import { useBucketInventory } from '@/features/buckets/hooks/use-bucket-inventory';
 import { useProjects } from '@/features/projects/hooks/use-projects';
 import { useDeployBucket } from '@/features/infrastructure/hooks/use-deploy-bucket';
-import { useFiles } from '@/features/files/hooks/use-files';
 import type { BucketFormValues } from '@/lib/validations';
 import type { Bucket } from '@/lib/types';
 import { useEnvironments } from '@/features/environments/hooks/use-environments';
@@ -39,15 +45,21 @@ export default function BucketsPage() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [awsSyncOpen, setAwsSyncOpen] = useState(false);
   const [connectCdnTarget, setConnectCdnTarget] = useState<Bucket | null>(null);
+  const [connectProjectTarget, setConnectProjectTarget] = useState<Bucket | null>(null);
   const [search, setSearch] = useState('');
   const { buckets, loading, refetch } = useBuckets();
   const { projects } = useProjects();
   const { createBucket, loading: creating } = useCreateBucket();
   const { deleteBucket } = useDeleteBucket();
+  const { updateBucket, loading: updatingBucket } = useUpdateBucket();
   const { deploy } = useDeployBucket();
-  const { files } = useFiles();
   const { environments } = useEnvironments();
-  const { bucketAnalytics } = useAnalytics();
+  const { bucketAnalytics, refetch: refetchAnalytics } = useAnalytics();
+  const {
+    inventory,
+    totals: inventoryTotals,
+    refetch: refetchInventory,
+  } = useBucketInventory(buckets);
 
   // Filter buckets by search query
   const filteredBuckets = buckets.filter((b) => {
@@ -121,24 +133,13 @@ export default function BucketsPage() {
       toast.error('Failed to import buckets');
     }
     refetch();
+    refetchInventory();
+    refetchAnalytics();
     setAwsSyncOpen(false);
   };
 
-  // Per-bucket file stats
-  const bucketStats = useMemo(() => {
-    const stats = new Map<string, { fileCount: number; totalSizeBytes: number }>();
-    for (const bucket of buckets) {
-      const bucketFiles = files.filter((f) => f.bucketName === bucket.s3BucketName);
-      stats.set(bucket.id, {
-        fileCount: bucketFiles.length,
-        totalSizeBytes: bucketFiles.reduce((sum, f) => sum + (f.size || 0), 0),
-      });
-    }
-    return stats;
-  }, [buckets, files]);
-
   const fileCountForBucket = (bucket: Bucket | null) =>
-    bucket ? (bucketStats.get(bucket.id)?.fileCount ?? 0) : 0;
+    bucket ? (inventory[bucket.id]?.fileCount ?? 0) : 0;
 
   // Summary stats
   const summaryStats = useMemo(() => {
@@ -146,7 +147,7 @@ export default function BucketsPage() {
     let totalBytes = 0;
     let activeCount = 0;
     for (const bucket of buckets) {
-      const s = bucketStats.get(bucket.id);
+      const s = inventory[bucket.id];
       if (s) {
         totalFiles += s.fileCount;
         totalBytes += s.totalSizeBytes;
@@ -162,10 +163,27 @@ export default function BucketsPage() {
     return {
       total: buckets.length,
       active: activeCount,
-      totalFiles,
-      totalStorage: formatBytes(totalBytes),
+      totalFiles: inventoryTotals.totalFiles || totalFiles,
+      totalStorage: formatBytes(inventoryTotals.totalSizeBytes || totalBytes),
     };
-  }, [buckets, bucketStats]);
+  }, [buckets, inventory, inventoryTotals]);
+
+  const projectNames = useMemo(
+    () => new Map(projects.map((project) => [project.id, project.name])),
+    [projects],
+  );
+
+  const handleConnectProject = async (projectId: string) => {
+    if (!connectProjectTarget) return;
+    const updated = await updateBucket(connectProjectTarget.id, { projectId });
+    if (!updated) {
+      toast.error('Failed to connect bucket to project');
+      return;
+    }
+    toast.success('Bucket connected to project');
+    setConnectProjectTarget(null);
+    refetch();
+  };
 
   // Drag-and-drop upload handler
   const handleFileDrop = useCallback(
@@ -225,12 +243,14 @@ export default function BucketsPage() {
       if (uploaded > 0) {
         toast.success(`Uploaded ${uploaded} file${uploaded !== 1 ? 's' : ''} to ${bucket.name}`);
         refetch();
+        refetchInventory();
+        refetchAnalytics();
       }
       if (failed > 0 && uploaded === 0) {
         toast.error(`All ${failed} upload${failed !== 1 ? 's' : ''} failed`);
       }
     },
-    [projects, refetch],
+    [projects, refetch, refetchAnalytics, refetchInventory],
   );
 
   return (
@@ -262,15 +282,16 @@ export default function BucketsPage() {
         </div>
 
         {/* Search bar */}
-        <div className="flex items-center w-80 rounded-md border border-input bg-transparent shadow-xs">
-          <Search className="ml-3 size-4 text-muted-foreground shrink-0" />
-          <Input
+        <InputGroup className="w-80">
+          <InputGroupInput
             placeholder="Search buckets by name, region, status…"
-            className="border-0 shadow-none focus-visible:ring-0"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-        </div>
+          <InputGroupAddon align="inline-end">
+            <Search />
+          </InputGroupAddon>
+        </InputGroup>
 
         {/* Summary strip */}
         {buckets.length > 0 && (
@@ -339,58 +360,19 @@ export default function BucketsPage() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             <AnimatePresence mode="popLayout">
               {filteredBuckets.map((bucket) => {
-                const stats = bucketStats.get(bucket.id) || {
-                  fileCount: 0,
-                  totalSizeBytes: 0,
+                const stats = inventory[bucket.id] || {
+                  fileCount: inventory[bucket.id]?.fileCount ?? 0,
+                  totalSizeBytes: inventory[bucket.id]?.totalSizeBytes ?? 0,
+                  files: [],
+                  fileTypeBreakdown: [],
                 };
                 const analytics = bucketAnalytics.find((a) => a.bucketId === bucket.id);
-                // Build file type breakdown from local file metadata
-                const bucketFiles = files.filter((f) => f.bucketName === bucket.s3BucketName);
-                const extCounts = new Map<string, number>();
-                for (const f of bucketFiles) {
-                  const ext = (f.objectKey ?? '').split('.').pop()?.toLowerCase() || 'other';
-                  extCounts.set(ext, (extCounts.get(ext) ?? 0) + 1);
-                }
-                const FILE_TYPE_COLORS: Record<string, string> = {
-                  jpg: '#3b82f6',
-                  jpeg: '#3b82f6',
-                  png: '#8b5cf6',
-                  gif: '#ec4899',
-                  webp: '#f59e0b',
-                  svg: '#14b8a6',
-                  mp4: '#ef4444',
-                  mov: '#ef4444',
-                  avi: '#ef4444',
-                  webm: '#ef4444',
-                  pdf: '#f97316',
-                  doc: '#2563eb',
-                  docx: '#2563eb',
-                  xls: '#22c55e',
-                  xlsx: '#22c55e',
-                  json: '#eab308',
-                  csv: '#a3e635',
-                  txt: '#94a3b8',
-                  html: '#e11d48',
-                  css: '#06b6d4',
-                  js: '#facc15',
-                  ts: '#3b82f6',
-                  zip: '#a78bfa',
-                  rar: '#a78bfa',
-                  gz: '#a78bfa',
-                  other: '#6b7280',
-                };
-                const fileTypeBreakdown = Array.from(extCounts.entries())
-                  .sort((a, b) => b[1] - a[1])
-                  .slice(0, 6)
-                  .map(([type, count]) => ({
-                    type,
-                    count,
-                    color: FILE_TYPE_COLORS[type] ?? '#6b7280',
-                  }));
+                const fileTypeBreakdown = inventory[bucket.id]?.fileTypeBreakdown ?? [];
                 return (
                   <BucketCard
                     key={bucket.id}
                     bucket={bucket}
+                    projectName={projectNames.get(bucket.projectId)}
                     fileCount={stats.fileCount}
                     totalSizeBytes={stats.totalSizeBytes}
                     analytics={analytics}
@@ -399,6 +381,7 @@ export default function BucketsPage() {
                     onFullDelete={handleFullDelete}
                     onDeploy={handleDeploy}
                     onConnectCDN={(b) => setConnectCdnTarget(b)}
+                    onConnectProject={(b) => setConnectProjectTarget(b)}
                     onFileDrop={handleFileDrop}
                   />
                 );
@@ -449,11 +432,24 @@ export default function BucketsPage() {
           }}
         />
 
+        <ConnectProjectDialog
+          open={!!connectProjectTarget}
+          onOpenChange={(open) => {
+            if (!open) setConnectProjectTarget(null);
+          }}
+          bucket={connectProjectTarget}
+          projects={projects}
+          loading={updatingBucket}
+          onConfirm={handleConnectProject}
+        />
+
         <SyncStatusDialog
           open={syncOpen}
           onOpenChange={setSyncOpen}
           onSynced={() => {
             refetch();
+            refetchInventory();
+            refetchAnalytics();
             toast.success('Buckets synced with AWS');
           }}
         />

@@ -35,6 +35,7 @@ import { toast } from 'sonner';
 
 export interface BucketCardProps {
   bucket: Bucket;
+  projectName?: string;
   fileCount: number;
   totalSizeBytes: number;
   analytics?: BucketAnalytics;
@@ -43,6 +44,7 @@ export interface BucketCardProps {
   onFullDelete?: (bucket: Bucket) => void;
   onDeploy: (bucket: Bucket) => void;
   onConnectCDN?: (bucket: Bucket) => void;
+  onConnectProject?: (bucket: Bucket) => void;
   onFileDrop?: (bucket: Bucket, files: File[]) => void;
 }
 
@@ -170,6 +172,7 @@ function ActivityPulse({ active }: { active: boolean }) {
 
 export function BucketCard({
   bucket,
+  projectName,
   fileCount,
   totalSizeBytes,
   analytics,
@@ -178,6 +181,7 @@ export function BucketCard({
   onFullDelete,
   onDeploy,
   onConnectCDN,
+  onConnectProject,
   onFileDrop,
 }: BucketCardProps) {
   const [copied, setCopied] = useState(false);
@@ -190,6 +194,7 @@ export function BucketCard({
   const status = statusConfig[bucket.status] ?? statusConfig.pending;
   const alpha2 = getRegionAlpha2(bucket.region);
   const isActive = bucket.status === 'active';
+  const needsProjectLink = !bucket.projectId;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(bucket.s3BucketName);
@@ -258,10 +263,10 @@ export function BucketCard({
       transition={{ duration: 0.2 }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={bucket.status === 'deleting' ? 'opacity-40 pointer-events-none' : ''}
+      className={`h-full ${bucket.status === 'deleting' ? 'opacity-40 pointer-events-none' : ''}`}
     >
       <div
-        className="relative overflow-hidden rounded-xl border border-border/50 bg-card transition-all duration-200 hover:border-border"
+        className="relative flex h-full overflow-hidden rounded-xl border border-border/50 bg-card transition-all duration-200 hover:border-border"
         style={{ transform: hovered ? 'scale(1.015)' : 'scale(1)', transition: 'transform 0.2s' }}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -295,11 +300,11 @@ export function BucketCard({
           )}
         </AnimatePresence>
 
-        <div className="p-4 space-y-3">
+        <div className="flex h-full w-full flex-col gap-3 p-4">
           {/* Header: flag + name + status */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <CircleFlag countryCode={alpha2} height={18} />
+              <CircleFlag countryCode={alpha2} height={18} className="w-12" />
               <div className="min-w-0">
                 <Link
                   href={`/buckets/${bucket.id}`}
@@ -315,6 +320,30 @@ export function BucketCard({
               <span className="text-[10px] text-muted-foreground">{status.label}</span>
             </div>
           </div>
+
+          {needsProjectLink ? (
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+              <div className="flex items-center justify-between gap-2">
+                <span>Connect this bucket to a project to enable uploads.</span>
+                {onConnectProject && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px]"
+                    onClick={() => onConnectProject(bucket)}
+                  >
+                    Connect
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : projectName ? (
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+              <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                {projectName}
+              </Badge>
+            </div>
+          ) : null}
 
           {/* Center: progress ring + stats */}
           <div className="flex items-center gap-4">
@@ -357,65 +386,67 @@ export function BucketCard({
             </div>
           </div>
 
-          {/* File type distribution bar */}
-          {fileTypeBreakdown && fileTypeBreakdown.length > 0 ? (
-            <FileTypeBar breakdown={fileTypeBreakdown} />
-          ) : (
-            <ActivityPulse active={isActive || bucket.status === 'deploying'} />
-          )}
-
-          {/* Bottom: created at + copy */}
-          <div className="flex items-center justify-between pt-0.5">
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <Calendar className="size-2.5" />
-              <span>{formatDate(bucket.createdAt)}</span>
-            </div>
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-muted-foreground font-mono truncate max-w-36 transition-colors"
-              title="Click to copy S3 name"
-            >
-              {bucket.s3BucketName}
-              {copied ? (
-                <Check className="size-2.5 text-emerald-500 shrink-0" />
-              ) : (
-                <Copy className="size-2.5 shrink-0" />
-              )}
-            </button>
-          </div>
-
-          {/* Hover actions */}
-          <AnimatePresence>
-            {hovered && isActive && onFileDrop && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 8 }}
-                transition={{ duration: 0.12 }}
-                className="flex items-center gap-1.5"
-              >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-[10px] flex-1"
-                  onClick={triggerUpload}
-                >
-                  <Upload className="mr-1 size-3" /> Upload
-                </Button>
-                <Button variant="outline" size="sm" className="h-7 text-[10px] flex-1" asChild>
-                  <Link href={`/buckets/${bucket.id}`}>
-                    <FolderOpen className="mr-1 size-3" /> Open
-                  </Link>
-                </Button>
-              </motion.div>
+          <div className="mt-auto flex flex-col gap-3">
+            {/* File type distribution bar */}
+            {fileTypeBreakdown && fileTypeBreakdown.length > 0 ? (
+              <FileTypeBar breakdown={fileTypeBreakdown} />
+            ) : (
+              <ActivityPulse active={isActive || bucket.status === 'deploying'} />
             )}
-          </AnimatePresence>
 
-          {fileCount === 0 && isActive && !hovered && (
-            <p className="text-center text-[10px] text-muted-foreground/40 py-0.5">
-              No files yet · Drop to upload
-            </p>
-          )}
+            {/* Bottom: created at + copy */}
+            <div className="flex items-center justify-between pt-0.5">
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <Calendar className="size-2.5" />
+                <span>{formatDate(bucket.createdAt)}</span>
+              </div>
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-muted-foreground font-mono truncate max-w-36 transition-colors"
+                title="Click to copy S3 name"
+              >
+                {bucket.s3BucketName}
+                {copied ? (
+                  <Check className="size-2.5 text-emerald-500 shrink-0" />
+                ) : (
+                  <Copy className="size-2.5 shrink-0" />
+                )}
+              </button>
+            </div>
+
+            {/* Hover actions */}
+            <AnimatePresence>
+              {hovered && isActive && onFileDrop && !needsProjectLink && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.12 }}
+                  className="flex items-center gap-1.5"
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-[10px] flex-1"
+                    onClick={triggerUpload}
+                  >
+                    <Upload className="mr-1 size-3" /> Upload
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-7 text-[10px] flex-1" asChild>
+                    <Link href={`/buckets/${bucket.id}`}>
+                      <FolderOpen className="mr-1 size-3" /> Open
+                    </Link>
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {fileCount === 0 && isActive && !hovered && !needsProjectLink && (
+              <p className="text-center text-[10px] text-muted-foreground/40 py-0.5">
+                No files yet · Drop to upload
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>
@@ -448,6 +479,12 @@ export function BucketCard({
         {onConnectCDN && isActive && !bucket.cloudFrontDomain && (
           <ContextMenuItem onClick={() => onConnectCDN(bucket)}>
             <CloudUpload className="mr-2 size-3.5" /> Connect CDN
+          </ContextMenuItem>
+        )}
+        {onConnectProject && (
+          <ContextMenuItem onClick={() => onConnectProject(bucket)}>
+            <FolderOpen className="mr-2 size-3.5" />{' '}
+            {needsProjectLink ? 'Connect Project' : 'Change Project'}
           </ContextMenuItem>
         )}
         <ContextMenuItem onClick={handleCopy}>

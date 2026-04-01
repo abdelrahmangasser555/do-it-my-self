@@ -37,7 +37,10 @@ import { Sparklines, SparklinesLine } from 'react-sparklines';
 import { CircleFlag } from 'react-circle-flags';
 import { getRegionAlpha2, getRegionCountry } from '@/lib/region-flags';
 import { FileTypeRod } from '@/features/buckets/components/bucket-card';
-import { useBucketInventory } from '@/features/buckets/hooks/use-bucket-inventory';
+import {
+  useBucketInventory,
+  type BucketInventorySummary,
+} from '@/features/buckets/hooks/use-bucket-inventory';
 import { useAnalytics } from '@/features/infrastructure/hooks/use-analytics';
 import { useExpenses } from '@/features/infrastructure/hooks/use-expenses';
 import type { Project, Bucket, BucketExpense } from '@/lib/types';
@@ -73,9 +76,74 @@ function buildActivityData(files: { lastModified: string; size?: number }[], day
   return data;
 }
 
+// ── Region Hover Flag ─────────────────────────────────────────────────────────
+
+export function RegionHoverFlag({
+  region,
+  buckets,
+  zIndex,
+  size = 24,
+}: {
+  region: string;
+  buckets: Bucket[];
+  zIndex?: number;
+  size?: number;
+}) {
+  const alpha2 = getRegionAlpha2(region);
+  const country = getRegionCountry(region);
+  const regionBuckets = buckets.filter((b) => b.region === region);
+
+  return (
+    <HoverCard openDelay={300} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <motion.div
+          whileHover={{ y: -4 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          className="overflow-hidden rounded-full ring-2 ring-card cursor-default"
+          style={{ zIndex }}
+        >
+          <CircleFlag countryCode={alpha2} height={size} width={size} />
+        </motion.div>
+      </HoverCardTrigger>
+      <HoverCardContent side="bottom" align="center" className="w-56 p-3">
+        <div className="flex items-center gap-2.5 mb-2">
+          <CircleFlag countryCode={alpha2} height={28} width={28} />
+          <div>
+            <p className="text-xs font-semibold">{country}</p>
+            <p className="text-[10px] text-muted-foreground font-mono">{region}</p>
+          </div>
+        </div>
+        {regionBuckets.length > 0 && (
+          <div className="space-y-1.5 border-t pt-2">
+            <p className="text-[10px] text-muted-foreground">
+              {regionBuckets.length} bucket{regionBuckets.length !== 1 ? 's' : ''}
+            </p>
+            {regionBuckets.map((b) => (
+              <div key={b.id} className="flex items-center justify-between">
+                <span className="text-[11px] truncate max-w-32">{b.name}</span>
+                <span
+                  className={`size-1.5 rounded-full shrink-0 ${
+                    b.status === 'active'
+                      ? 'bg-emerald-500'
+                      : b.status === 'deploying'
+                        ? 'bg-amber-400 animate-pulse'
+                        : b.status === 'failed'
+                          ? 'bg-red-500'
+                          : 'bg-muted-foreground/50'
+                  }`}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
 // ── Stacked Region Flags ──────────────────────────────────────────────────────
 
-function StackedFlags({ regions }: { regions: string[] }) {
+export function StackedFlags({ regions, buckets = [] }: { regions: string[]; buckets?: Bucket[] }) {
   const unique = [...new Set(regions)].slice(0, 5);
   if (unique.length === 0) {
     return (
@@ -88,15 +156,13 @@ function StackedFlags({ regions }: { regions: string[] }) {
     <div className="flex items-center shrink-0">
       <div className="flex -space-x-1.5">
         {unique.map((region, i) => (
-          <motion.div
+          <RegionHoverFlag
             key={region}
-            whileHover={{ y: -4 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-            className="overflow-hidden rounded-full ring-2 ring-card cursor-default"
-            style={{ zIndex: unique.length - i }}
-          >
-            <CircleFlag countryCode={getRegionAlpha2(region)} height={24} width={24} />
-          </motion.div>
+            region={region}
+            buckets={buckets}
+            zIndex={unique.length - i}
+            size={24}
+          />
         ))}
       </div>
       {regions.length > 5 && (
@@ -225,14 +291,14 @@ function EnvHoverCard({
 
 // ── All-Projects Storage Rod ──────────────────────────────────────────────────
 
-function AllProjectsStorageRod({
+export function AllProjectsStorageRod({
   allProjects,
   storageByProjectId,
   currentProjectId,
 }: {
   allProjects: Project[];
   storageByProjectId: Record<string, number>;
-  currentProjectId: string;
+  currentProjectId?: string;
 }) {
   const total = allProjects.reduce((s, p) => s + (storageByProjectId[p.id] ?? 0), 0);
   if (total === 0) return null;
@@ -299,9 +365,76 @@ function AllProjectsStorageRod({
   );
 }
 
+// ── Bucket Storage Rod (per-bucket distribution within a project) ────────────
+
+export function BucketStorageRod({
+  projectBuckets,
+  inventory,
+}: {
+  projectBuckets: Bucket[];
+  inventory: Record<string, BucketInventorySummary>;
+}) {
+  const segments = projectBuckets
+    .map((b, i) => ({
+      id: b.id,
+      name: b.name,
+      bytes: inventory[b.id]?.totalSizeBytes ?? 0,
+      color: BUCKET_PALETTE[i % BUCKET_PALETTE.length],
+    }))
+    .filter((s) => s.bytes > 0);
+
+  const total = segments.reduce((s, seg) => s + seg.bytes, 0);
+  if (total === 0) return null;
+
+  return (
+    <HoverCard openDelay={200} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <div
+          className="flex h-1.5 w-full cursor-default overflow-hidden rounded-full transition-all duration-150 hover:h-2"
+          role="img"
+          aria-label="Bucket storage distribution"
+        >
+          {segments.map((s) => (
+            <div
+              key={s.id}
+              className="h-full"
+              style={{ width: `${(s.bytes / total) * 100}%`, backgroundColor: s.color }}
+            />
+          ))}
+        </div>
+      </HoverCardTrigger>
+      <HoverCardContent side="top" align="center" className="w-52 p-3">
+        <p className="text-[11px] font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
+          Bucket Storage
+        </p>
+        <div className="space-y-0.5">
+          {segments.map((s) => (
+            <div key={s.id} className="flex items-center justify-between rounded px-1 py-0.5">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="size-2 rounded-full shrink-0"
+                  style={{ backgroundColor: s.color }}
+                />
+                <span className="text-xs text-foreground truncate max-w-24">{s.name}</span>
+              </div>
+              <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                {formatBytes(s.bytes)}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="border-t mt-2 pt-2 flex justify-between text-[10px] text-muted-foreground">
+          <span>Total</span>
+          <span className="font-medium text-foreground">{formatBytes(total)}</span>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
 // ── Activity Rod (reads / writes / data transfer per bucket) ─────────────────
 
-function ActivityRod({
+export function ActivityRod({
   buckets,
   allExpenses,
 }: {
@@ -490,7 +623,7 @@ export function ProjectCards({ projects, buckets, onDelete, onAddBucket }: Proje
                       {/* ── Header ── */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-2.5 min-w-0">
-                          <StackedFlags regions={regions} />
+                          <StackedFlags regions={regions} buckets={projectBuckets} />
                           <div className="min-w-0">
                             <Link href={`/projects/${project.id}`}>
                               <h3 className="font-semibold text-sm truncate hover:text-primary transition-colors">
@@ -572,13 +705,9 @@ export function ProjectCards({ projects, buckets, onDelete, onAddBucket }: Proje
                         </div>
                         <div className="space-y-1">
                           <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
-                            Project Storage
+                            Bucket Storage
                           </p>
-                          <AllProjectsStorageRod
-                            allProjects={projects}
-                            storageByProjectId={storageByProjectId}
-                            currentProjectId={project.id}
-                          />
+                          <BucketStorageRod projectBuckets={projectBuckets} inventory={inventory} />
                         </div>
                         <div className="space-y-1">
                           <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">

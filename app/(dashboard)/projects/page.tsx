@@ -1,13 +1,18 @@
 // Projects listing page with card-based layout
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus } from 'lucide-react';
+import { Sparklines, SparklinesLine } from 'react-sparklines';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageTransition } from '@/components/page-transition';
-import { ProjectCards } from '@/features/projects/components/project-cards';
+import {
+  ProjectCards,
+  StackedFlags,
+  AllProjectsStorageRod,
+} from '@/features/projects/components/project-cards';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
 import { CreateBucketDialog } from '@/features/buckets/components/create-bucket-dialog';
 import {
@@ -17,6 +22,7 @@ import {
 } from '@/features/projects/hooks/use-projects';
 import { useBuckets } from '@/features/buckets/hooks/use-buckets';
 import { useCreateBucket } from '@/features/buckets/hooks/use-buckets';
+import { useBucketInventory } from '@/features/buckets/hooks/use-bucket-inventory';
 import { useDeployBucket } from '@/features/infrastructure/hooks/use-deploy-bucket';
 import { useEnvironments } from '@/features/environments/hooks/use-environments';
 import type { ProjectFormValues, BucketFormValues } from '@/lib/validations';
@@ -34,6 +40,41 @@ export default function ProjectsPage() {
   const { createBucket, loading: creatingBucket } = useCreateBucket();
   const { deploy } = useDeployBucket();
   const { environments } = useEnvironments();
+  const { inventory } = useBucketInventory(buckets);
+
+  // Aggregated data for the one-liner
+  const allRegions = useMemo(
+    () => [...new Set(buckets.map((b) => b.region).filter(Boolean))],
+    [buckets],
+  );
+
+  const storageByProjectId = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const p of projects) {
+      const pb = buckets.filter((b) => b.projectId === p.id);
+      map[p.id] = pb.reduce((s, b) => s + (inventory[b.id]?.totalSizeBytes ?? 0), 0);
+    }
+    return map;
+  }, [projects, buckets, inventory]);
+
+  const activityData = useMemo(() => {
+    const days = 14;
+    const now = Date.now();
+    const data = new Array(days).fill(0);
+    for (const b of buckets) {
+      for (const f of inventory[b.id]?.files ?? []) {
+        const age = (now - new Date(f.lastModified).getTime()) / (1000 * 60 * 60 * 24);
+        const idx = days - 1 - Math.floor(age);
+        if (idx >= 0 && idx < days) {
+          const sizeKB = (f.size ?? 0) / 1024;
+          data[idx] += sizeKB > 0 ? Math.min(Math.sqrt(sizeKB), 8) : 1;
+        }
+      }
+    }
+    return data;
+  }, [buckets, inventory]);
+
+  const hasActivity = activityData.some((v) => v > 0);
 
   const handleCreate = async (data: ProjectFormValues) => {
     const result = await createProject(data);
@@ -88,16 +129,55 @@ export default function ProjectsPage() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-            <p className="text-muted-foreground">
-              Manage your storage projects and their configuration.
+      <div className="space-y-5">
+        {/* ── One-liner header ── */}
+        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border/50 bg-card/60 px-4 py-3">
+          <StackedFlags regions={allRegions} buckets={buckets} />
+
+          <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+          <div className="flex-1 min-w-32 space-y-1">
+            <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+              Project Distribution
             </p>
+            {projects.length > 0 ? (
+              <AllProjectsStorageRod
+                allProjects={projects}
+                storageByProjectId={storageByProjectId}
+              />
+            ) : (
+              <div className="h-1.5 w-full rounded-full bg-muted" />
+            )}
           </div>
-          <Button onClick={() => setDialogOpen(true)} data-tour-step-id="tour-new-project">
-            <Plus className="mr-2 size-4" />
+
+          <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+          <div className="space-y-1">
+            <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+              Activity (14d)
+            </p>
+            <div style={{ width: 80, height: 22 }} className="opacity-80">
+              <Sparklines
+                data={hasActivity ? activityData : new Array(14).fill(0)}
+                height={22}
+                min={0}
+              >
+                <SparklinesLine
+                  color="#22c55e"
+                  style={{ fill: '#22c55e', fillOpacity: 0.18, strokeWidth: 1.5 }}
+                />
+              </Sparklines>
+            </div>
+          </div>
+
+          <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+          <Button
+            size="sm"
+            onClick={() => setDialogOpen(true)}
+            data-tour-step-id="tour-new-project"
+          >
+            <Plus className="mr-1.5 size-3.5" />
             New Project
           </Button>
         </div>

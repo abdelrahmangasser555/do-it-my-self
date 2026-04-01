@@ -1,15 +1,12 @@
 // Project detail page showing buckets and files for a specific project
 'use client';
 
-import { use, useState, useEffect, useMemo } from 'react';
+import { use, useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, DollarSign, RefreshCw, Plus, Pencil } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { CircleFlag } from 'react-circle-flags';
 import { Sparklines, SparklinesLine } from 'react-sparklines';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
@@ -30,25 +27,32 @@ import {
 } from '@/components/ui/dialog';
 import { PageTransition } from '@/components/page-transition';
 import { FilesTable } from '@/features/files/components/files-table';
-import { AnalyticsCards } from '@/features/infrastructure/components/analytics-cards';
 import {
   CostSummaryCards,
   BucketExpensesTable,
   CostBreakdownTable,
   CostByServiceBreakdown,
 } from '@/features/infrastructure/components/cost-tables';
-import { BucketCard } from '@/features/buckets/components/bucket-card';
-import { FileTypeRod } from '@/features/buckets/components/bucket-card';
-import { useBuckets, useDeleteBucket, useCreateBucket } from '@/features/buckets/hooks/use-buckets';
+import { BucketCard, FileTypeRod } from '@/features/buckets/components/bucket-card';
+import { StackedFlags, BucketStorageRod } from '@/features/projects/components/project-cards';
+import {
+  useBuckets,
+  useDeleteBucket,
+  useCreateBucket,
+  useUpdateBucket,
+} from '@/features/buckets/hooks/use-buckets';
 import { useBucketInventory } from '@/features/buckets/hooks/use-bucket-inventory';
+import { useCompatibilityCheck } from '@/features/buckets/hooks/use-compatibility';
 import { useFiles, useDeleteFile } from '@/features/files/hooks/use-files';
 import { useAnalytics } from '@/features/infrastructure/hooks/use-analytics';
 import { useDeployBucket } from '@/features/infrastructure/hooks/use-deploy-bucket';
 import { useExpenses } from '@/features/infrastructure/hooks/use-expenses';
 import { useProjects, useUpdateProject } from '@/features/projects/hooks/use-projects';
 import { CreateBucketDialog } from '@/features/buckets/components/create-bucket-dialog';
+import { DeleteBucketDialog } from '@/features/buckets/components/delete-bucket-dialog';
+import { ConnectCdnDialog } from '@/features/buckets/components/connect-cdn-dialog';
+import { ConnectProjectDialog } from '@/features/buckets/components/connect-project-dialog';
 import { useEnvironments } from '@/features/environments/hooks/use-environments';
-import { getRegionAlpha2, getRegionCountry } from '@/lib/region-flags';
 import { toast } from 'sonner';
 import type { Bucket } from '@/lib/types';
 import type { BucketFormValues } from '@/lib/validations';
@@ -94,10 +98,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   } = useExpenses(id);
   const { deleteBucket } = useDeleteBucket();
   const { createBucket, loading: creatingBucket } = useCreateBucket();
+  const { updateBucket, loading: updatingBucket } = useUpdateBucket();
   const { deleteFile } = useDeleteFile();
   const { deploy } = useDeployBucket();
   const { environments } = useEnvironments();
+  const { compatMap, makeCompatible } = useCompatibilityCheck(buckets);
   const [bucketDialogOpen, setBucketDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Bucket | null>(null);
+  const [connectCdnTarget, setConnectCdnTarget] = useState<Bucket | null>(null);
+  const [connectProjectTarget, setConnectProjectTarget] = useState<Bucket | null>(null);
 
   // ── Edit project state ──
   const [editOpen, setEditOpen] = useState(false);
@@ -210,118 +219,209 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  const handleFullDelete = (bucket: Bucket) => {
+    setDeleteTarget(bucket);
+  };
+
+  const handleConnectProject = async (projectId: string) => {
+    if (!connectProjectTarget) return;
+    const updated = await updateBucket(connectProjectTarget.id, { projectId });
+    if (!updated) {
+      toast.error('Failed to connect bucket to project');
+      return;
+    }
+    toast.success('Bucket connected to project');
+    setConnectProjectTarget(null);
+    refetchBuckets();
+  };
+
+  const handleFileDrop = useCallback(
+    async (bucket: Bucket, droppedFiles: File[]) => {
+      if (!project) {
+        toast.error('Bucket has no associated project');
+        return;
+      }
+      const total = droppedFiles.length;
+      let uploaded = 0;
+      let failed = 0;
+      const batchId = `upload-${bucket.id}-${Date.now()}`;
+      if (total > 1) toast.loading(`Uploading 0 / ${total} files…`, { id: batchId });
+
+      for (let i = 0; i < droppedFiles.length; i++) {
+        const file = droppedFiles[i];
+        const fileId = `upload-file-${file.name}-${i}`;
+        toast.loading(`Uploading ${file.name}…`, { id: fileId });
+        try {
+          const res = await fetch('/api/files', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: file.name,
+              fileSize: file.size,
+              mimeType: file.type || 'application/octet-stream',
+              projectId: bucket.projectId,
+              bucketName: bucket.s3BucketName,
+            }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            toast.error(`${file.name} — ${data.error || `HTTP ${res.status}`}`, { id: fileId });
+            failed++;
+            if (total > 1)
+              toast.loading(`Uploading ${uploaded + failed} / ${total} files…`, { id: batchId });
+            continue;
+          }
+          const { uploadUrl } = await res.json();
+          const uploadRes = await fetch(uploadUrl, {
+            method: 'PUT',
+            body: file,
+            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+          });
+          if (uploadRes.ok) {
+            uploaded++;
+            toast.success(`${file.name} uploaded`, { id: fileId, duration: 3000 });
+          } else {
+            failed++;
+            toast.error(`${file.name} — S3 upload failed`, { id: fileId });
+          }
+        } catch (err) {
+          failed++;
+          toast.error(`${file.name} — ${err instanceof Error ? err.message : 'Network error'}`, {
+            id: fileId,
+          });
+        }
+        if (total > 1)
+          toast.loading(`Uploading ${uploaded + failed} / ${total} files…`, { id: batchId });
+      }
+      if (total > 1) {
+        if (failed === 0)
+          toast.success(`All ${uploaded} files uploaded to ${bucket.name}`, { id: batchId });
+        else if (uploaded === 0) toast.error(`All ${failed} uploads failed`, { id: batchId });
+        else toast.warning(`${uploaded} uploaded, ${failed} failed`, { id: batchId });
+      }
+      if (uploaded > 0) {
+        refetchBuckets();
+        refetchFiles();
+      }
+    },
+    [project, refetchBuckets, refetchFiles],
+  );
+
+  const fileCountForBucket = (bucket: Bucket | null) =>
+    bucket ? (inventory[bucket.id]?.fileCount ?? 0) : 0;
+
+  // Est. monthly cost from expenses
+  const estMonthlyCost = costSummary?.totalMonthlyCost ?? 0;
+  const totalFiles = useMemo(
+    () => buckets.reduce((s, b) => s + (inventory[b.id]?.fileCount ?? 0), 0),
+    [buckets, inventory],
+  );
+
   return (
     <PageTransition>
-      <div className="space-y-6">
-        {/* ── Header ── */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="size-4" />
+      <div className="space-y-5">
+        {/* ── One-liner header ── */}
+        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border/50 bg-card/60 px-4 py-3">
+          <Button variant="ghost" size="icon" className="size-7" onClick={() => router.back()}>
+            <ArrowLeft className="size-3.5" />
           </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight truncate">
-              {project?.name || 'Project'}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              {project && (
-                <>
-                  <Badge variant={project.environment === 'prod' ? 'default' : 'secondary'}>
-                    {project.environment}
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    Max {project.maxFileSizeMB} MB
-                  </span>
-                </>
-              )}
+
+          {/* Project name + env */}
+          <div className="min-w-0">
+            <p className="text-xs font-semibold truncate">{project?.name || 'Project'}</p>
+            <p className="text-[10px] text-muted-foreground">
+              {project?.environment} · max {project?.maxFileSizeMB} MB
+            </p>
+          </div>
+
+          <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+          {/* Region flags */}
+          <StackedFlags regions={uniqueRegions} buckets={buckets} />
+
+          <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+          {/* Est. monthly cost */}
+          <div className="min-w-16">
+            <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+              Est. Cost/mo
+            </p>
+            <p className="text-xs font-semibold tabular-nums">${estMonthlyCost.toFixed(2)}</p>
+          </div>
+
+          <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+          {/* File distribution */}
+          <div className="flex-1 min-w-28 space-y-1">
+            <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+              File Distribution · {totalFiles} files
+            </p>
+            {aggregatedBreakdown.length > 0 ? (
+              <FileTypeRod breakdown={aggregatedBreakdown} />
+            ) : (
+              <div className="h-1.5 w-full rounded-full bg-muted" />
+            )}
+          </div>
+
+          <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+          {/* Storage distribution */}
+          <div className="flex-1 min-w-28 space-y-1">
+            <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+              Storage Distribution · {formatBytes(totalStorageBytes)}
+            </p>
+            {buckets.length > 0 ? (
+              <BucketStorageRod projectBuckets={buckets} inventory={inventory} />
+            ) : (
+              <div className="h-1.5 w-full rounded-full bg-muted" />
+            )}
+          </div>
+
+          <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+          {/* Activity sparkline */}
+          <div className="space-y-1">
+            <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+              Activity (14d)
+            </p>
+            <div style={{ width: 72, height: 20 }} className="opacity-80">
+              <Sparklines
+                data={hasActivity ? activityData : new Array(14).fill(0)}
+                height={20}
+                min={0}
+              >
+                <SparklinesLine
+                  color="#22c55e"
+                  style={{ fill: '#22c55e', fillOpacity: 0.18, strokeWidth: 1.5 }}
+                />
+              </Sparklines>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)} disabled={!project}>
-            <Pencil className="size-3.5 mr-1.5" />
-            Edit
-          </Button>
+
+          <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+          {/* Actions */}
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              onClick={() => setBucketDialogOpen(true)}
+            >
+              <Plus className="size-3 mr-1" />
+              Add Bucket
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0"
+              onClick={() => setEditOpen(true)}
+              disabled={!project}
+            >
+              <Pencil className="size-3" />
+            </Button>
+          </div>
         </div>
-
-        {/* ── Hero stats bar ── */}
-        {project && (
-          <div className="flex flex-wrap items-center gap-5 rounded-xl border border-border/50 bg-card/60 px-5 py-4">
-            {/* Animated region flags */}
-            <div className="flex items-center">
-              {uniqueRegions.length === 0 ? (
-                <span className="text-xs text-muted-foreground">No regions yet</span>
-              ) : (
-                <div className="flex -space-x-2">
-                  {uniqueRegions.slice(0, 6).map((region, i, arr) => (
-                    <motion.div
-                      key={region}
-                      whileHover={{ y: -5 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                      title={`${getRegionCountry(region)} (${region})`}
-                      className="overflow-hidden rounded-full ring-2 ring-card cursor-default"
-                      style={{ zIndex: arr.length - i }}
-                    >
-                      <CircleFlag countryCode={getRegionAlpha2(region)} height={30} width={30} />
-                    </motion.div>
-                  ))}
-                  {uniqueRegions.length > 6 && (
-                    <span className="ml-2 text-[10px] text-muted-foreground self-center">
-                      +{uniqueRegions.length - 6}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="h-8 w-px bg-border/50 hidden sm:block" />
-
-            {/* File distribution rod */}
-            <div className="flex-1 min-w-36 space-y-1">
-              <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-                File Distribution
-              </p>
-              {aggregatedBreakdown.length > 0 ? (
-                <FileTypeRod breakdown={aggregatedBreakdown} />
-              ) : (
-                <div className="h-1.5 w-full rounded-full bg-muted" />
-              )}
-            </div>
-
-            <div className="h-8 w-px bg-border/50 hidden sm:block" />
-
-            {/* Storage */}
-            <div className="min-w-28 space-y-0.5">
-              <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-                Storage
-              </p>
-              <p className="text-sm font-semibold tabular-nums">{formatBytes(totalStorageBytes)}</p>
-              <p className="text-[10px] text-muted-foreground">
-                across {buckets.length} bucket{buckets.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-
-            <div className="h-8 w-px bg-border/50 hidden sm:block" />
-
-            {/* Activity sparkline */}
-            <div className="space-y-1">
-              <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-                Activity (14d)
-              </p>
-              <div style={{ width: 90, height: 24 }} className="opacity-80">
-                <Sparklines
-                  data={hasActivity ? activityData : new Array(14).fill(0)}
-                  height={24}
-                  min={0}
-                >
-                  <SparklinesLine
-                    color="#22c55e"
-                    style={{ fill: '#22c55e', fillOpacity: 0.2, strokeWidth: 1.5 }}
-                  />
-                </Sparklines>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <AnalyticsCards summary={summary} loading={analyticsLoading} />
 
         <Tabs defaultValue="buckets">
           <TabsList>
@@ -333,40 +433,40 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </TabsTrigger>
           </TabsList>
           <TabsContent value="buckets">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Project Buckets</CardTitle>
-                <Button size="sm" onClick={() => setBucketDialogOpen(true)}>
-                  <Plus className="mr-1.5 size-3.5" />
-                  Add Bucket
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {buckets.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                    <p className="text-sm font-medium">No buckets yet</p>
-                    <p className="text-xs mt-1">Add your first bucket to get started.</p>
-                  </div>
-                ) : (
-                  <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                    {buckets.map((bucket) => (
-                      <BucketCard
-                        key={bucket.id}
-                        bucket={bucket}
-                        projectName={project?.name}
-                        fileCount={inventory[bucket.id]?.fileCount ?? 0}
-                        totalSizeBytes={inventory[bucket.id]?.totalSizeBytes ?? 0}
-                        analytics={bucketAnalytics.find((a) => a.bucketId === bucket.id)}
-                        fileTypeBreakdown={inventory[bucket.id]?.fileTypeBreakdown ?? []}
-                        files={inventory[bucket.id]?.files ?? []}
-                        onDelete={handleDeleteBucket}
-                        onDeploy={handleDeploy}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {buckets.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <p className="text-sm font-medium">No buckets yet</p>
+                <p className="text-xs mt-1">Add your first bucket to get started.</p>
+              </div>
+            ) : (
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 mt-4">
+                {buckets.map((bucket) => (
+                  <BucketCard
+                    key={bucket.id}
+                    bucket={bucket}
+                    projectName={project?.name}
+                    fileCount={inventory[bucket.id]?.fileCount ?? 0}
+                    totalSizeBytes={inventory[bucket.id]?.totalSizeBytes ?? 0}
+                    analytics={bucketAnalytics.find((a) => a.bucketId === bucket.id)}
+                    fileTypeBreakdown={inventory[bucket.id]?.fileTypeBreakdown ?? []}
+                    files={inventory[bucket.id]?.files ?? []}
+                    compatible={compatMap[bucket.id]?.compatible}
+                    compatibilityFixing={compatMap[bucket.id]?.fixing}
+                    onDelete={handleDeleteBucket}
+                    onFullDelete={handleFullDelete}
+                    onDeploy={handleDeploy}
+                    onConnectCDN={(b) => setConnectCdnTarget(b)}
+                    onConnectProject={(b) => setConnectProjectTarget(b)}
+                    onFileDrop={handleFileDrop}
+                    onMakeCompatible={async (b) => {
+                      const ok = await makeCompatible(b);
+                      if (ok) toast.success(`${b.name} is now compatible`);
+                      else toast.error(`Failed to fix compatibility for ${b.name}`);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </TabsContent>
           <TabsContent value="files">
             <Card>
@@ -380,7 +480,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </TabsContent>
 
           <TabsContent value="pricing" className="space-y-6">
-            {/* Cost summary cards */}
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold">Project Cost Breakdown</h2>
@@ -401,7 +500,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
             <CostSummaryCards summary={costSummary} loading={expensesLoading} />
 
-            {/* Service breakdown + cost chart side by side */}
             <div className="grid gap-6 lg:grid-cols-2">
               <CostByServiceBreakdown
                 services={
@@ -409,24 +507,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     ? [
                         { service: 'S3 Storage', cost: costSummary.s3StorageCost },
                         { service: 'S3 Requests', cost: costSummary.s3RequestsCost },
-                        {
-                          service: 'S3 Data Transfer',
-                          cost: costSummary.s3DataTransferCost,
-                        },
-                        {
-                          service: 'CloudFront Transfer',
-                          cost: costSummary.cfDataTransferCost,
-                        },
-                        {
-                          service: 'CloudFront Requests',
-                          cost: costSummary.cfRequestsCost,
-                        },
+                        { service: 'S3 Data Transfer', cost: costSummary.s3DataTransferCost },
+                        { service: 'CloudFront Transfer', cost: costSummary.cfDataTransferCost },
+                        { service: 'CloudFront Requests', cost: costSummary.cfRequestsCost },
                       ]
                     : []
                 }
               />
 
-              {/* Per-bucket total cost ranking */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm">Cost per Bucket</CardTitle>
@@ -462,9 +550,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                               <div
                                 className="h-full rounded-full bg-primary"
-                                style={{
-                                  width: `${Math.max(pct, 2)}%`,
-                                }}
+                                style={{ width: `${Math.max(pct, 2)}%` }}
                               />
                             </div>
                           </div>
@@ -477,7 +563,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
             <Separator />
 
-            {/* Detailed bucket expenses table */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -490,7 +575,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </CardContent>
             </Card>
 
-            {/* Individual bucket cost breakdowns */}
             {bucketExpenses.length > 0 && (
               <div className="space-y-4">
                 <h3 className="text-sm font-medium text-muted-foreground">
@@ -518,6 +602,43 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           loading={creatingBucket}
           environments={environments}
           defaultProjectId={id}
+        />
+
+        <DeleteBucketDialog
+          open={!!deleteTarget}
+          onOpenChange={(v) => {
+            if (!v) setDeleteTarget(null);
+          }}
+          bucket={deleteTarget}
+          fileCount={fileCountForBucket(deleteTarget)}
+          onComplete={() => {
+            setDeleteTarget(null);
+            refetchBuckets();
+            toast.success('Bucket fully deleted from AWS');
+          }}
+        />
+
+        <ConnectCdnDialog
+          open={!!connectCdnTarget}
+          onOpenChange={(v) => {
+            if (!v) setConnectCdnTarget(null);
+          }}
+          bucket={connectCdnTarget}
+          onComplete={() => {
+            setConnectCdnTarget(null);
+            refetchBuckets();
+          }}
+        />
+
+        <ConnectProjectDialog
+          open={!!connectProjectTarget}
+          onOpenChange={(open) => {
+            if (!open) setConnectProjectTarget(null);
+          }}
+          bucket={connectProjectTarget}
+          projects={projects}
+          loading={updatingBucket}
+          onConfirm={handleConnectProject}
         />
 
         {/* ── Edit Project Dialog ── */}

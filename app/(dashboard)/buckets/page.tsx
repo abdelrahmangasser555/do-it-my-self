@@ -3,24 +3,18 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  Plus,
-  RefreshCw,
-  Search,
-  Cloud,
-  Database,
-  HardDrive,
-  Activity,
-  FileStack,
-} from 'lucide-react';
+import { Plus, RefreshCw, Search, Database } from 'lucide-react';
+import { FaAws } from 'react-icons/fa';
+import { Sparklines, SparklinesLine } from 'react-sparklines';
 import { toast } from 'sonner';
 import { AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageTransition } from '@/components/page-transition';
-import { BucketCard } from '@/features/buckets/components/bucket-card';
+import { BucketCard, FileTypeRod } from '@/features/buckets/components/bucket-card';
+import { StackedFlags } from '@/features/projects/components/project-cards';
 import { CreateBucketDialog } from '@/features/buckets/components/create-bucket-dialog';
 import { DeleteBucketDialog } from '@/features/buckets/components/delete-bucket-dialog';
 import { AwsSyncDialog } from '@/features/buckets/components/aws-sync-dialog';
@@ -174,6 +168,44 @@ export default function BucketsPage() {
     };
   }, [buckets, inventory, inventoryTotals]);
 
+  const allRegions = useMemo(
+    () => [...new Set(buckets.map((b) => b.region).filter(Boolean))],
+    [buckets],
+  );
+
+  const aggregatedBreakdown = useMemo(() => {
+    const typeMap = new Map<string, { count: number; color: string }>();
+    for (const b of buckets) {
+      for (const seg of inventory[b.id]?.fileTypeBreakdown ?? []) {
+        const ex = typeMap.get(seg.type);
+        if (ex) ex.count += seg.count;
+        else typeMap.set(seg.type, { count: seg.count, color: seg.color });
+      }
+    }
+    return Array.from(typeMap.entries())
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([type, { count, color }]) => ({ type, count, color }));
+  }, [buckets, inventory]);
+
+  const activityData = useMemo(() => {
+    const days = 14;
+    const now = Date.now();
+    const data = new Array(days).fill(0);
+    for (const b of buckets) {
+      for (const f of inventory[b.id]?.files ?? []) {
+        const age = (now - new Date(f.lastModified).getTime()) / (1000 * 60 * 60 * 24);
+        const idx = days - 1 - Math.floor(age);
+        if (idx >= 0 && idx < days) {
+          const sizeKB = (f.size ?? 0) / 1024;
+          data[idx] += sizeKB > 0 ? Math.min(Math.sqrt(sizeKB), 8) : 1;
+        }
+      }
+    }
+    return data;
+  }, [buckets, inventory]);
+
+  const hasActivity = activityData.some((v) => v > 0);
+
   const projectNames = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects],
@@ -314,81 +346,100 @@ export default function BucketsPage() {
   return (
     <PageTransition>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Buckets</h1>
-            <p className="text-muted-foreground">Manage S3 buckets and CloudFront distributions.</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setAwsSyncOpen(true)}>
-              <Cloud className="mr-2 size-4" />
-              Discover AWS Buckets
+        {/* One-liner */}
+        <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-card px-4 py-2.5 overflow-x-auto">
+          {/* Regions */}
+          {allRegions.length > 0 && (
+            <>
+              <StackedFlags regions={allRegions} buckets={buckets} />
+              <div className="h-5 w-px bg-border/60 shrink-0" />
+            </>
+          )}
+
+          {/* File Distribution rod */}
+          {aggregatedBreakdown.length > 0 && (
+            <>
+              <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                  Files · {summaryStats.totalFiles}
+                </span>
+                <div className="w-18">
+                  <FileTypeRod breakdown={aggregatedBreakdown} />
+                </div>
+              </div>
+              <div className="h-5 w-px bg-border/60 shrink-0" />
+            </>
+          )}
+
+          {/* Storage + buckets */}
+          <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+            {summaryStats.total} buckets · {summaryStats.totalStorage}
+          </span>
+          <div className="h-5 w-px bg-border/60 shrink-0" />
+
+          {/* Activity sparkline */}
+          {hasActivity && (
+            <>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] text-muted-foreground">Activity</span>
+                <Sparklines data={activityData} width={56} height={16} margin={1}>
+                  <SparklinesLine
+                    style={{ stroke: 'currentColor', strokeWidth: 1.5, fill: 'none' }}
+                  />
+                </Sparklines>
+              </div>
+              <div className="h-5 w-px bg-border/60 shrink-0" />
+            </>
+          )}
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Search */}
+          <InputGroup className="w-56 shrink-0">
+            <InputGroupInput
+              placeholder="Search buckets…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-7 text-xs"
+            />
+            <InputGroupAddon align="inline-end">
+              <Search className="size-3" />
+            </InputGroupAddon>
+          </InputGroup>
+
+          {/* Actions */}
+          <div className="flex items-center gap-1 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => setAwsSyncOpen(true)}
+              title="Discover AWS Buckets"
+            >
+              <FaAws className="size-4" />
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
+              size="icon"
+              className="size-7"
               onClick={() => setSyncOpen(true)}
               data-tour-step-id="tour-sync-aws"
+              title="Sync Status"
             >
-              <RefreshCw className="mr-2 size-4" />
-              Sync Status
+              <RefreshCw className="size-3.5" />
             </Button>
-            <Button onClick={() => setDialogOpen(true)} data-tour-step-id="tour-new-bucket">
-              <Plus className="mr-2 size-4" />
-              New Bucket
+            <Button
+              size="icon"
+              className="size-7"
+              onClick={() => setDialogOpen(true)}
+              data-tour-step-id="tour-new-bucket"
+              title="New Bucket"
+            >
+              <Plus className="size-3.5" />
             </Button>
           </div>
         </div>
-
-        {/* Search bar */}
-        <InputGroup className="w-80">
-          <InputGroupInput
-            placeholder="Search buckets by name, region, status…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <InputGroupAddon align="inline-end">
-            <Search />
-          </InputGroupAddon>
-        </InputGroup>
-
-        {/* Summary strip */}
-        {buckets.length > 0 && (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {[
-              {
-                icon: Database,
-                label: 'Total Buckets',
-                value: summaryStats.total,
-              },
-              {
-                icon: Activity,
-                label: 'Active',
-                value: summaryStats.active,
-              },
-              {
-                icon: FileStack,
-                label: 'Total Files',
-                value: summaryStats.totalFiles,
-              },
-              {
-                icon: HardDrive,
-                label: 'Total Storage',
-                value: summaryStats.totalStorage,
-              },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className="flex items-center gap-3 rounded-xl border border-border/50 bg-card px-4 py-3"
-              >
-                <stat.icon className="size-5 text-muted-foreground/60" />
-                <div>
-                  <p className="text-sm font-semibold leading-none">{stat.value}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{stat.label}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Content area */}
         {loading ? (

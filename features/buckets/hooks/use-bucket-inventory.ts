@@ -19,13 +19,13 @@ export interface BucketInventorySummary {
 }
 
 const FILE_TYPE_COLORS: Record<string, string> = {
-  image: 'hsl(var(--chart-1))',
-  video: 'hsl(var(--chart-2))',
-  document: 'hsl(var(--chart-3))',
-  archive: 'hsl(var(--chart-4))',
-  code: 'hsl(var(--chart-5))',
-  audio: 'hsl(var(--primary))',
-  other: 'hsl(var(--muted-foreground))',
+  image: 'var(--chart-1)',
+  video: 'var(--chart-2)',
+  document: 'var(--chart-3)',
+  archive: 'var(--chart-4)',
+  code: 'var(--chart-5)',
+  audio: 'var(--primary)',
+  other: 'var(--muted-foreground)',
 };
 
 function classifyFileType(key: string): string {

@@ -17,6 +17,7 @@ import { AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { PageTransition } from '@/components/page-transition';
 import { BucketCard } from '@/features/buckets/components/bucket-card';
 import { CreateBucketDialog } from '@/features/buckets/components/create-bucket-dialog';
@@ -334,8 +335,42 @@ export default function BucketsPage() {
 
         {/* Content area */}
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <p className="text-sm text-muted-foreground">Loading...</p>
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex flex-col gap-3 rounded-xl border border-border/50 bg-card p-4"
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="size-5 rounded-full" />
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-3.5 w-28" />
+                      <Skeleton className="h-2.5 w-16" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-6 w-16 rounded-md" />
+                </div>
+                {/* Ring + stats */}
+                <div className="flex items-center gap-4">
+                  <Skeleton className="w-22.5 h-22.5 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-4/5" />
+                    <Skeleton className="h-3 w-3/5" />
+                  </div>
+                </div>
+                {/* Footer */}
+                <div className="mt-auto space-y-2">
+                  <Skeleton className="h-1.5 w-full rounded-full" />
+                  <div className="flex justify-between">
+                    <Skeleton className="h-2.5 w-20" />
+                    <Skeleton className="h-2.5 w-28" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : filteredBuckets.length === 0 && search ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -377,6 +412,7 @@ export default function BucketsPage() {
                     totalSizeBytes={stats.totalSizeBytes}
                     analytics={analytics}
                     fileTypeBreakdown={fileTypeBreakdown}
+                    files={inventory[bucket.id]?.files}
                     onDelete={handleDelete}
                     onFullDelete={handleFullDelete}
                     onDeploy={handleDeploy}

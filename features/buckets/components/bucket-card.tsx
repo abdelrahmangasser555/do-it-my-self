@@ -28,6 +28,7 @@ import {
   Link2,
 } from 'lucide-react';
 import { CircleFlag } from 'react-circle-flags';
+import { Sparklines, SparklinesLine } from 'react-sparklines';
 import { getRegionAlpha2 } from '@/lib/region-flags';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import type { Bucket, BucketAnalytics } from '@/lib/types';
@@ -42,6 +43,7 @@ export interface BucketCardProps {
   totalSizeBytes: number;
   analytics?: BucketAnalytics;
   fileTypeBreakdown?: { type: string; count: number; color: string }[];
+  files?: { lastModified: string }[];
   onDelete: (id: string) => void;
   onFullDelete?: (bucket: Bucket) => void;
   onDeploy: (bucket: Bucket) => void;
@@ -127,14 +129,13 @@ function FileTypeRod({
   breakdown: { type: string; count: number; color: string }[];
 }) {
   const total = breakdown.reduce((s, b) => s + b.count, 0);
-  if (total === 0)
-    return <div className="h-2 w-full rounded-full bg-muted/20" title="No files yet" />;
+  if (total === 0) return null;
 
   return (
     <HoverCard openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>
         <div
-          className="flex h-2 w-full cursor-default overflow-hidden rounded-full bg-muted/20 transition-all hover:h-2.5"
+          className="flex h-1.5 w-full cursor-default overflow-hidden rounded-full transition-all duration-150 hover:h-2"
           role="img"
           aria-label="File type distribution"
         >
@@ -143,8 +144,11 @@ function FileTypeRod({
             .map((b) => (
               <div
                 key={b.type}
-                className="h-full transition-all duration-500"
-                style={{ width: `${(b.count / total) * 100}%`, backgroundColor: b.color }}
+                className="h-full"
+                style={{
+                  width: `${(b.count / total) * 100}%`,
+                  backgroundColor: b.color,
+                }}
               />
             ))}
         </div>
@@ -163,7 +167,7 @@ function FileTypeRod({
                     className="size-2 rounded-full shrink-0"
                     style={{ backgroundColor: b.color }}
                   />
-                  <span className="text-xs text-foreground">{b.type}</span>
+                  <span className="text-xs text-foreground capitalize">{b.type}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-medium tabular-nums">{b.count}</span>
@@ -183,21 +187,29 @@ function FileTypeRod({
   );
 }
 
-// ── Activity Pulse ──────────────────────────────────────────────────────────
+// ── Activity Sparkline ───────────────────────────────────────────────────────
 
-function ActivityPulse({ active }: { active: boolean }) {
+function buildActivityData(files: { lastModified: string }[], days = 10): number[] {
+  const now = Date.now();
+  const data = new Array(days).fill(0);
+  for (const f of files) {
+    const age = (now - new Date(f.lastModified).getTime()) / (1000 * 60 * 60 * 24);
+    const idx = days - 1 - Math.floor(age);
+    if (idx >= 0 && idx < days) data[idx]++;
+  }
+  return data;
+}
+
+function ActivitySparkline({ files }: { files: { lastModified: string }[] }) {
+  const data = buildActivityData(files);
   return (
-    <div className="h-1 w-full rounded-full overflow-hidden bg-muted/20">
-      {active ? (
-        <motion.div
-          className="h-full rounded-full bg-primary/50"
-          style={{ backgroundSize: '200% 100%' }}
-          animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
-          transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+    <div style={{ width: 70, height: 22 }} className="opacity-80 shrink-0">
+      <Sparklines data={data} height={22} min={0}>
+        <SparklinesLine
+          color="var(--chart-2)"
+          style={{ fill: 'var(--chart-2)', fillOpacity: 0.15, strokeWidth: 1.5 }}
         />
-      ) : (
-        <div className="h-full w-1/6 rounded-full bg-muted-foreground/10" />
-      )}
+      </Sparklines>
     </div>
   );
 }
@@ -211,6 +223,7 @@ export function BucketCard({
   totalSizeBytes,
   analytics,
   fileTypeBreakdown,
+  files,
   onDelete,
   onFullDelete,
   onDeploy,
@@ -350,8 +363,27 @@ export function BucketCard({
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <span className={`size-1.5 rounded-full ${status.dotClass}`} />
-              <span className="text-[10px] text-muted-foreground">{status.label}</span>
+              {isActive ? (
+                <ActivitySparkline files={files ?? []} />
+              ) : bucket.status === 'deploying' ? (
+                <>
+                  <span className={`size-1.5 rounded-full ${status.dotClass}`} />
+                  <span className="text-[10px] text-muted-foreground">{status.label}</span>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeploy(bucket);
+                  }}
+                >
+                  <Rocket className="size-2.5 mr-1" />
+                  {bucket.status === 'failed' ? 'Retry' : 'Deploy'}
+                </Button>
+              )}
             </div>
           </div>
 
@@ -432,10 +464,8 @@ export function BucketCard({
 
           <div className="mt-auto flex flex-col gap-3">
             {/* File type distribution rod */}
-            {fileTypeBreakdown && fileTypeBreakdown.length > 0 ? (
+            {fileTypeBreakdown && fileTypeBreakdown.length > 0 && (
               <FileTypeRod breakdown={fileTypeBreakdown} />
-            ) : (
-              <ActivityPulse active={isActive || bucket.status === 'deploying'} />
             )}
 
             {/* Bottom: created at + copy */}

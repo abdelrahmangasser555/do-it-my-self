@@ -322,10 +322,16 @@ export function FileExplorer() {
   }, [search, bucketData, matchesFilters]);
 
   const filteredSelectedFiles = useMemo(() => {
-    return (selectedData?.files ?? []).filter(matchesFilters);
+    // Always keep folder markers (keys ending with '/') so buildFolderTree can
+    // create nodes for empty folders. Only apply filters to actual files.
+    return (selectedData?.files ?? []).filter(
+      (file) => file.key.endsWith('/') || matchesFilters(file),
+    );
   }, [matchesFilters, selectedData?.files]);
 
-  const visibleResultCount = search ? (searchResults?.length ?? 0) : filteredSelectedFiles.length;
+  const visibleResultCount = search
+    ? (searchResults?.length ?? 0)
+    : filteredSelectedFiles.filter((f) => !f.key.endsWith('/')).length;
 
   // ── Breadcrumb ─────────────────────────────────────────────────────────
 

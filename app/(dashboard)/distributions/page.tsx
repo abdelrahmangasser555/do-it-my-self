@@ -24,6 +24,7 @@ import { CircleFlag } from 'react-circle-flags';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -508,6 +509,124 @@ function DistributionCard({
   );
 }
 
+function DistributionCardSkeleton() {
+  return (
+    <div className="relative flex h-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card">
+      <div className="flex flex-1 flex-col gap-2.5 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+            <Skeleton className="size-6 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1">
+              <Skeleton className="h-3.5 w-44 max-w-full" />
+              <Skeleton className="mt-1 h-2.5 w-28 max-w-full" />
+            </div>
+          </div>
+          <Skeleton className="h-5 w-14 shrink-0 rounded-full" />
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <div className="flex flex-col gap-1">
+            <Skeleton className="h-2.5 w-8" />
+            <Skeleton className="h-3 w-10" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Skeleton className="h-2.5 w-16" />
+            <Skeleton className="h-3 w-12" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Skeleton className="h-2.5 w-10" />
+            <Skeleton className="h-3 w-14" />
+          </div>
+        </div>
+
+        <Skeleton className="h-7 w-full rounded-lg" />
+
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
+            <Skeleton className="h-2.5 w-20" />
+            <Skeleton className="h-1.5 w-full rounded-full" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <Skeleton className="h-2.5 w-16" />
+              <Skeleton className="h-2.5 w-10" />
+            </div>
+            <Skeleton className="h-1.5 w-full rounded-full" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <Skeleton className="h-2.5 w-12" />
+              <Skeleton className="h-2.5 w-10" />
+            </div>
+            <Skeleton className="h-1.5 w-full rounded-full" />
+          </div>
+        </div>
+
+        <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/40 pt-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <Skeleton className="h-2.5 w-16" />
+            <Skeleton className="h-2.5 w-10" />
+            <Skeleton className="h-2.5 w-12" />
+          </div>
+          <div className="flex items-center gap-1">
+            <Skeleton className="h-6 w-14 rounded-md" />
+            <Skeleton className="h-6 w-14 rounded-md" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DistributionsPageSkeleton() {
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border/50 bg-card/60 px-4 py-3">
+        <div className="flex items-center gap-2 shrink-0">
+          <Skeleton className="size-4 rounded-full" />
+          <Skeleton className="h-3.5 w-20" />
+        </div>
+
+        <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-3 w-18" />
+        </div>
+
+        <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+        <div className="w-28 shrink-0 gap-1">
+          <Skeleton className="h-2.5 w-12" />
+          <Skeleton className="h-1.5 w-full rounded-full" />
+        </div>
+
+        <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+        <div className="w-32 shrink-0 gap-1">
+          <div className="flex items-center justify-between gap-2">
+            <Skeleton className="h-2.5 w-12" />
+            <Skeleton className="h-3 w-10" />
+          </div>
+          <Skeleton className="h-1.5 w-full rounded-full" />
+          <Skeleton className="h-2.5 w-24" />
+        </div>
+
+        <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+        <Skeleton className="h-8 w-24 rounded-md" />
+      </div>
+
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 items-stretch">
+        {Array.from({ length: 8 }).map((_, index) => (
+          <DistributionCardSkeleton key={index} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DistributionsPage() {
@@ -695,7 +814,10 @@ export default function DistributionsPage() {
 
   return (
     <PageTransition>
-      <div className="space-y-5">
+      {loading ? (
+        <DistributionsPageSkeleton />
+      ) : (
+        <div className="space-y-5">
         {/* ── One-liner ── */}
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border/50 bg-card/60 px-4 py-3">
           <div className="flex items-center gap-2 shrink-0">
@@ -745,7 +867,6 @@ export default function DistributionsPage() {
                       {distRodSegments.map((s) => (
                         <div
                           key={s.label}
-                          className="h-full"
                           style={{
                             width: `${(s.value / distributions.length) * 100}%`,
                             backgroundColor: s.color,
@@ -964,7 +1085,8 @@ export default function DistributionsPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
+        </div>
+      )}
     </PageTransition>
   );
 }

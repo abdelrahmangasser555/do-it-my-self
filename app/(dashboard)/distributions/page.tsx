@@ -818,273 +818,285 @@ export default function DistributionsPage() {
         <DistributionsPageSkeleton />
       ) : (
         <div className="space-y-5">
-        {/* ── One-liner ── */}
-        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border/50 bg-card/60 px-4 py-3">
-          <div className="flex items-center gap-2 shrink-0">
-            <Globe className="size-4 text-primary" />
-            <span className="text-xs font-semibold">CloudFront</span>
-          </div>
+          {/* ── One-liner ── */}
+          <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border/50 bg-card/60 px-4 py-3">
+            <div className="flex items-center gap-2 shrink-0">
+              <Globe className="size-4 text-primary" />
+              <span className="text-xs font-semibold">CloudFront</span>
+            </div>
 
-          <div className="h-7 w-px bg-border/50 hidden sm:block" />
+            <div className="h-7 w-px bg-border/50 hidden sm:block" />
 
-          {/* Quick stats */}
-          <div className="flex items-center gap-3 text-[10px] text-muted-foreground shrink-0">
-            <span>
-              <span className="font-semibold text-foreground text-xs">{distributions.length}</span>{' '}
-              distributions
-            </span>
-            <span className="flex items-center gap-0.5">
-              <CheckCircle2 className="size-2.5 text-emerald-500" />
-              <span className="font-semibold text-foreground text-xs">{activeCount}</span> active
-            </span>
-            {deployingCount > 0 && (
-              <span className="flex items-center gap-0.5">
-                <Loader2 className="size-2.5 text-amber-400 animate-spin" />
-                <span className="font-semibold text-foreground text-xs">{deployingCount}</span>{' '}
-                deploying
+            {/* Quick stats */}
+            <div className="flex items-center gap-3 text-[10px] text-muted-foreground shrink-0">
+              <span>
+                <span className="font-semibold text-foreground text-xs">
+                  {distributions.length}
+                </span>{' '}
+                distributions
               </span>
-            )}
-            {disabledCount > 0 && (
               <span className="flex items-center gap-0.5">
-                <XCircle className="size-2.5 text-red-500" />
-                <span className="font-semibold text-foreground text-xs">{disabledCount}</span>{' '}
-                disabled
+                <CheckCircle2 className="size-2.5 text-emerald-500" />
+                <span className="font-semibold text-foreground text-xs">{activeCount}</span> active
               </span>
-            )}
-          </div>
+              {deployingCount > 0 && (
+                <span className="flex items-center gap-0.5">
+                  <Loader2 className="size-2.5 text-amber-400 animate-spin" />
+                  <span className="font-semibold text-foreground text-xs">
+                    {deployingCount}
+                  </span>{' '}
+                  deploying
+                </span>
+              )}
+              {disabledCount > 0 && (
+                <span className="flex items-center gap-0.5">
+                  <XCircle className="size-2.5 text-red-500" />
+                  <span className="font-semibold text-foreground text-xs">
+                    {disabledCount}
+                  </span>{' '}
+                  disabled
+                </span>
+              )}
+            </div>
 
-          {/* Distribution density rod */}
-          {distRodSegments.length > 0 && (
-            <>
-              <div className="h-7 w-px bg-border/50 hidden sm:block" />
-              <HoverCard openDelay={200} closeDelay={100}>
-                <HoverCardTrigger asChild>
-                  <div className="w-28 shrink-0 space-y-0.5 cursor-default">
-                    <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-                      Status
-                    </p>
-                    <div className="flex h-1.5 w-full overflow-hidden rounded-full transition-all duration-150 hover:h-2">
+            {/* Distribution density rod */}
+            {distRodSegments.length > 0 && (
+              <>
+                <div className="h-7 w-px bg-border/50 hidden sm:block" />
+                <HoverCard openDelay={200} closeDelay={100}>
+                  <HoverCardTrigger asChild>
+                    <div className="w-28 shrink-0 space-y-0.5 cursor-default">
+                      <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                        Status
+                      </p>
+                      <div className="flex h-1.5 w-full overflow-hidden rounded-full transition-all duration-150 hover:h-2">
+                        {distRodSegments.map((s) => (
+                          <div
+                            key={s.label}
+                            style={{
+                              width: `${(s.value / distributions.length) * 100}%`,
+                              backgroundColor: s.color,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </HoverCardTrigger>
+                  <HoverCardContent side="bottom" className="w-44 p-3">
+                    <div className="space-y-1.5">
                       {distRodSegments.map((s) => (
                         <div
                           key={s.label}
-                          style={{
-                            width: `${(s.value / distributions.length) * 100}%`,
-                            backgroundColor: s.color,
-                          }}
-                        />
+                          className="flex items-center justify-between text-[10px]"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="size-2 rounded-full"
+                              style={{ backgroundColor: s.color }}
+                            />
+                            <span className="text-muted-foreground">{s.label}</span>
+                          </div>
+                          <span className="font-medium tabular-nums">{s.value}</span>
+                        </div>
                       ))}
                     </div>
-                  </div>
-                </HoverCardTrigger>
-                <HoverCardContent side="bottom" className="w-44 p-3">
-                  <div className="space-y-1.5">
-                    {distRodSegments.map((s) => (
-                      <div key={s.label} className="flex items-center justify-between text-[10px]">
+                  </HoverCardContent>
+                </HoverCard>
+              </>
+            )}
+
+            {cacheOverview.total > 0 && (
+              <>
+                <div className="h-7 w-px bg-border/50 hidden sm:block" />
+                <HoverCard openDelay={200} closeDelay={100}>
+                  <HoverCardTrigger asChild>
+                    <div className="w-32 shrink-0 space-y-0.5 cursor-default">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                          Cache
+                        </p>
+                        <span className="text-[10px] font-semibold tabular-nums text-foreground">
+                          {formatRate(cacheOverview.cacheHitRate)}
+                        </span>
+                      </div>
+                      <div className="flex h-1.5 w-full overflow-hidden rounded-full transition-all duration-150 hover:h-2">
+                        <div
+                          className="h-full"
+                          style={{
+                            width: `${cacheOverview.cacheHitRate * 100}%`,
+                            backgroundColor: PALETTE[0],
+                          }}
+                        />
+                        <div
+                          className="h-full"
+                          style={{
+                            width: `${cacheOverview.cacheMissRate * 100}%`,
+                            backgroundColor: PALETTE[3],
+                          }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {formatRate(cacheOverview.cacheHitRate)} hit ·{' '}
+                        {formatRate(cacheOverview.cacheMissRate)} miss
+                      </p>
+                    </div>
+                  </HoverCardTrigger>
+                  <HoverCardContent side="bottom" className="w-48 p-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px]">
                         <div className="flex items-center gap-1.5">
                           <span
                             className="size-2 rounded-full"
-                            style={{ backgroundColor: s.color }}
+                            style={{ backgroundColor: PALETTE[0] }}
                           />
-                          <span className="text-muted-foreground">{s.label}</span>
+                          <span className="text-muted-foreground">Hits</span>
                         </div>
-                        <span className="font-medium tabular-nums">{s.value}</span>
+                        <span className="font-medium tabular-nums">
+                          {cacheOverview.cacheHits.toLocaleString()} (
+                          {formatRate(cacheOverview.cacheHitRate)})
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                </HoverCardContent>
-              </HoverCard>
-            </>
-          )}
-
-          {cacheOverview.total > 0 && (
-            <>
-              <div className="h-7 w-px bg-border/50 hidden sm:block" />
-              <HoverCard openDelay={200} closeDelay={100}>
-                <HoverCardTrigger asChild>
-                  <div className="w-32 shrink-0 space-y-0.5 cursor-default">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-                        Cache
-                      </p>
-                      <span className="text-[10px] font-semibold tabular-nums text-foreground">
-                        {formatRate(cacheOverview.cacheHitRate)}
-                      </span>
-                    </div>
-                    <div className="flex h-1.5 w-full overflow-hidden rounded-full transition-all duration-150 hover:h-2">
-                      <div
-                        className="h-full"
-                        style={{
-                          width: `${cacheOverview.cacheHitRate * 100}%`,
-                          backgroundColor: PALETTE[0],
-                        }}
-                      />
-                      <div
-                        className="h-full"
-                        style={{
-                          width: `${cacheOverview.cacheMissRate * 100}%`,
-                          backgroundColor: PALETTE[3],
-                        }}
-                      />
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">
-                      {formatRate(cacheOverview.cacheHitRate)} hit ·{' '}
-                      {formatRate(cacheOverview.cacheMissRate)} miss
-                    </p>
-                  </div>
-                </HoverCardTrigger>
-                <HoverCardContent side="bottom" className="w-48 p-3">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className="size-2 rounded-full"
-                          style={{ backgroundColor: PALETTE[0] }}
-                        />
-                        <span className="text-muted-foreground">Hits</span>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="size-2 rounded-full"
+                            style={{ backgroundColor: PALETTE[3] }}
+                          />
+                          <span className="text-muted-foreground">Misses</span>
+                        </div>
+                        <span className="font-medium tabular-nums">
+                          {cacheOverview.cacheMisses.toLocaleString()} (
+                          {formatRate(cacheOverview.cacheMissRate)})
+                        </span>
                       </div>
-                      <span className="font-medium tabular-nums">
-                        {cacheOverview.cacheHits.toLocaleString()} (
-                        {formatRate(cacheOverview.cacheHitRate)})
-                      </span>
                     </div>
-                    <div className="flex items-center justify-between text-[10px]">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className="size-2 rounded-full"
-                          style={{ backgroundColor: PALETTE[3] }}
-                        />
-                        <span className="text-muted-foreground">Misses</span>
-                      </div>
-                      <span className="font-medium tabular-nums">
-                        {cacheOverview.cacheMisses.toLocaleString()} (
-                        {formatRate(cacheOverview.cacheMissRate)})
-                      </span>
-                    </div>
-                  </div>
-                </HoverCardContent>
-              </HoverCard>
-            </>
+                  </HoverCardContent>
+                </HoverCard>
+              </>
+            )}
+
+            <div className="h-7 w-px bg-border/50 hidden sm:block" />
+
+            {/* Data transfer */}
+            {totalTransfer > 0 && (
+              <>
+                <div className="shrink-0">
+                  <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Data Transfer
+                  </p>
+                  <p className="text-xs font-semibold tabular-nums">{formatBytes(totalTransfer)}</p>
+                </div>
+                <div className="h-7 w-px bg-border/50 hidden sm:block" />
+              </>
+            )}
+
+            {/* CF cost */}
+            {totalCfCost > 0 && (
+              <>
+                <div className="shrink-0">
+                  <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                    CF Cost/mo
+                  </p>
+                  <p className="text-xs font-semibold tabular-nums">{formatCost(totalCfCost)}</p>
+                </div>
+                <div className="h-7 w-px bg-border/50 hidden sm:block" />
+              </>
+            )}
+
+            <div className="flex-1" />
+
+            {/* Actions */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={fetchDistributions}
+              disabled={loading}
+            >
+              <RefreshCw className={`mr-1 size-3 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+
+          {/* ── Content ── */}
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">Loading distributions...</span>
+            </div>
+          ) : error ? (
+            <div className="py-12 text-center space-y-2">
+              <AlertTriangle className="size-8 mx-auto text-destructive" />
+              <p className="text-sm text-destructive">{error}</p>
+              <p className="text-xs text-muted-foreground">
+                Make sure your AWS credentials are configured with CloudFront read permissions.
+              </p>
+            </div>
+          ) : distributions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <Server className="mb-3 size-10 opacity-40" />
+              <p className="text-sm font-medium">No CloudFront distributions found</p>
+              <p className="text-xs mt-1">
+                Distributions are created automatically when you deploy a bucket with CDN.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 items-stretch">
+              <AnimatePresence mode="popLayout">
+                {distributions.map((dist) => (
+                  <DistributionCard
+                    key={dist.id}
+                    dist={dist}
+                    bucketStats={
+                      dist.linkedBucket ? (bucketStatsMap[dist.linkedBucket.id] ?? null) : null
+                    }
+                    onDelete={setDeleteTarget}
+                    onDisable={handleDisable}
+                    disabling={disablingId === dist.id}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
           )}
 
-          <div className="h-7 w-px bg-border/50 hidden sm:block" />
-
-          {/* Data transfer */}
-          {totalTransfer > 0 && (
-            <>
-              <div className="shrink-0">
-                <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Data Transfer
-                </p>
-                <p className="text-xs font-semibold tabular-nums">{formatBytes(totalTransfer)}</p>
-              </div>
-              <div className="h-7 w-px bg-border/50 hidden sm:block" />
-            </>
-          )}
-
-          {/* CF cost */}
-          {totalCfCost > 0 && (
-            <>
-              <div className="shrink-0">
-                <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-                  CF Cost/mo
-                </p>
-                <p className="text-xs font-semibold tabular-nums">{formatCost(totalCfCost)}</p>
-              </div>
-              <div className="h-7 w-px bg-border/50 hidden sm:block" />
-            </>
-          )}
-
-          <div className="flex-1" />
-
-          {/* Actions */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={fetchDistributions}
-            disabled={loading}
+          {/* Delete confirmation dialog */}
+          <AlertDialog
+            open={!!deleteTarget}
+            onOpenChange={(open) => !open && setDeleteTarget(null)}
           >
-            <RefreshCw className={`mr-1 size-3 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-
-        {/* ── Content ── */}
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-sm text-muted-foreground">Loading distributions...</span>
-          </div>
-        ) : error ? (
-          <div className="py-12 text-center space-y-2">
-            <AlertTriangle className="size-8 mx-auto text-destructive" />
-            <p className="text-sm text-destructive">{error}</p>
-            <p className="text-xs text-muted-foreground">
-              Make sure your AWS credentials are configured with CloudFront read permissions.
-            </p>
-          </div>
-        ) : distributions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-            <Server className="mb-3 size-10 opacity-40" />
-            <p className="text-sm font-medium">No CloudFront distributions found</p>
-            <p className="text-xs mt-1">
-              Distributions are created automatically when you deploy a bucket with CDN.
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 items-stretch">
-            <AnimatePresence mode="popLayout">
-              {distributions.map((dist) => (
-                <DistributionCard
-                  key={dist.id}
-                  dist={dist}
-                  bucketStats={
-                    dist.linkedBucket ? (bucketStatsMap[dist.linkedBucket.id] ?? null) : null
-                  }
-                  onDelete={setDeleteTarget}
-                  onDisable={handleDisable}
-                  disabling={disablingId === dist.id}
-                />
-              ))}
-            </AnimatePresence>
-          </div>
-        )}
-
-        {/* Delete confirmation dialog */}
-        <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete CloudFront Distribution</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete the distribution{' '}
-                <span className="font-mono font-medium">{deleteTarget?.id}</span> (
-                {deleteTarget?.domainName}). This action cannot be undone.
-                <br />
-                <br />
-                The distribution will be disabled first (if not already), then deleted once it
-                reaches Deployed state. This may take several minutes.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                disabled={deleting}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {deleting ? (
-                  <>
-                    <Loader2 className="mr-1.5 size-3.5 animate-spin" /> Deleting...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="mr-1.5 size-3.5" /> Delete Distribution
-                  </>
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete CloudFront Distribution</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete the distribution{' '}
+                  <span className="font-mono font-medium">{deleteTarget?.id}</span> (
+                  {deleteTarget?.domainName}). This action cannot be undone.
+                  <br />
+                  <br />
+                  The distribution will be disabled first (if not already), then deleted once it
+                  reaches Deployed state. This may take several minutes.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleting ? (
+                    <>
+                      <Loader2 className="mr-1.5 size-3.5 animate-spin" /> Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-1.5 size-3.5" /> Delete Distribution
+                    </>
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
     </PageTransition>

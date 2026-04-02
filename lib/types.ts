@@ -152,6 +152,10 @@ export interface BucketAnalytics {
   estimatedMonthlyCost: number;
   readRequests: number;
   writeRequests: number;
+  cacheHits: number;
+  cacheMisses: number;
+  cacheHitRate: number;
+  cacheMissRate: number;
 }
 
 // ── Cost & Expense types ─────────────────────────────────────────────────────

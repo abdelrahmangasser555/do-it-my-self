@@ -39,7 +39,7 @@ import { useBuckets } from '@/features/buckets/hooks/use-buckets';
 import { useBucketInventory } from '@/features/buckets/hooks/use-bucket-inventory';
 import { useAnalytics } from '@/features/infrastructure/hooks/use-analytics';
 import { useExpenses } from '@/features/infrastructure/hooks/use-expenses';
-import { getRegionAlpha2, getRegionCountry } from '@/lib/region-flags';
+import { getRegionAlpha2 } from '@/lib/region-flags';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -77,6 +77,10 @@ function formatCost(cost: number): string {
   if (cost === 0) return '$0.00';
   if (cost < 0.01) return `$${cost.toFixed(4)}`;
   return `$${cost.toFixed(2)}`;
+}
+
+function formatRate(rate: number): string {
+  return `${(rate * 100).toFixed(1)}%`;
 }
 
 const PRICE_CLASS_LABELS: Record<string, { label: string; regions: string }> = {
@@ -120,6 +124,10 @@ function DistributionCard({
     writes: number;
     dataTransferBytes: number;
     cfCost: number;
+    cacheHits: number;
+    cacheMisses: number;
+    cacheHitRate: number;
+    cacheMissRate: number;
     fileTypeBreakdown: { type: string; count: number; color: string }[];
   } | null;
   onDelete: (d: Distribution) => void;
@@ -151,6 +159,13 @@ function DistributionCard({
       ].filter((s) => s.value > 0)
     : [];
   const transferTotal = transferSegments.reduce((s, seg) => s + seg.value, 0);
+  const cacheSegments = bucketStats
+    ? [
+        { label: 'Hit', value: bucketStats.cacheHits, color: PALETTE[1] },
+        { label: 'Miss', value: bucketStats.cacheMisses, color: PALETTE[4] },
+      ].filter((segment) => segment.value > 0)
+    : [];
+  const cacheTotal = cacheSegments.reduce((sum, segment) => sum + segment.value, 0);
 
   // File type rod
   const ftBreakdown = bucketStats?.fileTypeBreakdown ?? [];
@@ -204,12 +219,8 @@ function DistributionCard({
             </div>
             {/* Status badge */}
             <Badge
-              variant="outline"
-              className={`text-[10px] px-1.5 py-0 shrink-0 ${
-                dist.enabled
-                  ? 'border-emerald-500/30 text-emerald-500'
-                  : 'border-red-500/30 text-red-500'
-              }`}
+              variant={dist.enabled ? 'success' : 'destructive'}
+              className={`text-[10px] px-1.5 py-0 shrink-0 `}
             >
               {dist.enabled ? 'Active' : 'Disabled'}
             </Badge>
@@ -345,6 +356,70 @@ function DistributionCard({
                         </span>
                       </div>
                     ))}
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+            )}
+
+            {/* Cache efficiency rod */}
+            {cacheTotal > 0 && bucketStats && (
+              <HoverCard openDelay={200} closeDelay={100}>
+                <HoverCardTrigger asChild>
+                  <div className="space-y-0.5 cursor-default">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                        Cache
+                      </p>
+                      <span className="text-[9px] font-medium tabular-nums text-muted-foreground">
+                        {formatRate(bucketStats.cacheHitRate)} hit
+                      </span>
+                    </div>
+                    <div
+                      className="flex h-1.5 w-full overflow-hidden rounded-full transition-all duration-150 hover:h-2"
+                      role="img"
+                      aria-label="Cache hit and miss distribution"
+                    >
+                      {cacheSegments.map((segment) => (
+                        <div
+                          key={segment.label}
+                          className="h-full"
+                          style={{
+                            width: `${(segment.value / cacheTotal) * 100}%`,
+                            backgroundColor: segment.color,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent side="top" className="w-48 p-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: PALETTE[0] }}
+                        />
+                        <span className="text-muted-foreground">Hits</span>
+                      </div>
+                      <span className="font-medium tabular-nums">
+                        {bucketStats.cacheHits.toLocaleString()} (
+                        {formatRate(bucketStats.cacheHitRate)})
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: PALETTE[3] }}
+                        />
+                        <span className="text-muted-foreground">Misses</span>
+                      </div>
+                      <span className="font-medium tabular-nums">
+                        {bucketStats.cacheMisses.toLocaleString()} (
+                        {formatRate(bucketStats.cacheMissRate)})
+                      </span>
+                    </div>
                   </div>
                 </HoverCardContent>
               </HoverCard>
@@ -543,6 +618,10 @@ export default function DistributionsPage() {
         writes: number;
         dataTransferBytes: number;
         cfCost: number;
+        cacheHits: number;
+        cacheMisses: number;
+        cacheHitRate: number;
+        cacheMissRate: number;
         fileTypeBreakdown: { type: string; count: number; color: string }[];
       }
     > = {};
@@ -559,12 +638,39 @@ export default function DistributionsPage() {
           dataTransferBytes: expense?.dataTransferBytes ?? 0,
           cfCost:
             (expense?.costBreakdown.cfDataTransfer ?? 0) + (expense?.costBreakdown.cfRequests ?? 0),
+          cacheHits: analytics?.cacheHits ?? 0,
+          cacheMisses: analytics?.cacheMisses ?? 0,
+          cacheHitRate: analytics?.cacheHitRate ?? 0,
+          cacheMissRate: analytics?.cacheMissRate ?? 0,
           fileTypeBreakdown: inv?.fileTypeBreakdown ?? [],
         };
       }
     }
     return map;
   }, [buckets, inventory, bucketAnalytics, bucketExpenses]);
+
+  const cacheOverview = useMemo(() => {
+    let cacheHits = 0;
+    let cacheMisses = 0;
+
+    for (const distribution of distributions) {
+      if (!distribution.linkedBucket) continue;
+      const stats = bucketStatsMap[distribution.linkedBucket.id];
+      if (!stats) continue;
+      cacheHits += stats.cacheHits;
+      cacheMisses += stats.cacheMisses;
+    }
+
+    const total = cacheHits + cacheMisses;
+
+    return {
+      cacheHits,
+      cacheMisses,
+      total,
+      cacheHitRate: total > 0 ? cacheHits / total : 0,
+      cacheMissRate: total > 0 ? cacheMisses / total : 0,
+    };
+  }, [distributions, bucketStatsMap]);
 
   // Compute total transfer and cost for one-liner
   const totalTransfer = useMemo(() => {
@@ -663,6 +769,76 @@ export default function DistributionsPage() {
                         <span className="font-medium tabular-nums">{s.value}</span>
                       </div>
                     ))}
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+            </>
+          )}
+
+          {cacheOverview.total > 0 && (
+            <>
+              <div className="h-7 w-px bg-border/50 hidden sm:block" />
+              <HoverCard openDelay={200} closeDelay={100}>
+                <HoverCardTrigger asChild>
+                  <div className="w-32 shrink-0 space-y-0.5 cursor-default">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                        Cache
+                      </p>
+                      <span className="text-[10px] font-semibold tabular-nums text-foreground">
+                        {formatRate(cacheOverview.cacheHitRate)}
+                      </span>
+                    </div>
+                    <div className="flex h-1.5 w-full overflow-hidden rounded-full transition-all duration-150 hover:h-2">
+                      <div
+                        className="h-full"
+                        style={{
+                          width: `${cacheOverview.cacheHitRate * 100}%`,
+                          backgroundColor: PALETTE[0],
+                        }}
+                      />
+                      <div
+                        className="h-full"
+                        style={{
+                          width: `${cacheOverview.cacheMissRate * 100}%`,
+                          backgroundColor: PALETTE[3],
+                        }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {formatRate(cacheOverview.cacheHitRate)} hit ·{' '}
+                      {formatRate(cacheOverview.cacheMissRate)} miss
+                    </p>
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent side="bottom" className="w-48 p-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: PALETTE[0] }}
+                        />
+                        <span className="text-muted-foreground">Hits</span>
+                      </div>
+                      <span className="font-medium tabular-nums">
+                        {cacheOverview.cacheHits.toLocaleString()} (
+                        {formatRate(cacheOverview.cacheHitRate)})
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px]">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: PALETTE[3] }}
+                        />
+                        <span className="text-muted-foreground">Misses</span>
+                      </div>
+                      <span className="font-medium tabular-nums">
+                        {cacheOverview.cacheMisses.toLocaleString()} (
+                        {formatRate(cacheOverview.cacheMissRate)})
+                      </span>
+                    </div>
                   </div>
                 </HoverCardContent>
               </HoverCard>

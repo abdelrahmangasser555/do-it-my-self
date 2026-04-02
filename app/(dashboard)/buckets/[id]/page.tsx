@@ -367,7 +367,7 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
 
           {/* Status */}
           <Badge
-            variant={bucket.status === 'active' ? 'default' : 'secondary'}
+            variant={bucket.status === 'active' ? 'success' : 'secondary'}
             className="text-[10px] px-1.5 py-0 h-4 shrink-0"
           >
             <span
@@ -700,10 +700,10 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
                 ) : s3Error ? (
                   <div className="py-8 text-center">
                     <p className="text-sm text-destructive">{s3Error}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    {/* <p className="text-xs text-muted-foreground mt-1">
                       Falling back to metadata view. The bucket may not be accessible.
                     </p>
-                    <FilesTable files={files} onDelete={handleDeleteFile} />
+                    <FilesTable files={files} onDelete={handleDeleteFile} /> */}
                   </div>
                 ) : filesView === 'folder' ? (
                   <FolderStructureView files={s3Files} />

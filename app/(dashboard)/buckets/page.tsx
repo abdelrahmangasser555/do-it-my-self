@@ -412,12 +412,12 @@ export default function BucketsPage() {
           <div className="flex items-center gap-1 shrink-0">
             <Button
               variant="ghost"
-              size="icon"
-              className="size-7"
+              className=""
               onClick={() => setAwsSyncOpen(true)}
               title="Discover AWS Buckets"
             >
               <FaAws className="size-4" />
+              Sync with
             </Button>
             <Button
               variant="ghost"

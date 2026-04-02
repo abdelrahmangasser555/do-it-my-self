@@ -1,9 +1,9 @@
 {
-  "SCR-scr-private-access-1775026722997": {
-    "BucketArn": "arn:aws:s3:::scr-private-access-1775026722997",
-    "BucketName": "scr-private-access-1775026722997",
-    "DistributionId": "E271SZ23GKAAG4",
-    "CloudFrontDomain": "d2ulqlcwtstmm5.cloudfront.net",
-    "UploadPolicyArn": "arn:aws:iam::006545530824:policy/SCR-scr-private-access-1775026722997-UploadPolicy81A9CED6-hmJKfL7TFRVi"
+  "SCR-scr-to-be-deleted-1775076184713": {
+    "BucketArn": "arn:aws:s3:::scr-to-be-deleted-1775076184713",
+    "BucketName": "scr-to-be-deleted-1775076184713",
+    "DistributionId": "E1Y1GXI8FY57E9",
+    "CloudFrontDomain": "d1t1y9t17mchvf.cloudfront.net",
+    "UploadPolicyArn": "arn:aws:iam::006545530824:policy/SCR-scr-to-be-deleted-1775076184713-UploadPolicy81A9CED6-tMdeDPknLYZI"
   }
 }

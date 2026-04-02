@@ -421,7 +421,6 @@ export function SetupTab({ bucket }: SetupTabProps) {
               language="typescript"
               code={generateDeleteSnippet(bucket)}
               collapsible
-              defaultCollapsed
             />
           </div>
 

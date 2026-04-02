@@ -54,7 +54,10 @@ import {
   X,
   Download,
   Filter,
+  Unlink,
+  Link2,
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { FileRecord } from '@/lib/types';
 import type { MergedS3File } from '@/features/files/hooks/use-files';
 import { toast } from 'sonner';
@@ -376,7 +379,7 @@ export function S3FilesTable({
             <TableHead>Object Key</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Size</TableHead>
-            <TableHead>Source</TableHead>
+            <TableHead>Linked Model</TableHead>
             <TableHead>Last Modified</TableHead>
             <TableHead className="w-12" />
           </TableRow>
@@ -396,9 +399,20 @@ export function S3FilesTable({
                   <TableCell className="font-medium text-sm max-w-45">
                     <HoverCard openDelay={300} closeDelay={100}>
                       <HoverCardTrigger asChild>
-                        <span className="truncate block cursor-default hover:text-primary transition-colors">
-                          {getFileName(file.key)}
-                        </span>
+                        {file.cdnUrl ? (
+                          <a
+                            href={file.cdnUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate block text-primary hover:underline transition-colors"
+                          >
+                            {getFileName(file.key)}
+                          </a>
+                        ) : (
+                          <span className="truncate block cursor-default hover:text-primary transition-colors">
+                            {getFileName(file.key)}
+                          </span>
+                        )}
                       </HoverCardTrigger>
                       <HoverCardContent className="w-80" side="right" align="start">
                         <div className="space-y-3">
@@ -500,13 +514,42 @@ export function S3FilesTable({
                   </TableCell>
                   <TableCell className="text-sm">{formatBytes(file.size)}</TableCell>
                   <TableCell>
-                    {file.uploadedFromSystem ? (
-                      <Badge className="gap-1 bg-green-500/10 text-green-600 border-green-500/20 text-[10px]">
-                        <Upload className="size-2.5" /> Uploaded from System
-                      </Badge>
+                    {file.metadata?.linkedModel ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge className="gap-1 bg-blue-500/10 text-blue-600 border-blue-500/20 text-[10px] cursor-default">
+                              <Link2 className="size-2.5" />
+                              {file.metadata.linkedModel}:{file.metadata.linkedModelId}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">
+                              Linked to {file.metadata.linkedModel} (ID:{' '}
+                              {file.metadata.linkedModelId})
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : file.uploadedFromSystem ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge className="gap-1 bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] cursor-default">
+                              <Unlink className="size-2.5" />
+                              Orphan
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">
+                              Uploaded via system but not linked to any model
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ) : (
                       <Badge variant="secondary" className="text-[10px]">
-                        <Cloud className="mr-1 size-2.5" /> External / Direct
+                        <Cloud className="mr-1 size-2.5" /> External
                       </Badge>
                     )}
                   </TableCell>

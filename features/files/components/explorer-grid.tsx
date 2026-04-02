@@ -14,9 +14,10 @@ import {
 } from '@dnd-kit/core';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Copy, ExternalLink } from 'lucide-react';
+import { Copy, ExternalLink, Unlink } from 'lucide-react';
 import { FaWhatsapp, FaTelegram, FaTwitter } from 'react-icons/fa';
 import { MdEmail } from 'react-icons/md';
 import { FileIcon, FolderIcon } from './file-icons';
@@ -366,7 +367,37 @@ function DraggableFile({
               className="group flex flex-col items-center gap-1.5 rounded-lg p-3 cursor-default select-none transition-colors hover:bg-accent/50 focus:outline-none focus:ring-1 focus:ring-ring w-25"
               onDoubleClick={() => file.cdnUrl && window.open(file.cdnUrl, '_blank')}
             >
-              <FileIcon fileName={fileName} size="md" cdnUrl={file.cdnUrl} />
+              <div className="relative">
+                <FileIcon fileName={fileName} size="md" cdnUrl={file.cdnUrl} />
+                {!file.uploadedFromSystem && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="absolute -top-1 -right-1 rounded-full bg-amber-500/90 p-0.5">
+                          <Unlink className="size-2.5 text-white" />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-xs">This file is an orphan (not uploaded from system)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                {file.uploadedFromSystem && !file.metadata?.linkedModel && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="absolute -top-1 -right-1 rounded-full bg-amber-500/90 p-0.5">
+                          <Unlink className="size-2.5 text-white" />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-xs">This file is an orphan (not linked to any model)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
               <span
                 className="text-[11px] text-center leading-tight truncate w-full text-foreground"
                 title={fileName}

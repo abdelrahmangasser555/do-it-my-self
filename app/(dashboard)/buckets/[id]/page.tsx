@@ -42,7 +42,7 @@ import {
   FileTypeDistributionChart,
   FileSizeRangeChart,
 } from '@/features/infrastructure/components/storage-charts';
-import { FilesTable, S3FilesTable } from '@/features/files/components/files-table';
+import { S3FilesTable } from '@/features/files/components/files-table';
 import { FolderStructureView } from '@/features/files/components/folder-structure';
 import { SetupTab } from '@/features/buckets/components/setup-tab';
 import { DeleteBucketDialog } from '@/features/buckets/components/delete-bucket-dialog';
@@ -627,9 +627,6 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
             <TabsTrigger value="analytics" className="gap-1.5">
               <BarChart3 className="size-3.5" /> Analytics
             </TabsTrigger>
-            <TabsTrigger value="metadata" className="gap-1.5">
-              <FileUp className="size-3.5" /> Metadata ({files.length})
-            </TabsTrigger>
             <TabsTrigger value="setup" className="gap-1.5">
               <Code2 className="size-3.5" /> Setup
             </TabsTrigger>
@@ -734,23 +731,6 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
                 </>
               )}
             </div>
-          </TabsContent>
-
-          <TabsContent value="metadata">
-            <Card>
-              <CardHeader className="flex-row items-center justify-between">
-                <div>
-                  <CardTitle>File Metadata Records</CardTitle>
-                  <CardDescription>
-                    Local metadata records for files uploaded through the system. Shows linking
-                    status.
-                  </CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <FilesTable files={files} onDelete={handleDeleteFile} />
-              </CardContent>
-            </Card>
           </TabsContent>
 
           <TabsContent value="setup">

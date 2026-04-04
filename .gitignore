@@ -39,16 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-# Node modules for CDK
-infrastructure/cdk/node_modules/
+
+# Node modules
+node_modules/
+**/node_modules/
 
 # CDK outputs (if you want)
-infrastructure/cdk/cdk.out/
-# Node modules for CDK
-infrastructure/cdk/node_modules/
-
-# CDK outputs (if you want)
-infrastructure/cdk/cdk.out/
+**/cdk.out/
 
 # Local data files (user-specific state)
 data/*.json

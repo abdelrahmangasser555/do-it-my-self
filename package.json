@@ -3,13 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "node scripts/pull-latest.js",
+    "install-pnpm": "npm install -g pnpm || corepack enable pnpm",
+    "predev": "node scripts/pull-latest.js && (pnpm install || npm run setup)",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "npm install --prefix infrastructure/cdk",
-    "setup": "npm install && npm install --prefix infrastructure/cdk",
+    "postinstall": "pnpm install || (echo 'pnpm not found, trying manual prefix install...' && npm install --prefix infrastructure/cdk)",
+    "setup": "npm run install-pnpm && pnpm install",
     "update": "node scripts/pull-latest.js"
   },
   "dependencies": {

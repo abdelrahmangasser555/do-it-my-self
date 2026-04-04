@@ -31,7 +31,60 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("dropout-theme");var d=document.documentElement;d.classList.remove("dark","light");if(t==="light"){d.classList.add("light")}else if(t==="system"){d.classList.add(window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")}else{d.classList.add("dark")}}catch(e){d.classList.add("dark")}})()`,
+            __html: `
+              (function(){try{var t=localStorage.getItem("dropout-theme");var d=document.documentElement;d.classList.remove("dark","light");if(t==="light"){d.classList.add("light")}else if(t==="system"){d.classList.add(window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")}else{d.classList.add("dark")}}catch(e){d.classList.add("dark")}})();
+
+              (function(){
+                var matcher=/Cannot read properties of undefined \(reading 'projection'\)|migrateProjection|maplibre-gl/i;
+                var matches=function(value){
+                  if(!value)return false;
+                  if(typeof value==="string")return matcher.test(value);
+                  if(typeof value==="object"){
+                    var text="";
+                    if(typeof value.message==="string")text+=value.message+"\n";
+                    if(typeof value.stack==="string")text+=value.stack+"\n";
+                    if(typeof value.filename==="string")text+=value.filename;
+                    return matcher.test(text);
+                  }
+                  return false;
+                };
+                var matchesArgs=function(args){
+                  for(var i=0;i<args.length;i+=1){
+                    if(matches(args[i]))return true;
+                  }
+                  return false;
+                };
+                var originalConsoleError=console.error?console.error.bind(console):null;
+                if(originalConsoleError){
+                  console.error=function(){
+                    if(matchesArgs(arguments))return;
+                    originalConsoleError.apply(console, arguments);
+                  };
+                }
+                var originalWindowOnError=window.onerror;
+                window.onerror=function(message, source, lineno, colno, error){
+                  if(matches(error)||matches(message)||matches(source)){
+                    return true;
+                  }
+                  if(typeof originalWindowOnError==="function"){
+                    return originalWindowOnError(message, source, lineno, colno, error);
+                  }
+                  return false;
+                };
+                window.addEventListener("error",function(event){
+                  if(matches(event.error)||matches(event.message)||matches(event.filename)){
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                  }
+                },true);
+                window.addEventListener("unhandledrejection",function(event){
+                  if(matches(event.reason)){
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                  }
+                },true);
+              })();
+            `,
           }}
         />
       </head>

@@ -129,13 +129,20 @@ function runCommand(command, args, extraEnv = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
     stdio: 'inherit',
+    shell: true,
     env: {
       ...process.env,
       ...extraEnv,
     },
   });
 
+  if (result.error) {
+    print(RED, `Failed to execute command: ${result.error.message}`);
+    process.exit(1);
+  }
+
   if (result.status !== 0) {
+    print(RED, `Command exited with status code ${result.status}`);
     process.exit(result.status || 1);
   }
 }

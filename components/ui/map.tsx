@@ -217,7 +217,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
     const initialStyle = resolvedTheme === 'dark' ? mapStyles.dark : mapStyles.light;
     currentStyleRef.current = initialStyle;
 
-    const map = new MapLibreGL.Map({
+    const mapOptions: MapLibreGL.MapOptions = {
       container: containerRef.current,
       style: initialStyle,
       renderWorldCopies: false,
@@ -226,23 +226,14 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
       },
       ...props,
       ...viewport,
-      ...({ projection: projection ?? { type: 'mercator' } } as Record<string, unknown>),
-    } as MapLibreGL.MapOptions);
+    };
+
+    const map = new MapLibreGL.Map(mapOptions);
 
     const styleDataHandler = () => {
       clearStyleTimeout();
-      // Delay to ensure style is fully processed before allowing layer operations
-      // This is a workaround to avoid race conditions with the style loading
-      // else we have to force update every layer on setStyle change
       styleTimeoutRef.current = setTimeout(() => {
         setIsStyleLoaded(true);
-        if (projection) {
-          try {
-            map.setProjection(projection);
-          } catch {
-            // Ignore projection errors from style migration
-          }
-        }
       }, 100);
     };
     const loadHandler = () => setIsLoaded(true);
@@ -299,6 +290,20 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
     internalUpdateRef.current = false;
   }, [mapInstance, isControlled, viewport]);
 
+  useEffect(() => {
+    if (!mapInstance || !isStyleLoaded || !projection) return;
+
+    try {
+      const currentProjection = mapInstance.getProjection();
+
+      if (JSON.stringify(currentProjection) !== JSON.stringify(projection)) {
+        mapInstance.setProjection(projection);
+      }
+    } catch {
+      // Ignore projection errors from third-party style migration.
+    }
+  }, [mapInstance, isStyleLoaded, projection]);
+
   // Handle style change
   useEffect(() => {
     if (!mapInstance || !resolvedTheme) return;
@@ -311,7 +316,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
     currentStyleRef.current = newStyle;
     setIsStyleLoaded(false);
 
-    mapInstance.setStyle(newStyle, { diff: true });
+    mapInstance.setStyle(newStyle, { diff: false });
   }, [mapInstance, resolvedTheme, mapStyles, clearStyleTimeout]);
 
   const contextValue = useMemo(

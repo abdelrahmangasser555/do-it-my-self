@@ -1,12 +1,14 @@
 // Next.js API route for CDK infrastructure deployment with streaming output
 import { NextRequest } from 'next/server';
 import { spawn } from 'child_process';
+import { createRequire } from 'module';
 import path from 'path';
 import { updateInJsonFile, readJsonFile } from '@/lib/filesystem';
 import { describeStack, deleteStack, checkBucketExists } from '@/lib/aws';
 import type { Bucket, Project, BucketSyncStatus } from '@/lib/types';
 
 const CDK_DIR = path.join(process.cwd(), 'infrastructure', 'cdk');
+const requireFromCdk = createRequire(path.join(CDK_DIR, 'package.json'));
 
 // --- Known CDK Error Patterns & Suggested Fixes ---
 interface ErrorPattern {
@@ -66,8 +68,8 @@ const ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /ENOENT|Cannot find module|Module not found/i,
     title: 'Missing Dependencies',
-    suggestion: 'CDK dependencies are missing. Install them in the infrastructure directory.',
-    command: 'cd infrastructure/cdk; npm install',
+    suggestion: 'Project dependencies are missing. Reinstall them from the repository root.',
+    command: 'npm run setup',
   },
   {
     pattern: /SyntaxError|TypeError|ReferenceError/i,
@@ -127,26 +129,33 @@ async function runPreChecks(write: (data: Record<string, unknown>) => void): Pro
     return false;
   }
 
-  // Check if node_modules exist in CDK dir — auto-install if missing
-  try {
-    const fs = await import('fs/promises');
-    await fs.access(path.join(CDK_DIR, 'node_modules'));
+  // Check whether the CDK app can resolve its dependencies from the repo install.
+  const hasCdkDependencies = (() => {
+    try {
+      requireFromCdk.resolve('aws-cdk-lib/package.json');
+      requireFromCdk.resolve('aws-cdk/package.json');
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  if (hasCdkDependencies) {
     write({
       type: 'check',
       label: 'CDK dependencies found',
       level: 'success',
     });
-  } catch {
+  } else {
     write({
       type: 'check',
-      label: 'CDK dependencies not installed — installing…',
+      label: 'Project dependencies not installed — installing…',
       level: 'warn',
     });
 
-    // Auto-install dependencies
     const installed = await new Promise<boolean>((resolve) => {
-      const npmInstall = spawn('npm', ['install'], {
-        cwd: CDK_DIR,
+      const npmInstall = spawn('npm', ['run', 'setup'], {
+        cwd: process.cwd(),
         shell: true,
         timeout: 120000,
       });
@@ -167,16 +176,16 @@ async function runPreChecks(write: (data: Record<string, unknown>) => void): Pro
     if (!installed) {
       write({
         type: 'check',
-        label: 'Failed to install CDK dependencies',
+        label: 'Failed to install project dependencies',
         level: 'error',
-        suggestion: 'Run manually: cd infrastructure/cdk && npm install',
+        suggestion: 'Run manually: npm run setup',
       });
       return false;
     }
 
     write({
       type: 'check',
-      label: 'CDK dependencies installed successfully',
+      label: 'Project dependencies installed successfully',
       level: 'success',
     });
   }

@@ -64,6 +64,8 @@ cd dropout
 pnpm install
 ```
 
+`npm install` is also supported and installs the `infrastructure/cdk` project at the same time.
+
 ### Starting the Dashboard
 
 ```bash
@@ -73,7 +75,7 @@ pnpm dev
 When you run this command, DropOut automatically:
 
 1. Pulls the latest code from `origin/master`
-2. Notifies you if `package.json` changed so you can reinstall
+2. Refreshes workspace dependencies only when manifests changed or dependencies are missing
 3. Starts the Next.js development server
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
@@ -621,13 +623,14 @@ Violations return `400 Bad Request` with a descriptive message.
 
 ### How does the auto-update work?
 
-`scripts/pull-latest.js` runs before every `pnpm dev`:
+`scripts/pull-latest.js` and `scripts/ensure-deps.js` run before every `pnpm dev` or `npm run dev`:
 
 1. Fetches from `origin/master`
 2. Stashes uncommitted local changes if any
 3. Fast-forward merges new commits
 4. Pops the stash
-5. Warns if `package.json` / `pnpm-lock.yaml` changed (run `pnpm install`)
+5. Checks whether the root app or `infrastructure/cdk` dependency manifests changed
+6. Reinstalls workspace dependencies only when they are missing or stale
 
 If git is unavailable, you're offline, or the merge is not fast-forward, it prints a warning and the dev server still starts normally.
 

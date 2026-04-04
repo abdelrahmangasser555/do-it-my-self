@@ -6,13 +6,13 @@ Everything you need to go from zero to a running DropOut dashboard — on Window
 
 ## System Requirements
 
-| Requirement | Minimum version |
-|---|---|
-| Node.js | 20.x or newer |
-| pnpm | 8.x (recommended) or npm 10.x |
-| Git | 2.x |
-| AWS CLI | 2.x |
-| AWS CDK | 2.x |
+| Requirement | Minimum version               |
+| ----------- | ----------------------------- |
+| Node.js     | 20.x or newer                 |
+| pnpm        | 8.x (recommended) or npm 10.x |
+| Git         | 2.x                           |
+| AWS CLI     | 2.x                           |
+| AWS CDK     | 2.x                           |
 
 ---
 
@@ -83,6 +83,7 @@ winget install --id Amazon.AWSCLI
 ```
 
 Or download the MSI from:
+
 ```
 https://awscli.amazonaws.com/AWSCLIV2.msi
 ```
@@ -210,7 +211,7 @@ cd dropout
 pnpm install
 ```
 
-`pnpm install` automatically installs the CDK infrastructure dependencies via the `postinstall` script.
+`npm install` works too. Both package managers install the app and `infrastructure/cdk` together.
 
 ---
 
@@ -221,11 +222,14 @@ pnpm dev
 ```
 
 Every time you run this, DropOut automatically:
+
 1. Pulls the latest code from `origin/master` via `scripts/pull-latest.js`
-2. Warns if `package.json` changed (run `pnpm install` to update dependencies)
+2. Refreshes dependencies only if `package.json`, `pnpm-lock.yaml`, or the CDK workspace manifest changed
 3. Starts the Next.js server at [http://localhost:3000](http://localhost:3000)
 
 The **auto-update** feature means you never have to manually pull updates. If the pull fails (offline, non-fast-forward), a warning is printed and the dev server still starts normally.
+
+If you skip the install step on a fresh clone, `pnpm dev` or `npm run dev` will perform the initial workspace install once before starting Next.js.
 
 ---
 
@@ -325,6 +329,18 @@ Or delete the lockfile and reinstall:
 
 ```bash
 Remove-Item pnpm-lock.yaml   # Windows PowerShell
+pnpm install
+```
+
+### `npm run dev` appears stuck during install
+
+Older versions of the repo recursively called `pnpm install` from `postinstall`, which caused install output to repeat forever. The current setup avoids that recursion.
+
+If you still suspect an interrupted install, run one of these from the repo root:
+
+```bash
+npm run setup
+# or
 pnpm install
 ```
 

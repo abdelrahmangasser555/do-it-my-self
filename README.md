@@ -12,6 +12,7 @@ A **local-only internal dashboard** for managing AWS S3 buckets and CloudFront d
 ## Features
 
 ### Storage Management
+
 - **Projects** — Organize upload infrastructure by app or client. Set per-project file size limits and allowed MIME types.
 - **S3 Buckets** — Create, deploy, and manage S3 buckets with CloudFront CDN. One-click CDK deployment.
 - **Real S3 File Browsing** — View actual objects in S3, not just metadata. See which files were uploaded through the system vs. uploaded externally.
@@ -20,12 +21,14 @@ A **local-only internal dashboard** for managing AWS S3 buckets and CloudFront d
 - **CloudFront Distributions** — View and manage all distributions in your AWS account with linked bucket detection.
 
 ### Analytics & Charts
+
 - **Dashboard Overview** — Total projects, buckets, files, and storage across all resources.
 - **File Type Distribution** — Pie chart breakdown of file types per bucket.
 - **File Size Distribution** — Bar chart grouping files by size range.
 - **Per-Bucket Analytics** — Storage, file count, and orphan detection scoped per bucket.
 
 ### Developer Tools
+
 - **Code Snippets** — Copy-paste integration code (env vars, upload API route, React component, delete API) tailored to each bucket.
 - **Linked vs Orphan Files** — Built-in explanation and code examples showing how to properly associate uploads with data models.
 - **Commands** — 25+ pre-built AWS/CDK commands, custom command runner, saved commands.
@@ -34,22 +37,23 @@ A **local-only internal dashboard** for managing AWS S3 buckets and CloudFront d
 - **Infrastructure Management** — CDK synth, deploy, and destroy directly from the UI.
 
 ### Documentation
+
 - **Built-in docs viewer** — Setup guide, user guide, and architecture reference rendered inside the dashboard with in-page navigation.
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Framework | [Next.js 16](https://nextjs.org) (App Router) |
-| UI | [shadcn/ui](https://ui.shadcn.com) (new-york, neutral) + [Tailwind CSS v4](https://tailwindcss.com) |
-| Animations | [framer-motion](https://www.framer.com/motion/) |
-| Charts | [recharts](https://recharts.org) via shadcn chart components |
-| AI | [Vercel AI SDK v6](https://sdk.vercel.ai) + OpenAI GPT-4o-mini |
-| AWS | [@aws-sdk/client-s3](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-s3/), [@aws-sdk/client-cloudfront](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-cloudfront/) v3 |
-| Infrastructure | [AWS CDK v2](https://docs.aws.amazon.com/cdk/v2/guide/home.html) (TypeScript) |
-| Data | Plain JSON files — no database, no migrations |
+| Layer          | Technology                                                                                                                                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework      | [Next.js 16](https://nextjs.org) (App Router)                                                                                                                                                                       |
+| UI             | [shadcn/ui](https://ui.shadcn.com) (new-york, neutral) + [Tailwind CSS v4](https://tailwindcss.com)                                                                                                                 |
+| Animations     | [framer-motion](https://www.framer.com/motion/)                                                                                                                                                                     |
+| Charts         | [recharts](https://recharts.org) via shadcn chart components                                                                                                                                                        |
+| AI             | [Vercel AI SDK v6](https://sdk.vercel.ai) + OpenAI GPT-4o-mini                                                                                                                                                      |
+| AWS            | [@aws-sdk/client-s3](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-s3/), [@aws-sdk/client-cloudfront](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-cloudfront/) v3 |
+| Infrastructure | [AWS CDK v2](https://docs.aws.amazon.com/cdk/v2/guide/home.html) (TypeScript)                                                                                                                                       |
+| Data           | Plain JSON files — no database, no migrations                                                                                                                                                                       |
 
 ---
 
@@ -64,18 +68,20 @@ A **local-only internal dashboard** for managing AWS S3 buckets and CloudFront d
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/your-org/storage-control-room.git
+git clone https://github.com/abdelrahmangasser555/do-it-my-self.git
 cd storage-control-room
 npm install
 ```
 
-### 2. Install CDK dependencies
+You can use `pnpm install` instead if you prefer. Both package managers install the Next.js app and the `infrastructure/cdk` project.
+
+### 2. Start the dashboard
 
 ```bash
-cd infrastructure/cdk
-npm install
-cd ../..
+npm run dev
 ```
+
+`npm run dev` also bootstraps missing dependencies on a fresh clone, so a first run works even if you skipped the install step.
 
 ### 3. Bootstrap CDK (one-time per AWS account + region)
 
@@ -153,35 +159,35 @@ GET cloudFrontUrl ────────────────────�
 
 ## Pages
 
-| Page | Path | Description |
-|---|---|---|
-| Dashboard | `/` | Analytics overview across all projects |
-| Projects | `/projects` | Create and manage projects |
-| Buckets | `/buckets` | Create, deploy, and manage S3 buckets |
-| Bucket Detail | `/buckets/[id]` | S3 files, folder tree, analytics, setup |
-| Files | `/files` | View all tracked file metadata |
-| Distributions | `/distributions` | CloudFront distribution management |
-| Infrastructure | `/infrastructure` | CDK deploy, synth, destroy controls |
-| Code Snippets | `/snippets` | Copy-paste integration code |
-| Commands | `/commands` | Quick actions, saved commands, AI tools |
-| Docs | `/docs` | Built-in documentation viewer |
+| Page           | Path              | Description                             |
+| -------------- | ----------------- | --------------------------------------- |
+| Dashboard      | `/`               | Analytics overview across all projects  |
+| Projects       | `/projects`       | Create and manage projects              |
+| Buckets        | `/buckets`        | Create, deploy, and manage S3 buckets   |
+| Bucket Detail  | `/buckets/[id]`   | S3 files, folder tree, analytics, setup |
+| Files          | `/files`          | View all tracked file metadata          |
+| Distributions  | `/distributions`  | CloudFront distribution management      |
+| Infrastructure | `/infrastructure` | CDK deploy, synth, destroy controls     |
+| Code Snippets  | `/snippets`       | Copy-paste integration code             |
+| Commands       | `/commands`       | Quick actions, saved commands, AI tools |
+| Docs           | `/docs`           | Built-in documentation viewer           |
 
 ---
 
 ## API Reference
 
-| Endpoint | Methods | Purpose |
-|---|---|---|
-| `/api/projects` | GET, POST, PUT, DELETE | Project CRUD |
-| `/api/buckets` | GET, POST, PUT, DELETE | Bucket CRUD |
-| `/api/files` | GET, POST, DELETE | File metadata + presigned URL generation |
-| `/api/files/s3` | GET | List actual S3 objects in a bucket |
-| `/api/distributions` | GET, DELETE | CloudFront distribution management |
-| `/api/infrastructure` | POST | CDK synth/deploy/destroy |
-| `/api/analytics` | GET | Aggregated storage statistics |
-| `/api/terminal` | POST, GET, DELETE | Run/track/kill shell commands |
-| `/api/commands` | GET, POST, DELETE | Saved custom commands |
-| `/api/ai` | POST | AI command generation + error debugging |
+| Endpoint              | Methods                | Purpose                                  |
+| --------------------- | ---------------------- | ---------------------------------------- |
+| `/api/projects`       | GET, POST, PUT, DELETE | Project CRUD                             |
+| `/api/buckets`        | GET, POST, PUT, DELETE | Bucket CRUD                              |
+| `/api/files`          | GET, POST, DELETE      | File metadata + presigned URL generation |
+| `/api/files/s3`       | GET                    | List actual S3 objects in a bucket       |
+| `/api/distributions`  | GET, DELETE            | CloudFront distribution management       |
+| `/api/infrastructure` | POST                   | CDK synth/deploy/destroy                 |
+| `/api/analytics`      | GET                    | Aggregated storage statistics            |
+| `/api/terminal`       | POST, GET, DELETE      | Run/track/kill shell commands            |
+| `/api/commands`       | GET, POST, DELETE      | Saved custom commands                    |
+| `/api/ai`             | POST                   | AI command generation + error debugging  |
 
 ---
 
@@ -212,12 +218,12 @@ data/custom-commands.json  # Saved custom commands
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `AWS_REGION` | No | Override default AWS region (defaults to CLI config) |
-| `AWS_PROFILE` | No | Use a specific AWS CLI profile |
-| `OPENAI_API_KEY` | No | Enable AI features (command generation, error debugging) |
-| `DATA_DIR` | No | Override data directory (default: `./data`) |
+| Variable         | Required | Description                                              |
+| ---------------- | -------- | -------------------------------------------------------- |
+| `AWS_REGION`     | No       | Override default AWS region (defaults to CLI config)     |
+| `AWS_PROFILE`    | No       | Use a specific AWS CLI profile                           |
+| `OPENAI_API_KEY` | No       | Enable AI features (command generation, error debugging) |
+| `DATA_DIR`       | No       | Override data directory (default: `./data`)              |
 
 AWS credentials are read from the standard credential chain (CLI config, environment variables, IAM role).
 
@@ -225,13 +231,13 @@ AWS credentials are read from the standard credential chain (CLI config, environ
 
 ## Common Issues
 
-| Problem | Solution |
-|---|---|
-| `aws configure` not found | Reinstall AWS CLI, restart terminal |
-| CDK bootstrap fails | Check credentials: `aws sts get-caller-identity` |
-| Port 3000 in use | `npm run dev -- -p 3001` |
-| CDK deploy fails | Check Infrastructure page for errors, verify region/credentials |
-| AI features not working | Add `OPENAI_API_KEY` to `.env.local` |
+| Problem                   | Solution                                                        |
+| ------------------------- | --------------------------------------------------------------- |
+| `aws configure` not found | Reinstall AWS CLI, restart terminal                             |
+| CDK bootstrap fails       | Check credentials: `aws sts get-caller-identity`                |
+| Port 3000 in use          | `npm run dev -- -p 3001`                                        |
+| CDK deploy fails          | Check Infrastructure page for errors, verify region/credentials |
+| AI features not working   | Add `OPENAI_API_KEY` to `.env.local`                            |
 
 See the full [Setup Guide](docs/setup-guide.md) for detailed troubleshooting.
 

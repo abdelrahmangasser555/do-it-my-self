@@ -8,7 +8,7 @@ A **local-only internal dashboard** that manages AWS S3 + CloudFront for your ap
 
 ## Auto-Update
 
-Every `pnpm dev` automatically runs `scripts/pull-latest.js` (a `predev` hook) which pulls the latest code from `origin/master`, stashes local changes if needed, and warns if dependencies changed. The dev server always starts even if the pull fails.
+Every `pnpm dev` or `npm run dev` automatically runs `scripts/pull-latest.js`, then `scripts/ensure-deps.js`. That `predev` flow pulls the latest code from `origin/master`, installs workspace dependencies only when manifests changed or the clone is fresh, and then starts the dev server. The server still starts if the pull step fails.
 
 ---
 
@@ -28,7 +28,7 @@ Next.js 16 (App Router) + React 19
 
 Data:    Plain JSON files in /data/  (gitignored)
 Infra:   AWS CDK v2 TypeScript
-Package: pnpm
+Package: pnpm (npm supported)
 ```
 
 ---
@@ -64,43 +64,43 @@ For uploads, your **external app** calls `/api/files` to get a pre-signed URL, t
 
 ## Routes
 
-| URL | Purpose |
-|---|---|
-| `/` | Analytics + cost overview |
-| `/projects` | Manage projects |
-| `/buckets` | List all S3 buckets |
-| `/buckets/[id]` | Bucket detail — S3 files, analytics, cost, records, setup, sync |
-| `/files` | Windows Explorer-style S3 file browser |
-| `/environments` | Bootstrap / manage AWS regions |
-| `/distributions` | CloudFront distributions management |
-| `/infrastructure` | CDK synth/deploy terminal |
-| `/snippets` | Integration code generator |
-| `/commands` | Pre-built commands + AI tools |
-| `/settings` | Credentials, OpenAI key, theme |
-| `/docs` | Documentation viewer |
+| URL               | Purpose                                                         |
+| ----------------- | --------------------------------------------------------------- |
+| `/`               | Analytics + cost overview                                       |
+| `/projects`       | Manage projects                                                 |
+| `/buckets`        | List all S3 buckets                                             |
+| `/buckets/[id]`   | Bucket detail — S3 files, analytics, cost, records, setup, sync |
+| `/files`          | Windows Explorer-style S3 file browser                          |
+| `/environments`   | Bootstrap / manage AWS regions                                  |
+| `/distributions`  | CloudFront distributions management                             |
+| `/infrastructure` | CDK synth/deploy terminal                                       |
+| `/snippets`       | Integration code generator                                      |
+| `/commands`       | Pre-built commands + AI tools                                   |
+| `/settings`       | Credentials, OpenAI key, theme                                  |
+| `/docs`           | Documentation viewer                                            |
 
 ---
 
 ## API Endpoints
 
-| Endpoint | Methods | Purpose |
-|---|---|---|
-| `/api/projects` | GET, POST, PUT, DELETE | Project CRUD |
-| `/api/buckets` | GET, POST, PUT, DELETE | Bucket CRUD |
-| `/api/files` | GET, POST (+ presign), DELETE | File metadata + pre-signed URL |
-| `/api/files/s3` | GET | List actual S3 objects |
-| `/api/environments` | GET, POST, DELETE | CDK bootstrap regions |
-| `/api/distributions` | GET, DELETE | CloudFront distributions |
-| `/api/infrastructure` | POST | CDK synth / deploy (streaming NDJSON) |
-| `/api/analytics` | GET | Aggregated stats |
-| `/api/expenses` | GET | Cost estimation per bucket/project |
-| `/api/terminal` | POST, GET, DELETE | Run / poll / kill shell commands |
-| `/api/commands` | GET, POST, DELETE | Saved custom commands |
-| `/api/ai` | POST | Generate command / debug error |
-| `/api/aws-identity` | GET | STS identity + IAM permission check |
-| `/api/settings` | GET, PUT | Read/write settings.json |
-| `/api/system` | GET, PUT | Read/write system.json (onboarding flags) |
-| `/api/docs-chat` | POST | AI chat over documentation |
+| Endpoint              | Methods                       | Purpose                                   |
+| --------------------- | ----------------------------- | ----------------------------------------- |
+| `/api/projects`       | GET, POST, PUT, DELETE        | Project CRUD                              |
+| `/api/buckets`        | GET, POST, PUT, DELETE        | Bucket CRUD                               |
+| `/api/files`          | GET, POST (+ presign), DELETE | File metadata + pre-signed URL            |
+| `/api/files/s3`       | GET                           | List actual S3 objects                    |
+| `/api/environments`   | GET, POST, DELETE             | CDK bootstrap regions                     |
+| `/api/distributions`  | GET, DELETE                   | CloudFront distributions                  |
+| `/api/infrastructure` | POST                          | CDK synth / deploy (streaming NDJSON)     |
+| `/api/analytics`      | GET                           | Aggregated stats                          |
+| `/api/expenses`       | GET                           | Cost estimation per bucket/project        |
+| `/api/terminal`       | POST, GET, DELETE             | Run / poll / kill shell commands          |
+| `/api/commands`       | GET, POST, DELETE             | Saved custom commands                     |
+| `/api/ai`             | POST                          | Generate command / debug error            |
+| `/api/aws-identity`   | GET                           | STS identity + IAM permission check       |
+| `/api/settings`       | GET, PUT                      | Read/write settings.json                  |
+| `/api/system`         | GET, PUT                      | Read/write system.json (onboarding flags) |
+| `/api/docs-chat`      | POST                          | AI chat over documentation                |
 
 ---
 

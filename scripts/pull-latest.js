@@ -138,7 +138,7 @@ async function main() {
       print(
         YELLOW,
         '[DropOut]',
-        'package.json or lockfile changed — run `pnpm install` if you see dependency errors.',
+        'package.json or lockfile changed — workspace dependencies will be refreshed before the dev server starts.',
       );
     }
   } catch {

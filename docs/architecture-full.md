@@ -2,9 +2,10 @@
 
 ## What is DropOut?
 
-**DropOut** is a **local-only, internal Next.js dashboard** for managing AWS S3 buckets and CloudFront distributions. It is not a SaaS product, is not multi-tenant, and requires no hosting — it runs exclusively on your machine via `pnpm dev`.
+**DropOut** is a **local-only, internal Next.js dashboard** for managing AWS S3 buckets and CloudFront distributions. It is not a SaaS product, is not multi-tenant, and requires no hosting — it runs exclusively on your machine via `pnpm dev` or `npm run dev`.
 
 The system lets you:
+
 - Organize upload infrastructure into **Projects** (one per client app or internal service)
 - Bootstrap **AWS CDK environments** per region
 - Provision **S3 buckets + CloudFront distributions** per project via AWS CDK
@@ -19,16 +20,17 @@ The system lets you:
 
 ## Auto-Update on Dev Start
 
-Every time you run `pnpm dev`, DropOut pulls the latest code from `origin/master` via `scripts/pull-latest.js`:
+Every time you run `pnpm dev` or `npm run dev`, DropOut runs a lightweight bootstrap flow before Next.js starts:
 
-1. Checks git and remote availability
+1. `scripts/pull-latest.js` checks git and remote availability
 2. Fetches from `origin/master`
 3. Stashes uncommitted local changes (if any)
 4. Fast-forward merges new commits
 5. Pops the stash
-6. Warns if `package.json` or `pnpm-lock.yaml` changed
+6. `scripts/ensure-deps.js` verifies the root app and `infrastructure/cdk` dependencies
+7. Re-runs the workspace install only when dependency manifests changed or dependencies are missing
 
-This is implemented as a `predev` npm lifecycle hook and never blocks the server on failure.
+This is implemented as a `predev` npm lifecycle hook. The update step never blocks the server on failure, and the dependency step avoids recursive installs by never calling the package manager from `postinstall`.
 
 ---
 
@@ -73,28 +75,28 @@ This is implemented as a `predev` npm lifecycle hook and never blocks the server
 
 ## Technology Stack
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| Framework | Next.js 16 (App Router) | Full-stack React framework |
-| React | React 19 | UI library |
-| UI Components | shadcn/ui (new-york, neutral) | Accessible component library |
-| Styling | Tailwind CSS v4 | Utility-first CSS |
-| Animations | framer-motion | Sidebar, modals, cards, transitions |
-| Icons | lucide-react | Consistent icon set |
-| Charts | recharts (via shadcn chart) | Analytics and cost charts |
-| Sparklines | react-sparklines | Inline mini-charts on cards |
-| Forms | React Hook Form + Zod | Type-safe form validation |
-| AI | Vercel AI SDK v6 + OpenAI GPT-4o-mini | Command generation, error debugging |
-| AWS SDK | @aws-sdk v3 (S3, CloudFront, CloudFormation, IAM, STS) | AWS operations |
-| S3 Presigner | @aws-sdk/s3-request-presigner | Pre-signed PutObject URLs |
-| Maps | maplibre-gl | Region world map in Environments |
-| Flags | react-circle-flags | Region flag icons |
-| Syntax | prism-react-renderer | Code blocks |
-| Infrastructure | AWS CDK v2 (TypeScript) | S3 + CloudFront provisioning |
-| DnD | @dnd-kit | Drag-and-drop in file explorer |
-| Data Storage | Node.js fs (JSON files) | Local persistence, no database |
-| Runtime | Node.js 20 | Local only, Windows + macOS + Linux |
-| Package Manager | pnpm | Faster installs |
+| Layer           | Technology                                             | Purpose                             |
+| --------------- | ------------------------------------------------------ | ----------------------------------- |
+| Framework       | Next.js 16 (App Router)                                | Full-stack React framework          |
+| React           | React 19                                               | UI library                          |
+| UI Components   | shadcn/ui (new-york, neutral)                          | Accessible component library        |
+| Styling         | Tailwind CSS v4                                        | Utility-first CSS                   |
+| Animations      | framer-motion                                          | Sidebar, modals, cards, transitions |
+| Icons           | lucide-react                                           | Consistent icon set                 |
+| Charts          | recharts (via shadcn chart)                            | Analytics and cost charts           |
+| Sparklines      | react-sparklines                                       | Inline mini-charts on cards         |
+| Forms           | React Hook Form + Zod                                  | Type-safe form validation           |
+| AI              | Vercel AI SDK v6 + OpenAI GPT-4o-mini                  | Command generation, error debugging |
+| AWS SDK         | @aws-sdk v3 (S3, CloudFront, CloudFormation, IAM, STS) | AWS operations                      |
+| S3 Presigner    | @aws-sdk/s3-request-presigner                          | Pre-signed PutObject URLs           |
+| Maps            | maplibre-gl                                            | Region world map in Environments    |
+| Flags           | react-circle-flags                                     | Region flag icons                   |
+| Syntax          | prism-react-renderer                                   | Code blocks                         |
+| Infrastructure  | AWS CDK v2 (TypeScript)                                | S3 + CloudFront provisioning        |
+| DnD             | @dnd-kit                                               | Drag-and-drop in file explorer      |
+| Data Storage    | Node.js fs (JSON files)                                | Local persistence, no database      |
+| Runtime         | Node.js 20                                             | Local only, Windows + macOS + Linux |
+| Package Manager | pnpm                                                   | Faster installs                     |
 
 ---
 
@@ -227,8 +229,8 @@ dropout/
 interface BootstrappedEnvironment {
   id: string;
   accountId: string;
-  region: string;      // e.g. "us-east-1"
-  alias: string;       // e.g. "EU Production"
+  region: string; // e.g. "us-east-1"
+  alias: string; // e.g. "EU Production"
   status: 'bootstrapping' | 'active' | 'failed';
   bootstrappedAt: string;
   createdAt: string;
@@ -239,7 +241,7 @@ interface BootstrappedEnvironment {
 
 ```typescript
 interface Project {
-  id: string;             // UUID
+  id: string; // UUID
   name: string;
   environment: 'dev' | 'prod';
   maxFileSizeMB: number;
@@ -255,14 +257,14 @@ interface Project {
 interface Bucket {
   id: string;
   projectId: string;
-  name: string;                    // display name (slug)
-  s3BucketName: string;            // actual AWS bucket: "scr-<name>-<timestamp>"
+  name: string; // display name (slug)
+  s3BucketName: string; // actual AWS bucket: "scr-<name>-<timestamp>"
   s3BucketArn: string;
   cloudFrontDomain: string;
   cloudFrontDistributionId: string;
   region: string;
   status: 'pending' | 'deploying' | 'active' | 'failed' | 'deleting';
-  config: BucketConfig;            // full config (CORS, encryption, versioning, etc.)
+  config: BucketConfig; // full config (CORS, encryption, versioning, etc.)
   createdAt: string;
   updatedAt: string;
 }
@@ -277,7 +279,7 @@ interface BucketConfig {
   allowedFileTypes: 'images' | 'videos' | 'documents' | 'any';
   autoDelete: boolean;
   autoDeleteDays?: number;
-  signedUrlExpiration: number;     // seconds
+  signedUrlExpiration: number; // seconds
   corsOrigins: string[];
   corsMethods: string[];
   versioning: boolean;
@@ -298,13 +300,13 @@ interface BucketConfig {
 interface FileRecord {
   id: string;
   projectId: string;
-  bucketName: string;      // s3BucketName
-  objectKey: string;       // e.g. "proj-id/uuid-filename.jpg"
+  bucketName: string; // s3BucketName
+  objectKey: string; // e.g. "proj-id/uuid-filename.jpg"
   cloudFrontUrl: string;
-  size: number;            // bytes
+  size: number; // bytes
   mimeType: string;
-  linkedModel: string;     // e.g. "User" — empty = orphan
-  linkedModelId: string;   // e.g. "user-123"
+  linkedModel: string; // e.g. "User" — empty = orphan
+  linkedModelId: string; // e.g. "user-123"
   createdAt: string;
 }
 ```
@@ -328,46 +330,47 @@ interface FileRecord {
 
 ### Projects
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/projects` | List all projects |
-| POST | `/api/projects` | Create a project (Zod-validated) |
-| PUT | `/api/projects` | Update project by `{ id, ...updates }` |
-| DELETE | `/api/projects?id=<id>` | Delete project by ID |
+| Method | Path                    | Description                            |
+| ------ | ----------------------- | -------------------------------------- |
+| GET    | `/api/projects`         | List all projects                      |
+| POST   | `/api/projects`         | Create a project (Zod-validated)       |
+| PUT    | `/api/projects`         | Update project by `{ id, ...updates }` |
+| DELETE | `/api/projects?id=<id>` | Delete project by ID                   |
 
 ### Buckets
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/buckets?projectId=<id>` | List all buckets, optionally by project |
-| POST | `/api/buckets` | Create a `pending` bucket record |
-| PUT | `/api/buckets` | Update bucket (e.g. after CDK deploy) |
-| DELETE | `/api/buckets?id=<id>` | Delete bucket record |
+| Method | Path                          | Description                             |
+| ------ | ----------------------------- | --------------------------------------- |
+| GET    | `/api/buckets?projectId=<id>` | List all buckets, optionally by project |
+| POST   | `/api/buckets`                | Create a `pending` bucket record        |
+| PUT    | `/api/buckets`                | Update bucket (e.g. after CDK deploy)   |
+| DELETE | `/api/buckets?id=<id>`        | Delete bucket record                    |
 
 ### Files
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/files?projectId=<id>&bucketName=<name>` | List file metadata |
-| POST | `/api/files` | Validate + generate pre-signed PutObject URL + store metadata |
-| DELETE | `/api/files?id=<id>` | Delete file metadata record (not the S3 object) |
-| GET | `/api/files/s3?bucketName=<n>&region=<r>&prefix=<p>` | List actual S3 objects, merged with local metadata |
+| Method | Path                                                 | Description                                                   |
+| ------ | ---------------------------------------------------- | ------------------------------------------------------------- |
+| GET    | `/api/files?projectId=<id>&bucketName=<name>`        | List file metadata                                            |
+| POST   | `/api/files`                                         | Validate + generate pre-signed PutObject URL + store metadata |
+| DELETE | `/api/files?id=<id>`                                 | Delete file metadata record (not the S3 object)               |
+| GET    | `/api/files/s3?bucketName=<n>&region=<r>&prefix=<p>` | List actual S3 objects, merged with local metadata            |
 
 ### Environments
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/environments` | List bootstrapped environments |
-| POST | `/api/environments` | Bootstrap a new region (runs `cdk bootstrap`, streams output) |
-| DELETE | `/api/environments?id=<id>` | Remove environment record |
+| Method | Path                        | Description                                                   |
+| ------ | --------------------------- | ------------------------------------------------------------- |
+| GET    | `/api/environments`         | List bootstrapped environments                                |
+| POST   | `/api/environments`         | Bootstrap a new region (runs `cdk bootstrap`, streams output) |
+| DELETE | `/api/environments?id=<id>` | Remove environment record                                     |
 
 ### Infrastructure
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/infrastructure` | Run CDK synth or deploy (streaming NDJSON) |
+| Method | Path                  | Description                                |
+| ------ | --------------------- | ------------------------------------------ |
+| POST   | `/api/infrastructure` | Run CDK synth or deploy (streaming NDJSON) |
 
 Request body:
+
 ```json
 {
   "action": "deploy" | "synth",
@@ -380,34 +383,34 @@ Request body:
 
 ### Distributions
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/distributions` | List all CloudFront distributions |
-| DELETE | `/api/distributions?distributionId=<id>` | Delete a disabled distribution |
+| Method | Path                                     | Description                       |
+| ------ | ---------------------------------------- | --------------------------------- |
+| GET    | `/api/distributions`                     | List all CloudFront distributions |
+| DELETE | `/api/distributions?distributionId=<id>` | Delete a disabled distribution    |
 
 ### Analytics & Expenses
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/analytics?projectId=<id>` | Aggregate stats (totals, per-bucket, orphans) |
-| GET | `/api/expenses` | Estimated cost breakdown per bucket and project |
+| Method | Path                            | Description                                     |
+| ------ | ------------------------------- | ----------------------------------------------- |
+| GET    | `/api/analytics?projectId=<id>` | Aggregate stats (totals, per-bucket, orphans)   |
+| GET    | `/api/expenses`                 | Estimated cost breakdown per bucket and project |
 
 ### Terminal & Commands
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/terminal` | Spawn a shell command, returns `{ id, pid }` |
-| GET | `/api/terminal?id=<id>` | Get command output and status |
-| DELETE | `/api/terminal?id=<id>` | Kill a running process |
-| GET | `/api/commands` | List saved custom commands |
-| POST | `/api/commands` | Save a new custom command |
-| DELETE | `/api/commands?id=<id>` | Delete a saved command |
+| Method | Path                    | Description                                  |
+| ------ | ----------------------- | -------------------------------------------- |
+| POST   | `/api/terminal`         | Spawn a shell command, returns `{ id, pid }` |
+| GET    | `/api/terminal?id=<id>` | Get command output and status                |
+| DELETE | `/api/terminal?id=<id>` | Kill a running process                       |
+| GET    | `/api/commands`         | List saved custom commands                   |
+| POST   | `/api/commands`         | Save a new custom command                    |
+| DELETE | `/api/commands?id=<id>` | Delete a saved command                       |
 
 ### AI
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/ai` | Generate a command or debug an error via GPT-4o-mini |
+| Method | Path      | Description                                          |
+| ------ | --------- | ---------------------------------------------------- |
+| POST   | `/api/ai` | Generate a command or debug an error via GPT-4o-mini |
 
 ```json
 // Generate
@@ -419,19 +422,19 @@ Request body:
 
 ### Settings & System
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/settings` | Read settings.json |
-| PUT | `/api/settings` | Update settings.json |
-| GET | `/api/system` | Read system.json (onboarding flags) |
-| PUT | `/api/system` | Update system.json |
-| GET | `/api/aws-identity` | Get STS identity + IAM permission check |
+| Method | Path                | Description                             |
+| ------ | ------------------- | --------------------------------------- |
+| GET    | `/api/settings`     | Read settings.json                      |
+| PUT    | `/api/settings`     | Update settings.json                    |
+| GET    | `/api/system`       | Read system.json (onboarding flags)     |
+| PUT    | `/api/system`       | Update system.json                      |
+| GET    | `/api/aws-identity` | Get STS identity + IAM permission check |
 
 ### Docs Chat
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/docs-chat` | AI chat over the documentation Markdown files |
+| Method | Path             | Description                                   |
+| ------ | ---------------- | --------------------------------------------- |
+| POST   | `/api/docs-chat` | AI chat over the documentation Markdown files |
 
 ---
 
@@ -441,11 +444,11 @@ Location: `infrastructure/cdk/lib/storage-bucket-stack.ts`
 
 ### Stack inputs (environment variables)
 
-| Variable | Description |
-|---|---|
+| Variable          | Description                                     |
+| ----------------- | ----------------------------------------------- |
 | `SCR_BUCKET_NAME` | Full S3 bucket name (e.g. `scr-my-bucket-1234`) |
-| `SCR_REGION` | AWS region to deploy to |
-| `SCR_CONFIG` | JSON-serialized `BucketConfig` object |
+| `SCR_REGION`      | AWS region to deploy to                         |
+| `SCR_CONFIG`      | JSON-serialized `BucketConfig` object           |
 
 ### Resources created per stack
 
@@ -477,12 +480,12 @@ StorageBucketStack  (CloudFormation stack name: SCR-<s3BucketName>)
 
 ### CDK Outputs (read by dashboard after deploy)
 
-| Key | Value |
-|---|---|
-| `BucketArn` | Full S3 ARN |
+| Key                | Value                        |
+| ------------------ | ---------------------------- |
+| `BucketArn`        | Full S3 ARN                  |
 | `CloudFrontDomain` | e.g. `abc123.cloudfront.net` |
-| `DistributionId` | CloudFront distribution ID |
-| `UploadPolicyArn` | IAM policy ARN |
+| `DistributionId`   | CloudFront distribution ID   |
+| `UploadPolicyArn`  | IAM policy ARN               |
 
 ---
 
@@ -504,7 +507,7 @@ POST /api/files ─────────────► Validate size + MIME 
 
 PUT <uploadUrl> ──────────────────────────────────────────────► S3 Bucket (direct, no proxy)
 (raw file bytes)
-                               
+
 GET cloudFrontUrl ────────────────────────────────────────────► CloudFront → S3
 (serve to users)
 ```
@@ -536,15 +539,15 @@ All branding is centralized in `lib/config.ts`:
 
 ```typescript
 export const APP_CONFIG = {
-  name: "DropOut",
-  description: "Internal S3 + CloudFront management dashboard",
-  logoDark: "/logos/white transparent background.png",
-  logoLight: "/logos/white transparent background.png",
-  githubRepo: "abdelrahmangasser555/do-it-my-self",
-  tagline: "Local-only · No hosting",
-  setupVideoUrl: "https://www.youtube.com/embed/...",
-  tutorialVideoUrl: "https://www.youtube.com/embed/...",
-  creatorWebsite: "https://example.com",
+  name: 'DropOut',
+  description: 'Internal S3 + CloudFront management dashboard',
+  logoDark: '/logos/white transparent background.png',
+  logoLight: '/logos/white transparent background.png',
+  githubRepo: 'abdelrahmangasser555/do-it-my-self',
+  tagline: 'Local-only · No hosting',
+  setupVideoUrl: 'https://www.youtube.com/embed/...',
+  tutorialVideoUrl: 'https://www.youtube.com/embed/...',
+  creatorWebsite: 'https://example.com',
 } as const;
 ```
 
@@ -563,14 +566,14 @@ export const APP_CONFIG = {
 
 ## Code Organization Rules
 
-| Rule | Details |
-|---|---|
-| Feature-based | All domain logic in `features/<domain>/` |
-| Hooks = business logic | Data fetching, mutations, state → `features/*/hooks/` |
-| Components = presentational | No API calls, no side effects → `features/*/components/` |
-| API routes only | All file I/O (`fs`) and AWS SDK calls happen in `app/api/*/route.ts` |
-| Shared utilities | `lib/` only |
-| No global state libraries | React hooks + context only |
-| APP_CONFIG | Never hardcode the app name; always import from `lib/config.ts` |
-| Types | All interfaces in `lib/types.ts` |
-| Zod schemas | In `lib/validations.ts` |
+| Rule                        | Details                                                              |
+| --------------------------- | -------------------------------------------------------------------- |
+| Feature-based               | All domain logic in `features/<domain>/`                             |
+| Hooks = business logic      | Data fetching, mutations, state → `features/*/hooks/`                |
+| Components = presentational | No API calls, no side effects → `features/*/components/`             |
+| API routes only             | All file I/O (`fs`) and AWS SDK calls happen in `app/api/*/route.ts` |
+| Shared utilities            | `lib/` only                                                          |
+| No global state libraries   | React hooks + context only                                           |
+| APP_CONFIG                  | Never hardcode the app name; always import from `lib/config.ts`      |
+| Types                       | All interfaces in `lib/types.ts`                                     |
+| Zod schemas                 | In `lib/validations.ts`                                              |

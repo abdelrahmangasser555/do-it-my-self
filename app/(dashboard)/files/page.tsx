@@ -1,15 +1,5 @@
-// Files page — Windows Explorer-style file browser
-'use client';
+import FilesPage from '@/features/files/components/files-page';
 
-import { PageTransition } from '@/components/page-transition';
-import { FileExplorer } from '@/features/files/components/file-explorer';
-
-export default function FilesPage() {
-  return (
-    <PageTransition>
-      <div className="space-y-4">
-        <FileExplorer />
-      </div>
-    </PageTransition>
-  );
+export default function Page() {
+  return <FilesPage />;
 }

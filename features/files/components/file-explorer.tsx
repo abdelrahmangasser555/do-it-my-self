@@ -143,6 +143,10 @@ interface BucketS3Data {
   totalFiles: number;
 }
 
+interface FileExplorerProps {
+  lockedBucket?: Bucket;
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatBytes(bytes: number): string {
@@ -186,8 +190,9 @@ function mergeDateAndTime(
 
 // ── Main Component ──────────────────────────────────────────────────────────
 
-export function FileExplorer() {
+export function FileExplorer({ lockedBucket }: FileExplorerProps) {
   // ── State ──────────────────────────────────────────────────────────────
+  const isSingleBucket = !!lockedBucket;
   const [buckets, setBuckets] = useState<Bucket[]>([]);
   const [selectedBucketId, setSelectedBucketId] = useState<string>('');
   const [bucketData, setBucketData] = useState<BucketS3Data[]>([]);
@@ -223,6 +228,12 @@ export function FileExplorer() {
   // ── Fetch ──────────────────────────────────────────────────────────────
 
   const fetchBuckets = useCallback(async () => {
+    if (lockedBucket) {
+      setBuckets([lockedBucket]);
+      setSelectedBucketId(lockedBucket.id);
+      return;
+    }
+
     try {
       const res = await fetch('/api/buckets');
       if (!res.ok) throw new Error('Failed to load buckets');
@@ -234,7 +245,7 @@ export function FileExplorer() {
     } catch {
       toast.error('Failed to load buckets');
     }
-  }, [selectedBucketId]);
+  }, [lockedBucket, selectedBucketId]);
 
   const fetchS3Data = useCallback(async () => {
     try {
@@ -270,6 +281,16 @@ export function FileExplorer() {
   useEffect(() => {
     fetchBuckets();
   }, [fetchBuckets]);
+
+  useEffect(() => {
+    if (!lockedBucket) return;
+
+    setBuckets([lockedBucket]);
+    setSelectedBucketId(lockedBucket.id);
+    setCurrentPath('');
+    setSearch('');
+  }, [lockedBucket]);
+
   useEffect(() => {
     if (buckets.length > 0) fetchS3Data();
   }, [buckets.length, fetchS3Data]);
@@ -577,7 +598,7 @@ export function FileExplorer() {
 
   const totalFiles = bucketData.reduce((s, b) => s + b.totalFiles, 0);
   const totalSize = bucketData.reduce((s, b) => s + b.totalSize, 0);
-  const activeBuckets = buckets.filter((b) => b.status === 'active');
+  const activeBuckets = isSingleBucket ? buckets : buckets.filter((b) => b.status === 'active');
   const hasFilters = !!(dateRange?.from || dateRange?.to) || selectedFileTypes.length > 0;
 
   // ── Render ─────────────────────────────────────────────────────────────
@@ -587,33 +608,45 @@ export function FileExplorer() {
       {/* Header bar */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          {/* Bucket selector */}
-          <Select
-            value={selectedBucketId}
-            onValueChange={(v) => {
-              setSelectedBucketId(v);
-              setCurrentPath('');
-              setSearch('');
-            }}
-          >
-            <SelectTrigger className="w-52 h-9">
-              <SelectValue placeholder="Select a bucket" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>Buckets</SelectLabel>
-                {activeBuckets.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          {!isSingleBucket ? (
+            <Select
+              value={selectedBucketId}
+              onValueChange={(v) => {
+                setSelectedBucketId(v);
+                setCurrentPath('');
+                setSearch('');
+              }}
+            >
+              <SelectTrigger className="w-52 h-9">
+                <SelectValue placeholder="Select a bucket" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Buckets</SelectLabel>
+                  {activeBuckets.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2">
+              <Cloud className="size-4 text-primary" />
+              <div>
+                <p className="text-sm font-medium leading-none">{selectedBucket?.name}</p>
+                <p className="mt-1 text-[11px] font-mono text-muted-foreground">
+                  {selectedBucket?.s3BucketName}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Summary badges */}
           <Badge variant="outline" className="text-xs gap-1">
-            <Cloud className="size-3" /> {activeBuckets.length} buckets
+            <Cloud className="size-3" /> {activeBuckets.length}{' '}
+            {isSingleBucket ? 'bucket' : 'buckets'}
           </Badge>
           <Badge variant="outline" className="text-xs gap-1">
             <HardDrive className="size-3" /> {formatBytes(totalSize)}
@@ -627,7 +660,11 @@ export function FileExplorer() {
           {/* Search */}
           <InputGroup className="w-80">
             <InputGroupInput
-              placeholder="Search files across all buckets..."
+              placeholder={
+                isSingleBucket
+                  ? 'Search files in this bucket...'
+                  : 'Search files across all buckets...'
+              }
               className="h-9 text-xs"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -906,9 +943,11 @@ export function FileExplorer() {
                           {file.key}
                         </p>
                       </div>
-                      <Badge variant="outline" className="text-[9px] shrink-0">
-                        {file._bucket}
-                      </Badge>
+                      {!isSingleBucket && (
+                        <Badge variant="outline" className="text-[9px] shrink-0">
+                          {file._bucket}
+                        </Badge>
+                      )}
                       <span className="text-[10px] text-muted-foreground shrink-0">
                         {formatBytes(file.size)}
                       </span>

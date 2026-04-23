@@ -1,29 +1,43 @@
 // Infrastructure page for CDK synth/deploy with streaming terminal output
-"use client";
+'use client';
 
-import { toast } from "sonner";
-import { Rocket, RefreshCw, Terminal } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { PageTransition } from "@/components/page-transition";
-import { BucketsTable } from "@/features/buckets/components/buckets-table";
-import { useBuckets, useDeleteBucket } from "@/features/buckets/hooks/use-buckets";
-import { useDeployBucket } from "@/features/infrastructure/hooks/use-deploy-bucket";
-import { useTerminal } from "@/lib/terminal-context";
-import type { Bucket } from "@/lib/types";
+import { toast } from 'sonner';
+import { Rocket, RefreshCw, Terminal } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ModeRestrictedState } from '@/components/mode-restricted-state';
+import { PageTransition } from '@/components/page-transition';
+import { BucketsTable } from '@/features/buckets/components/buckets-table';
+import { useBuckets, useDeleteBucket } from '@/features/buckets/hooks/use-buckets';
+import { useDeployBucket } from '@/features/infrastructure/hooks/use-deploy-bucket';
+import { useAppMode } from '@/lib/app-mode-context';
+import { useTerminal } from '@/lib/terminal-context';
+import type { Bucket } from '@/lib/types';
 
 export default function InfrastructurePage() {
+  const { isDeveloperMode } = useAppMode();
   const { buckets, loading, refetch } = useBuckets();
   const { deleteBucket } = useDeleteBucket();
   const { deploy, synth, loading: deploying } = useDeployBucket();
   const terminal = useTerminal();
 
+  if (!isDeveloperMode) {
+    return (
+      <PageTransition>
+        <ModeRestrictedState
+          title="Infrastructure controls are hidden in simplified modes"
+          description="CDK synth, deployment workflows, and low-level infrastructure operations stay in Developer Mode so Easy and Vibecoder remain focused and predictable."
+        />
+      </PageTransition>
+    );
+  }
+
   const handleSynth = async () => {
-    toast.info("Running CDK synth...");
+    toast.info('Running CDK synth...');
     const result = await synth();
     if (result.success) {
-      toast.success("CDK synth complete");
+      toast.success('CDK synth complete');
     } else {
       toast.error(`Synth failed: ${result.error}`);
     }
@@ -33,7 +47,7 @@ export default function InfrastructurePage() {
     toast.info(`Deploying ${bucket.name}...`);
     const result = await deploy(bucket.id, bucket.s3BucketName, bucket.region);
     if (result.success) {
-      toast.success("Deployment complete!");
+      toast.success('Deployment complete!');
       refetch();
     } else {
       toast.error(`Deployment failed: ${result.error}`);
@@ -43,7 +57,7 @@ export default function InfrastructurePage() {
   const handleDelete = async (id: string) => {
     const success = await deleteBucket(id);
     if (success) {
-      toast.success("Bucket deleted");
+      toast.success('Bucket deleted');
       refetch();
     }
   };
@@ -53,19 +67,13 @@ export default function InfrastructurePage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              Infrastructure
-            </h1>
+            <h1 className="text-2xl font-bold tracking-tight">Infrastructure</h1>
             <p className="text-muted-foreground">
               Deploy and manage AWS resources via CDK. Output streams to the terminal below.
             </p>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => terminal.setIsOpen(true)}
-            >
+            <Button variant="outline" size="sm" onClick={() => terminal.setIsOpen(true)}>
               <Terminal className="mr-2 size-4" />
               Terminal
             </Button>
@@ -84,8 +92,8 @@ export default function InfrastructurePage() {
               Deployment Guide
             </CardTitle>
             <CardDescription>
-              The deploy process runs pre-checks, streams CDK output to the
-              terminal, and provides error intelligence with suggested fixes.
+              The deploy process runs pre-checks, streams CDK output to the terminal, and provides
+              error intelligence with suggested fixes.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -108,11 +116,7 @@ export default function InfrastructurePage() {
                 <p className="text-sm text-muted-foreground">Loading...</p>
               </div>
             ) : (
-              <BucketsTable
-                buckets={buckets}
-                onDelete={handleDelete}
-                onDeploy={handleDeploy}
-              />
+              <BucketsTable buckets={buckets} onDelete={handleDelete} onDeploy={handleDeploy} />
             )}
           </CardContent>
         </Card>

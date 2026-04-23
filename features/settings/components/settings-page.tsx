@@ -39,11 +39,52 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { PageTransition } from '@/components/page-transition';
+import { APP_MODE_OPTIONS } from '@/lib/app-mode';
+import { useAppMode } from '@/lib/app-mode-context';
 import { APP_CONFIG } from '@/lib/config';
 import { useTheme, type Theme } from '@/lib/theme-context';
+import type { AppMode } from '@/lib/types';
 import { AWS_REGIONS } from '@/lib/validations';
 import { getRegionAlpha2 } from '@/lib/region-flags';
+import { cn } from '@/lib/utils';
 import { CircleFlag } from 'react-circle-flags';
+
+const MODE_STYLES: Record<
+  AppMode,
+  {
+    icon: typeof User;
+    previewShell: string;
+    accent: string;
+    card: string;
+    active: string;
+    badge: string;
+  }
+> = {
+  easy: {
+    icon: User,
+    previewShell: 'from-amber-500/15 via-background to-orange-500/10',
+    accent: 'bg-amber-500/80',
+    card: 'border-amber-500/20 bg-amber-500/5 hover:border-amber-500/35',
+    active: 'border-amber-500/45 ring-1 ring-amber-500/20 shadow-sm shadow-amber-500/10',
+    badge: 'border-amber-500/25 bg-amber-500/10 text-amber-700',
+  },
+  developer: {
+    icon: Building2,
+    previewShell: 'from-emerald-500/15 via-background to-teal-500/10',
+    accent: 'bg-emerald-500/80',
+    card: 'border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/35',
+    active: 'border-emerald-500/45 ring-1 ring-emerald-500/20 shadow-sm shadow-emerald-500/10',
+    badge: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700',
+  },
+  vibecoder: {
+    icon: Bot,
+    previewShell: 'from-sky-500/15 via-background to-cyan-500/10',
+    accent: 'bg-sky-500/80',
+    card: 'border-sky-500/20 bg-sky-500/5 hover:border-sky-500/35',
+    active: 'border-sky-500/45 ring-1 ring-sky-500/20 shadow-sm shadow-sky-500/10',
+    badge: 'border-sky-500/25 bg-sky-500/10 text-sky-700',
+  },
+};
 
 interface CliCredentials {
   accessKeyId: string;
@@ -86,8 +127,59 @@ const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Moon }[] = [
   { value: 'system', label: 'System', icon: Monitor },
 ];
 
+function ModePreview({ mode }: { mode: AppMode }) {
+  const style = MODE_STYLES[mode];
+
+  if (mode === 'developer') {
+    return (
+      <div className={cn('rounded-lg border bg-linear-to-br p-3', style.previewShell)}>
+        <div className="flex gap-2">
+          <div className="flex size-12 flex-col gap-1 rounded-md bg-background p-2">
+            <span className={cn('h-1.5 rounded-full', style.accent)} />
+            <span className="h-1.5 rounded-full bg-foreground/50" />
+            <span className="h-1.5 rounded-full bg-foreground/25" />
+          </div>
+          <div className="flex-1 rounded-md bg-background p-2">
+            <div className={cn('mb-2 h-2 rounded-full', style.accent)} />
+            <div className="grid grid-cols-2 gap-2">
+              <span className={cn('h-10 rounded-md', style.card)} />
+              <span className="h-10 rounded-md bg-muted" />
+              <span className="h-10 rounded-md bg-muted" />
+              <span className={cn('h-10 rounded-md', style.badge)} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn('rounded-lg border bg-linear-to-br p-3', style.previewShell)}>
+      <div className="flex gap-2">
+        <div className="flex w-12 flex-col items-center gap-2 rounded-md bg-background p-2">
+          <span className={cn('size-6 rounded-full', style.card)} />
+          <span className="size-6 rounded-full bg-muted" />
+          <span className="size-6 rounded-full bg-muted" />
+        </div>
+        <div className="flex-1 rounded-md bg-background p-2">
+          <div className="mb-2 flex items-center justify-between">
+            <span className={cn('h-2 w-20 rounded-full', style.accent)} />
+            <span className={cn('h-5 w-5 rounded-full', style.card)} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <span className={cn('h-9 rounded-md', style.card)} />
+            <span className="h-9 rounded-md bg-muted" />
+            {mode === 'vibecoder' && <span className={cn('h-9 rounded-md', style.badge)} />}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
+  const { mode, setMode } = useAppMode();
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -255,6 +347,12 @@ export default function SettingsPage() {
     }
   };
 
+  const handleModeChange = (nextMode: AppMode) => {
+    if (nextMode === mode) return;
+    setMode(nextMode);
+    toast.success(`${APP_MODE_OPTIONS.find((option) => option.value === nextMode)?.label} enabled`);
+  };
+
   if (loading) {
     return (
       <PageTransition>
@@ -289,6 +387,72 @@ export default function SettingsPage() {
 
         <Card>
           <CardContent className="divide-y">
+            <div className="py-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg border bg-muted/50 p-2">
+                  <Settings2 className="size-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium">Modes</Label>
+                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                      Global
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Change the entire product experience instantly. Easy and Vibecoder keep the UI
+                    simple, while Developer exposes all controls.
+                  </p>
+                  <div className="mt-4 flex flex-col gap-3">
+                    {APP_MODE_OPTIONS.map((option) => {
+                      const isActive = option.value === mode;
+                      const style = MODE_STYLES[option.value];
+                      const ModeIcon = style.icon;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => handleModeChange(option.value)}
+                          className={cn(
+                            'rounded-xl border p-4 text-left transition-all duration-200',
+                            style.card,
+                            isActive ? style.active : 'hover:bg-background/80',
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                              <div className="rounded-xl border bg-background/80 p-2.5">
+                                <ModeIcon className="size-4 text-foreground" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-semibold">{option.label}</p>
+                                  <span className={cn('size-2 rounded-full', style.accent)} />
+                                </div>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {option.description}
+                                </p>
+                              </div>
+                            </div>
+                            {isActive && (
+                              <Badge variant="outline" className={cn('shrink-0', style.badge)}>
+                                Active
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
+                            <p className="text-xs text-muted-foreground">{option.summary}</p>
+                            <ModePreview mode={option.value} />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Theme â€” auto-saves on change */}
             <div className="flex items-center justify-between py-4">
               <div className="space-y-0.5">

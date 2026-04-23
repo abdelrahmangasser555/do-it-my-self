@@ -1,5 +1,7 @@
 // Shared TypeScript types for the entire application
 
+export type AppMode = 'easy' | 'developer' | 'vibecoder';
+
 // ── Environments ─────────────────────────────────────────────────────────────
 
 export interface BootstrappedEnvironment {
@@ -20,6 +22,7 @@ export interface Project {
   environment: 'dev' | 'prod';
   maxFileSizeMB: number;
   allowedMimeTypes: string[];
+  imageDataUrl?: string;
   createdAt: string;
   updatedAt: string;
 }

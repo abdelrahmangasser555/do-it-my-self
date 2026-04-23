@@ -1,12 +1,13 @@
-// Dashboard sidebar navigation component
 'use client';
 
-import { type ElementType } from 'react';
-import { usePathname } from 'next/navigation';
+import { type ElementType, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { Sparklines, SparklinesLine } from 'react-sparklines';
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -14,7 +15,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarFooter,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -33,13 +33,12 @@ import {
   Video,
   Plus,
   FolderPlus,
+  Trash2,
+  Folders,
 } from 'lucide-react';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useTheme } from '@/lib/theme-context';
+import { toast } from 'sonner';
 import { HeroVideoDialog } from '@/components/ui/hero-video-dialog';
 import { APP_CONFIG } from '@/lib/config';
-import { toast } from 'sonner';
 import { GitHubStarsButton } from '@/components/ui/github-stars-button';
 import {
   AlertDialog,
@@ -51,10 +50,15 @@ import {
 } from '@/components/ui/alert-dialog';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
 import { CreateBucketDialog } from '@/features/buckets/components/create-bucket-dialog';
-import { useCreateProject } from '@/features/projects/hooks/use-projects';
-import { useCreateBucket } from '@/features/buckets/hooks/use-buckets';
-import { useProjects } from '@/features/projects/hooks/use-projects';
+import { DeleteBucketDialog } from '@/features/buckets/components/delete-bucket-dialog';
+import { useCreateProject, useProjects } from '@/features/projects/hooks/use-projects';
+import { useBuckets, useCreateBucket } from '@/features/buckets/hooks/use-buckets';
+import { useBucketInventory } from '@/features/buckets/hooks/use-bucket-inventory';
 import { useEnvironments } from '@/features/environments/hooks/use-environments';
+import { useTheme } from '@/lib/theme-context';
+import { useAppMode } from '@/lib/app-mode-context';
+import { cn } from '@/lib/utils';
+import type { Bucket, Project } from '@/lib/types';
 
 const navItems = [
   {
@@ -85,27 +89,118 @@ const footerActions: FooterItem[] = [
   { label: 'Reset Local Data', icon: RotateCcw, action: 'reset' },
 ];
 
+function formatStorage(bytes: number) {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const index = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, index)).toFixed(index > 1 ? 1 : 0)} ${units[index]}`;
+}
+
+function buildSidebarActivity(files: Array<{ lastModified: string; size?: number }>, days = 7) {
+  const now = Date.now();
+  const activity = new Array(days).fill(0);
+
+  for (const file of files) {
+    const age = (now - new Date(file.lastModified).getTime()) / (1000 * 60 * 60 * 24);
+    const bucketIndex = days - 1 - Math.floor(age);
+
+    if (bucketIndex >= 0 && bucketIndex < days) {
+      activity[bucketIndex] += 1;
+    }
+  }
+
+  return activity;
+}
+
+function getProjectGlyph(project: Project) {
+  if (project.imageDataUrl) {
+    return (
+      <img
+        src={project.imageDataUrl}
+        alt={project.name}
+        className="size-10 rounded-2xl object-cover"
+      />
+    );
+  }
+
+  return (
+    <span className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-sm font-semibold uppercase text-primary">
+      {project.name.slice(0, 2)}
+    </span>
+  );
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { resolvedTheme } = useTheme();
+  const {
+    mode,
+    isDeveloperMode,
+    selectedProjectId,
+    setSelectedProjectId,
+    selectedBucketId,
+    setSelectedBucketId,
+  } = useAppMode();
+
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [bucketDialogOpen, setBucketDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Bucket | null>(null);
+
   const logoSrc = resolvedTheme === 'dark' ? APP_CONFIG.logoDark : APP_CONFIG.logoLight;
 
   const { createProject, loading: creatingProject } = useCreateProject();
   const { createBucket, loading: creatingBucket } = useCreateBucket();
-  const { projects } = useProjects();
+  const { projects, refetch: refetchProjects } = useProjects();
+  const { buckets, refetch: refetchBuckets } = useBuckets();
+  const { inventory } = useBucketInventory(buckets);
   const { environments } = useEnvironments();
+
+  const projectBuckets = useMemo(
+    () => buckets.filter((bucket) => bucket.projectId === selectedProjectId),
+    [buckets, selectedProjectId],
+  );
+
+  useEffect(() => {
+    if (projects.length === 0) {
+      if (selectedProjectId) setSelectedProjectId(null);
+      if (selectedBucketId) setSelectedBucketId(null);
+      return;
+    }
+
+    const hasSelectedProject = projects.some((project) => project.id === selectedProjectId);
+    if (!hasSelectedProject) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects, selectedBucketId, selectedProjectId, setSelectedBucketId, setSelectedProjectId]);
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      if (selectedBucketId) setSelectedBucketId(null);
+      return;
+    }
+
+    const projectBucketIds = new Set(projectBuckets.map((bucket) => bucket.id));
+    if (projectBuckets.length === 0) {
+      if (selectedBucketId) setSelectedBucketId(null);
+      return;
+    }
+
+    if (!selectedBucketId || !projectBucketIds.has(selectedBucketId)) {
+      setSelectedBucketId(projectBuckets[0].id);
+    }
+  }, [projectBuckets, selectedBucketId, selectedProjectId, setSelectedBucketId]);
 
   const handleCreateProject = async (data: Parameters<typeof createProject>[0]) => {
     const result = await createProject(data);
     if (result) {
       toast.success(`Project "${result.name}" created`);
+      setSelectedProjectId(result.id);
       setProjectDialogOpen(false);
+      refetchProjects();
     } else {
       toast.error('Failed to create project');
     }
@@ -115,9 +210,18 @@ export function AppSidebar() {
     const result = await createBucket(data);
     if (result) {
       toast.success(`Bucket "${result.name}" created`);
+      setSelectedProjectId(result.projectId);
+      setSelectedBucketId(result.id);
       setBucketDialogOpen(false);
+      refetchBuckets();
+
       if (deploy) {
-        router.push('/buckets');
+        router.push(isDeveloperMode ? '/buckets' : '/');
+        return;
+      }
+
+      if (!isDeveloperMode) {
+        router.push('/');
       }
     } else {
       toast.error('Failed to create bucket');
@@ -148,15 +252,89 @@ export function AppSidebar() {
     if (action === 'reset') setResetOpen(true);
   };
 
+  const handleProjectSelect = (projectId: string) => {
+    if (projectId === selectedProjectId) {
+      return;
+    }
+
+    const nextProjectBuckets = buckets.filter((bucket) => bucket.projectId === projectId);
+    const nextActiveBucket =
+      nextProjectBuckets.find((bucket) => bucket.status === 'active') ??
+      nextProjectBuckets[0] ??
+      null;
+
+    setSelectedProjectId(projectId);
+    setSelectedBucketId(nextActiveBucket?.id ?? null);
+
+    if (mode !== 'developer' && pathname !== '/') {
+      router.push('/');
+    }
+  };
+
+  const handleBucketSelect = (bucket: Bucket) => {
+    setSelectedProjectId(bucket.projectId);
+    setSelectedBucketId(bucket.id);
+    router.push(mode === 'developer' ? `/buckets/${bucket.id}` : '/');
+  };
+
+  const activeEnvironmentCount = environments.filter(
+    (environment) => environment.status === 'active',
+  ).length;
+
+  const simplifiedFooter = (
+    <SidebarFooter className="border-t px-3 py-3">
+      <div className="flex items-center justify-center gap-1">
+        {[footerActions[0], footerActions[1], footerActions[3], footerActions[4]].map((item) => (
+          <Tooltip key={item.label} delayDuration={300}>
+            <TooltipTrigger asChild>
+              {'href' in item ? (
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+                  <Link href={item.href}>
+                    <item.icon className="size-4" />
+                  </Link>
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => handleFooterClick(item.action)}
+                >
+                  <item.icon className="size-4" />
+                </Button>
+              )}
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              {item.label}
+            </TooltipContent>
+          </Tooltip>
+        ))}
+
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+              <Link href="/environments">
+                <MapPin className="size-4" />
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            {`Environments · ${activeEnvironmentCount} active`}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </SidebarFooter>
+  );
+
   return (
     <Sidebar>
-      {/* Tutorial video dialog */}
       <HeroVideoDialog
         videoSrc={APP_CONFIG.tutorialVideoUrl}
         thumbnailSrc={logoSrc}
         animationStyle="from-center"
         className="hidden"
       />
+
       {tutorialOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md"
@@ -164,7 +342,7 @@ export function AppSidebar() {
         >
           <div
             className="relative mx-4 aspect-video w-full max-w-4xl"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
           >
             <button
               className="absolute -top-12 right-0 rounded-full bg-neutral-900/50 p-2 text-white ring-1 backdrop-blur-md"
@@ -191,119 +369,319 @@ export function AppSidebar() {
           </div>
         </div>
       )}
-      <SidebarHeader className="border-b px-4 h-14">
-        <div className="flex items-center justify-between">
-          <img src={logoSrc} alt={APP_CONFIG.name} className="h-7 w-auto object-contain shrink-0" />
-          <div className="flex items-center gap-1">
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
+
+      {isDeveloperMode && (
+        <SidebarHeader className="border-b px-4 h-14">
+          <div className="flex items-center justify-between gap-2">
+            <img
+              src={logoSrc}
+              alt={APP_CONFIG.name}
+              className="h-7 w-auto object-contain shrink-0"
+            />
+            <div className="flex items-center gap-1">
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => setProjectDialogOpen(true)}
+                  >
+                    <FolderPlus className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  New Project
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => setBucketDialogOpen(true)}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  New Bucket
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+        </SidebarHeader>
+      )}
+
+      {isDeveloperMode ? (
+        <>
+          <SidebarContent className="no-scrollbar">
+            {navItems.map((group) => (
+              <SidebarGroup key={group.title}>
+                <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {group.items.map((item) => (
+                      <SidebarMenuItem key={item.href}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={
+                            item.href === '/'
+                              ? pathname === '/'
+                              : pathname === item.href || pathname.startsWith(item.href + '/')
+                          }
+                        >
+                          <Link href={item.href}>
+                            <item.icon className="size-4" />
+                            <span>{item.label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ))}
+          </SidebarContent>
+
+          <SidebarFooter className="border-t px-4 py-3 space-y-3">
+            <div className="flex items-center justify-center gap-1">
+              {footerActions.map((item) => (
+                <Tooltip key={item.label} delayDuration={300}>
+                  <TooltipTrigger asChild>
+                    {'href' in item ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-accent"
+                        asChild
+                      >
+                        <Link href={item.href}>
+                          <item.icon className="size-4" />
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          'h-8 w-8 p-0 text-muted-foreground hover:bg-accent',
+                          item.action === 'reset'
+                            ? 'hover:text-destructive'
+                            : 'hover:text-foreground',
+                        )}
+                        onClick={() => handleFooterClick(item.action)}
+                      >
+                        <item.icon className="size-4" />
+                      </Button>
+                    )}
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    {item.label}
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+
+            <span className="flex items-center justify-center">
+              <GitHubStarsButton repo={APP_CONFIG.githubRepo} size="sm" />
+            </span>
+          </SidebarFooter>
+        </>
+      ) : (
+        <>
+          <SidebarContent className="overflow-hidden p-0">
+            <div className="flex min-h-0 flex-1">
+              <div className="flex w-19 flex-col items-center border-r bg-muted/20 px-2 py-3">
+                <Tooltip delayDuration={250}>
+                  <TooltipTrigger asChild>
+                    <Link
+                      href="/?view=analytics"
+                      className="flex size-12 items-center justify-center rounded-2xl border bg-background/80 p-2 transition-colors hover:bg-muted"
+                    >
+                      <img
+                        src={logoSrc}
+                        alt={APP_CONFIG.name}
+                        className="h-7 w-auto object-contain shrink-0"
+                      />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="text-xs">
+                    Analytics overview
+                  </TooltipContent>
+                </Tooltip>
+
+                <div className="flex-1 overflow-y-auto">
+                  {projects.length > 0 ? (
+                    <div className="mt-3 flex flex-col items-center gap-2">
+                      {projects.map((project) => {
+                        const isActive = project.id === selectedProjectId;
+
+                        return (
+                          <Tooltip key={project.id} delayDuration={250}>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => handleProjectSelect(project.id)}
+                                className={cn(
+                                  'rounded-2xl p-1.5 transition-colors',
+                                  isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted',
+                                )}
+                              >
+                                {getProjectGlyph(project)}
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="text-xs">
+                              {project.name}
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mt-6 flex items-start justify-center">
+                      <Tooltip delayDuration={250}>
+                        <TooltipTrigger asChild>
+                          <div className="rounded-2xl border border-dashed bg-background/70 p-3 text-muted-foreground">
+                            <Folders className="size-5" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="text-xs">
+                          No projects yet
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  )}
+                </div>
+
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="icon"
-                  className="size-8"
+                  className="mx-auto mt-3 size-10 rounded-2xl"
                   onClick={() => setProjectDialogOpen(true)}
-                >
-                  <FolderPlus className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">
-                New Project
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  onClick={() => setBucketDialogOpen(true)}
                 >
                   <Plus className="size-4" />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">
-                New Bucket
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-      </SidebarHeader>
+              </div>
 
-      <SidebarContent className="no-scrollbar">
-        {navItems.map((group) => (
-          <SidebarGroup key={group.title}>
-            <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={
-                        item.href === '/'
-                          ? pathname === '/'
-                          : pathname === item.href || pathname.startsWith(item.href + '/')
-                      }
-                    >
-                      <Link href={item.href}>
-                        <item.icon className="size-4" />
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
-      </SidebarContent>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex-1 overflow-y-auto p-3">
+                  {selectedProjectId ? (
+                    projectBuckets.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        {projectBuckets.map((bucket) => {
+                          const isActive = selectedBucketId === bucket.id;
+                          const bucketInventory = inventory[bucket.id];
+                          const fileCount = bucketInventory?.fileCount ?? 0;
+                          const totalSize = bucketInventory?.totalSizeBytes ?? 0;
+                          const activity = buildSidebarActivity(bucketInventory?.files ?? []);
 
-      <SidebarFooter className="border-t px-4 py-3 space-y-3">
-        {/* Icon row */}
-        <div className="flex items-center justify-center gap-1">
-          {footerActions.map((item) => (
-            <Tooltip key={item.label} delayDuration={300}>
-              <TooltipTrigger asChild>
-                {'href' in item ? (
+                          return (
+                            <div
+                              key={bucket.id}
+                              className={cn(
+                                'group rounded-2xl px-3 py-3 transition-all duration-200',
+                                isActive
+                                  ? 'bg-linear-to-r from-primary/14 via-primary/8 to-transparent shadow-sm'
+                                  : 'hover:bg-muted/35',
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleBucketSelect(bucket)}
+                                  className="min-w-0 flex-1 text-left"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <p
+                                        className={cn(
+                                          'truncate text-sm font-medium',
+                                          isActive ? 'text-foreground' : 'text-foreground/90',
+                                        )}
+                                      >
+                                        {bucket.name}
+                                      </p>
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        {fileCount} files · {formatStorage(totalSize)}
+                                      </p>
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-2">
+                                      <div className="hidden sm:block">
+                                        <p className="mb-1 text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                                          Activity
+                                        </p>
+                                        <div className="h-5 w-16 opacity-85">
+                                          <Sparklines data={activity} height={20} min={0}>
+                                            <SparklinesLine
+                                              color="var(--primary)"
+                                              style={{
+                                                fill: 'var(--primary)',
+                                                fillOpacity: 0.12,
+                                                strokeWidth: 1.5,
+                                              }}
+                                            />
+                                          </Sparklines>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={cn(
+                                    'size-7 shrink-0 text-muted-foreground transition-opacity hover:text-destructive',
+                                    'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+                                  )}
+                                  onClick={() => setDeleteTarget(bucket)}
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed p-4 text-center">
+                        <p className="text-sm font-medium">No buckets yet</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Create a bucket to start managing storage for this project.
+                        </p>
+                      </div>
+                    )
+                  ) : (
+                    <div className="rounded-xl border border-dashed p-4 text-center">
+                      <p className="text-sm font-medium">Select a project</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Pick a project from the rail to reveal its buckets.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t p-3">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-accent"
-                    asChild
+                    className="w-full"
+                    onClick={() => setBucketDialogOpen(true)}
+                    disabled={!selectedProjectId}
                   >
-                    <Link href={(item as FooterLink).href}>
-                      <item.icon className="size-4" />
-                    </Link>
+                    <Plus data-icon="inline-start" />
+                    New Bucket
                   </Button>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={`h-8 w-8 p-0 text-muted-foreground hover:bg-accent ${
-                      (item as FooterAction).action === 'reset'
-                        ? 'hover:text-destructive'
-                        : 'hover:text-foreground'
-                    }`}
-                    onClick={() => handleFooterClick((item as FooterAction).action)}
-                  >
-                    <item.icon className="size-4" />
-                  </Button>
-                )}
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
-                {item.label}
-              </TooltipContent>
-            </Tooltip>
-          ))}
-        </div>
+                </div>
+              </div>
+            </div>
+          </SidebarContent>
 
-        {/* GitHub stars */}
-        <span className="flex items-center justify-center">
-          <GitHubStarsButton repo={APP_CONFIG.githubRepo} size="sm" />
-        </span>
-      </SidebarFooter>
+          {simplifiedFooter}
+        </>
+      )}
 
-      {/* Reset confirmation dialog */}
       <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -346,6 +724,26 @@ export function AppSidebar() {
         projects={projects}
         loading={creatingBucket}
         environments={environments}
+        defaultProjectId={selectedProjectId ?? undefined}
+      />
+
+      <DeleteBucketDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        bucket={deleteTarget}
+        fileCount={deleteTarget ? (inventory[deleteTarget.id]?.fileCount ?? 0) : 0}
+        onComplete={() => {
+          if (deleteTarget?.id === selectedBucketId) {
+            setSelectedBucketId(null);
+          }
+          refetchBuckets();
+          setDeleteTarget(null);
+          if (!isDeveloperMode) {
+            router.push('/');
+          }
+        }}
       />
     </Sidebar>
   );

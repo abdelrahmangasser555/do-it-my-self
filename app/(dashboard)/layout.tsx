@@ -1,3 +1,5 @@
+'use client';
+
 // Dashboard layout with sidebar, terminal provider, and main content area
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
@@ -10,13 +12,22 @@ import {
 } from '@/features/onboarding/components/onboarding-guard';
 import { APP_CONFIG } from '@/lib/config';
 import { DeletionProvider } from '@/lib/deletion-context';
+import { useAppMode } from '@/lib/app-mode-context';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { isDeveloperMode } = useAppMode();
+
   return (
     <OnboardingGuard>
       <DashboardShell>
         <DeletionProvider>
-          <SidebarProvider>
+          <SidebarProvider
+            style={
+              {
+                '--sidebar-width': isDeveloperMode ? '16rem' : '21.5rem',
+              } as React.CSSProperties
+            }
+          >
             <AppSidebar />
             <SidebarInset className="min-w-0 flex flex-col h-svh">
               <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 sticky top-0 z-10 bg-background">

@@ -24,6 +24,7 @@ import {
   Wrench,
   Lock,
   Trash2,
+  HardDrive,
 } from 'lucide-react';
 import { CircleFlag } from 'react-circle-flags';
 import { Sparklines, SparklinesLine } from 'react-sparklines';
@@ -42,6 +43,7 @@ import {
   FileTypeDistributionChart,
   FileSizeRangeChart,
 } from '@/features/infrastructure/components/storage-charts';
+import { FileExplorer } from '@/features/files/components/file-explorer';
 import { S3FilesTable } from '@/features/files/components/files-table';
 import { FolderStructureView } from '@/features/files/components/folder-structure';
 import { SetupTab } from '@/features/buckets/components/setup-tab';
@@ -55,6 +57,7 @@ import { useExpenses } from '@/features/infrastructure/hooks/use-expenses';
 import { CostBreakdownTable } from '@/features/infrastructure/components/cost-tables';
 import { SyncStatusDialog } from '@/features/infrastructure/components/sync-status-dialog';
 import { FileTypeRod } from '@/features/buckets/components/bucket-card';
+import { useAppMode } from '@/lib/app-mode-context';
 import { getRegionAlpha2, getRegionCountry } from '@/lib/region-flags';
 import type { Bucket } from '@/lib/types';
 
@@ -137,10 +140,10 @@ function CopyValue({ value }: { value: string }) {
   );
 }
 
-export default function BucketDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+function BucketDetailView({ id, embedded = false }: { id: string; embedded?: boolean }) {
   const searchParams = useSearchParams();
-  const defaultTab = searchParams.get('tab') ?? 'files';
+  const { mode, isDeveloperMode, setSelectedBucketId, setSelectedProjectId } = useAppMode();
+  const requestedTab = searchParams.get('tab') ?? 'explorer';
 
   const [bucket, setBucket] = useState<Bucket | null>(null);
   const [loading, setLoading] = useState(true);
@@ -185,32 +188,63 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
   const estCostPerMonth = thisBucketExpense
     ? Object.values(thisBucketExpense.costBreakdown).reduce((s, v) => s + v, 0)
     : 0;
+  const canShowExpenses = isDeveloperMode;
+  const allowManualCompatibilityFix = mode !== 'vibecoder';
+  const defaultTab = canShowExpenses
+    ? requestedTab
+    : requestedTab === 'expenses'
+      ? 'analytics'
+      : requestedTab;
 
   useEffect(() => {
+    const abortController = new AbortController();
+    let cancelled = false;
+
     async function load() {
+      setLoading(true);
+
       try {
-        const res = await fetch(`/api/buckets?id=${id}`);
+        const res = await fetch(`/api/buckets?id=${id}`, { signal: abortController.signal });
         if (!res.ok) throw new Error();
+
         const data: Bucket = await res.json();
+        if (cancelled) return;
+
         setBucket(data);
+        setSelectedBucketId(data.id);
+        setSelectedProjectId(data.projectId);
+
         // Run compatibility check for active buckets
         if (data.status === 'active') {
           const params = new URLSearchParams({ bucketName: data.s3BucketName });
           if (data.region) params.set('region', data.region);
-          const compat = await fetch(`/api/buckets/compatibility?${params.toString()}`);
+          const compat = await fetch(`/api/buckets/compatibility?${params.toString()}`, {
+            signal: abortController.signal,
+          });
           if (compat.ok) {
             const c = await compat.json();
+            if (cancelled) return;
             setCompatibility((prev) => ({ ...prev, ...c, checked: true }));
           }
         }
-      } catch {
+      } catch (error) {
+        if (abortController.signal.aborted || cancelled) {
+          return;
+        }
         toast.error('Bucket not found');
       } finally {
+        if (cancelled) return;
         setLoading(false);
       }
     }
+
     load();
-  }, [id]);
+
+    return () => {
+      cancelled = true;
+      abortController.abort();
+    };
+  }, [id, setSelectedBucketId, setSelectedProjectId]);
 
   const handleMakeCompatible = async () => {
     if (!bucket) return;
@@ -326,12 +360,14 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
     return (
       <PageTransition>
         <div className="space-y-4">
-          <Link
-            href="/buckets"
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
-          >
-            <ArrowLeft className="size-4" /> Back to Buckets
-          </Link>
+          {!embedded && (
+            <Link
+              href="/buckets"
+              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
+            >
+              <ArrowLeft className="size-4" /> Back to Buckets
+            </Link>
+          )}
           <p className="text-muted-foreground">Bucket not found.</p>
         </div>
       </PageTransition>
@@ -348,12 +384,14 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
           className="flex flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-card/60 px-4 py-3"
         >
           {/* Back + bucket identity */}
-          <Link
-            href="/buckets"
-            className="flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors shrink-0"
-          >
-            <ArrowLeft className="size-3.5" />
-          </Link>
+          {!embedded && (
+            <Link
+              href="/buckets"
+              className="flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors shrink-0"
+            >
+              <ArrowLeft className="size-3.5" />
+            </Link>
+          )}
 
           <div className="flex items-center gap-2 min-w-0">
             <Database className="size-3.5 text-primary shrink-0" />
@@ -463,20 +501,26 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
                         • {issue}
                       </p>
                     ))}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-6 mt-1 text-[10px] w-full"
-                      onClick={handleMakeCompatible}
-                      disabled={compatibility.fixing}
-                    >
-                      {compatibility.fixing ? (
-                        <Loader2 className="size-2.5 animate-spin mr-1" />
-                      ) : (
-                        <Wrench className="size-2.5 mr-1" />
-                      )}
-                      Fix CORS
-                    </Button>
+                    {allowManualCompatibilityFix ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 mt-1 text-[10px] w-full"
+                        onClick={handleMakeCompatible}
+                        disabled={compatibility.fixing}
+                      >
+                        {compatibility.fixing ? (
+                          <Loader2 className="size-2.5 animate-spin mr-1" />
+                        ) : (
+                          <Wrench className="size-2.5 mr-1" />
+                        )}
+                        Fix CORS
+                      </Button>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground">
+                        Open Setup to use the AI integration prompt.
+                      </p>
+                    )}
                   </div>
                 )}
               </HoverCardContent>
@@ -597,23 +641,31 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
               </ul>
             </AlertDescription>
             <AlertAction>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-amber-400/60 hover:bg-amber-100 dark:hover:bg-amber-900"
-                onClick={handleMakeCompatible}
-                disabled={compatibility.fixing}
-              >
-                {compatibility.fixing ? (
-                  <Loader2 className="size-3 animate-spin mr-1.5" />
-                ) : (
-                  <Wrench className="size-3 mr-1.5" />
-                )}
-                Make Compatible
-              </Button>
-              <div className="text-[11px] text-amber-700/70 dark:text-amber-400/70 ml-1">
-                ⚠ Review before applying to production buckets
-              </div>
+              {allowManualCompatibilityFix ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-400/60 hover:bg-amber-100 dark:hover:bg-amber-900"
+                    onClick={handleMakeCompatible}
+                    disabled={compatibility.fixing}
+                  >
+                    {compatibility.fixing ? (
+                      <Loader2 className="size-3 animate-spin mr-1.5" />
+                    ) : (
+                      <Wrench className="size-3 mr-1.5" />
+                    )}
+                    Make Compatible
+                  </Button>
+                  <div className="text-[11px] text-amber-700/70 dark:text-amber-400/70 ml-1">
+                    Review before applying to production buckets.
+                  </div>
+                </>
+              ) : (
+                <div className="text-[11px] text-amber-700/70 dark:text-amber-400/70 ml-1">
+                  Open Setup to copy the AI repair prompt.
+                </div>
+              )}
             </AlertAction>
           </Alert>
         )}
@@ -621,6 +673,9 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
         {/* Tabs */}
         <Tabs defaultValue={defaultTab} className="space-y-4">
           <TabsList>
+            <TabsTrigger value="explorer" className="gap-1.5">
+              <HardDrive className="size-3.5" /> Explorer
+            </TabsTrigger>
             <TabsTrigger value="files" className="gap-1.5">
               <Cloud className="size-3.5" /> S3 Files ({totalFiles})
             </TabsTrigger>
@@ -630,10 +685,16 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
             <TabsTrigger value="setup" className="gap-1.5">
               <Code2 className="size-3.5" /> Setup
             </TabsTrigger>
-            <TabsTrigger value="expenses" className="gap-1.5">
-              <DollarSign className="size-3.5" /> Expenses
-            </TabsTrigger>
+            {canShowExpenses && (
+              <TabsTrigger value="expenses" className="gap-1.5">
+                <DollarSign className="size-3.5" /> Expenses
+              </TabsTrigger>
+            )}
           </TabsList>
+
+          <TabsContent value="explorer">
+            <FileExplorer lockedBucket={bucket} />
+          </TabsContent>
 
           <TabsContent value="files">
             <Card className="relative">
@@ -734,28 +795,30 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
           </TabsContent>
 
           <TabsContent value="setup">
-            <SetupTab bucket={bucket} />
+            <SetupTab bucket={bucket} mode={mode} />
           </TabsContent>
 
-          <TabsContent value="expenses">
-            <div className="space-y-4">
-              {expensesLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="size-5 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-sm text-muted-foreground">Loading cost data...</span>
-                </div>
-              ) : bucketExpenses.length > 0 ? (
-                <CostBreakdownTable
-                  breakdown={bucketExpenses[0].costBreakdown}
-                  title={`Cost Breakdown — ${bucket.name}`}
-                />
-              ) : (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  No cost data available for this bucket.
-                </p>
-              )}
-            </div>
-          </TabsContent>
+          {canShowExpenses && (
+            <TabsContent value="expenses">
+              <div className="space-y-4">
+                {expensesLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-sm text-muted-foreground">Loading cost data...</span>
+                  </div>
+                ) : bucketExpenses.length > 0 ? (
+                  <CostBreakdownTable
+                    breakdown={bucketExpenses[0].costBreakdown}
+                    title={`Cost Breakdown — ${bucket.name}`}
+                  />
+                ) : (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    No cost data available for this bucket.
+                  </p>
+                )}
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
 
         {/* Upload dialog */}
@@ -807,7 +870,7 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
           onComplete={() => {
             setDeleteOpen(false);
             toast.success('Bucket fully deleted');
-            window.location.href = '/buckets';
+            window.location.href = embedded ? '/' : '/buckets';
           }}
         />
 
@@ -824,4 +887,20 @@ export default function BucketDetailPage({ params }: { params: Promise<{ id: str
       </div>
     </PageTransition>
   );
+}
+
+export function BucketDetailPage({
+  bucketId,
+  embedded = false,
+}: {
+  bucketId: string;
+  embedded?: boolean;
+}) {
+  return <BucketDetailView key={bucketId} id={bucketId} embedded={embedded} />;
+}
+
+export default function BucketDetailRoute({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+
+  return <BucketDetailView id={id} />;
 }

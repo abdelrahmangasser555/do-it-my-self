@@ -35,11 +35,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { ModeRestrictedState } from '@/components/mode-restricted-state';
 import { PageTransition } from '@/components/page-transition';
 import { useBuckets } from '@/features/buckets/hooks/use-buckets';
 import { useBucketInventory } from '@/features/buckets/hooks/use-bucket-inventory';
 import { useAnalytics } from '@/features/infrastructure/hooks/use-analytics';
 import { useExpenses } from '@/features/infrastructure/hooks/use-expenses';
+import { useAppMode } from '@/lib/app-mode-context';
 import { getRegionAlpha2 } from '@/lib/region-flags';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -630,6 +632,7 @@ function DistributionsPageSkeleton() {
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DistributionsPage() {
+  const { isDeveloperMode } = useAppMode();
   const [distributions, setDistributions] = useState<Distribution[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -811,6 +814,17 @@ export default function DistributionsPage() {
     }
     return total;
   }, [distributions, bucketStatsMap]);
+
+  if (!isDeveloperMode) {
+    return (
+      <PageTransition>
+        <ModeRestrictedState
+          title="Distributions are hidden in simplified modes"
+          description="CloudFront management stays in Developer Mode so Easy and Vibecoder focus on the bucket itself instead of CDN controls."
+        />
+      </PageTransition>
+    );
+  }
 
   return (
     <PageTransition>

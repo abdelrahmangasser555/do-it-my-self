@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import type { AppMode } from '@/lib/types';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
@@ -13,6 +14,7 @@ export interface UserSettings {
   openaiApiKey: string;
   defaultEnvironment: string;
   theme: 'dark' | 'light' | 'system';
+  appMode: AppMode;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -22,6 +24,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   openaiApiKey: '',
   defaultEnvironment: '',
   theme: 'dark',
+  appMode: 'easy',
 };
 
 async function ensureDir() {
@@ -95,6 +98,7 @@ export async function POST(request: NextRequest) {
         ? { defaultEnvironment: body.defaultEnvironment }
         : {}),
       ...(body.theme !== undefined ? { theme: body.theme } : {}),
+      ...(body.appMode !== undefined ? { appMode: body.appMode } : {}),
     };
 
     await writeSettings(updated);

@@ -1,8 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Sparklines, SparklinesLine } from 'react-sparklines';
 import { PageTransition } from '@/components/page-transition';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BucketAnalyticsTable } from '@/features/infrastructure/components/bucket-analytics-table';
 import {
   StorageBarChart,
@@ -35,6 +38,7 @@ import {
   exportAnalyticsToJSON,
   downloadFile,
 } from '@/features/infrastructure/utils/analytics-export';
+import { BucketDetailPage } from '@/features/buckets/components/bucket-detail-page';
 import {
   formatBytes,
   formatCost,
@@ -43,6 +47,7 @@ import {
   getAllRegions,
   getStorageByProjectId,
 } from '@/features/dashboard/utils/dashboard-metrics';
+import { useAppMode } from '@/lib/app-mode-context';
 
 const COST_COLORS = [
   'var(--chart-1)',
@@ -53,6 +58,15 @@ const COST_COLORS = [
 ];
 
 export function DashboardPage() {
+  const searchParams = useSearchParams();
+  const {
+    mode,
+    isSimplifiedMode,
+    selectedBucketId,
+    selectedProjectId,
+    setSelectedBucketId,
+    setSelectedProjectId,
+  } = useAppMode();
   const { summary, bucketAnalytics, loading, syncedAt, refetch } = useAnalytics();
   const {
     summary: costSummary,
@@ -83,6 +97,7 @@ export function DashboardPage() {
 
   const activityData = useMemo(() => getActivityData(buckets, inventory), [buckets, inventory]);
   const hasActivity = activityData.some((value) => value > 0);
+  const showAnalyticsOverview = searchParams.get('view') === 'analytics';
 
   const totalFiles = summary?.totalFiles ?? 0;
   const totalStorage = summary?.totalStorageBytes ?? 0;
@@ -122,6 +137,59 @@ export function DashboardPage() {
     const date = new Date().toISOString().slice(0, 10);
     downloadFile(json, `analytics-${date}.json`, 'application/json');
   };
+
+  useEffect(() => {
+    if (!isSimplifiedMode || buckets.length === 0) return;
+
+    const activeBucket = buckets.find((bucket) => bucket.id === selectedBucketId);
+    const nextBucket = activeBucket ?? buckets[0];
+
+    if (!activeBucket && nextBucket) {
+      setSelectedBucketId(nextBucket.id);
+    }
+
+    if (nextBucket && selectedProjectId !== nextBucket.projectId) {
+      setSelectedProjectId(nextBucket.projectId);
+    }
+  }, [
+    buckets,
+    isSimplifiedMode,
+    selectedBucketId,
+    selectedProjectId,
+    setSelectedBucketId,
+    setSelectedProjectId,
+  ]);
+
+  if (isSimplifiedMode && !showAnalyticsOverview) {
+    const selectedBucket = buckets.find((bucket) => bucket.id === selectedBucketId);
+
+    if (selectedBucket) {
+      return <BucketDetailPage bucketId={selectedBucket.id} embedded />;
+    }
+
+    return (
+      <PageTransition>
+        <Card className="mx-auto max-w-3xl">
+          <CardHeader>
+            <CardTitle>
+              {mode === 'vibecoder' ? 'Start with a project' : 'Select a bucket'}
+            </CardTitle>
+            <CardDescription>
+              Create a project and bucket from the sidebar to unlock the simplified workspace.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              Easy and Vibecoder modes replace the analytics dashboard with a focused bucket view.
+            </p>
+            <Button asChild>
+              <Link href="/projects">Open Projects</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </PageTransition>
+    );
+  }
 
   return (
     <PageTransition>

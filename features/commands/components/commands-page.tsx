@@ -10,7 +10,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ModeRestrictedState } from '@/components/mode-restricted-state';
 import { PageTransition } from '@/components/page-transition';
+import { useAppMode } from '@/lib/app-mode-context';
 import { useTerminal } from '@/lib/terminal-context';
 import {
   Zap,
@@ -330,6 +332,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function CommandsPage() {
+  const { isDeveloperMode } = useAppMode();
   const { runCommand, isRunning, setIsOpen, lastError } = useTerminal();
   const [buckets, setBuckets] = useState<Bucket[]>([]);
   const [selectedBucket, setSelectedBucket] = useState<string>('');
@@ -353,6 +356,17 @@ export default function CommandsPage() {
   } | null>(null);
   const [debugLoading, setDebugLoading] = useState(false);
   const [debugResult, setDebugResult] = useState<AIDebugResult | null>(null);
+
+  if (!isDeveloperMode) {
+    return (
+      <PageTransition>
+        <ModeRestrictedState
+          title="Commands are hidden in simplified modes"
+          description="Easy Mode and Vibecoder Mode keep the app focused on projects and buckets. Switch to Developer Mode to run commands and inspect terminal workflows."
+        />
+      </PageTransition>
+    );
+  }
 
   // Fetch buckets for dynamic commands
   useEffect(() => {

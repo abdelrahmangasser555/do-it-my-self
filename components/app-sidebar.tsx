@@ -35,6 +35,7 @@ import {
   FolderPlus,
   Trash2,
   Folders,
+  Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { HeroVideoDialog } from '@/components/ui/hero-video-dialog';
@@ -48,10 +49,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
+import { ProjectEditorDialog } from '@/features/projects/components/project-editor-dialog';
 import { CreateBucketDialog } from '@/features/buckets/components/create-bucket-dialog';
 import { DeleteBucketDialog } from '@/features/buckets/components/delete-bucket-dialog';
-import { useCreateProject, useProjects } from '@/features/projects/hooks/use-projects';
+import {
+  useCreateProject,
+  useProjects,
+  useUpdateProject,
+} from '@/features/projects/hooks/use-projects';
 import { useBuckets, useCreateBucket } from '@/features/buckets/hooks/use-buckets';
 import { useBucketInventory } from '@/features/buckets/hooks/use-bucket-inventory';
 import { useEnvironments } from '@/features/environments/hooks/use-environments';
@@ -135,7 +150,6 @@ export function AppSidebar() {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   const {
-    mode,
     isDeveloperMode,
     selectedProjectId,
     setSelectedProjectId,
@@ -148,11 +162,13 @@ export function AppSidebar() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [bucketDialogOpen, setBucketDialogOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Bucket | null>(null);
 
   const logoSrc = resolvedTheme === 'dark' ? APP_CONFIG.logoDark : APP_CONFIG.logoLight;
 
   const { createProject, loading: creatingProject } = useCreateProject();
+  const { updateProject, loading: updatingProject } = useUpdateProject();
   const { createBucket, loading: creatingBucket } = useCreateBucket();
   const { projects, refetch: refetchProjects } = useProjects();
   const { buckets, refetch: refetchBuckets } = useBuckets();
@@ -165,6 +181,47 @@ export function AppSidebar() {
   );
 
   useEffect(() => {
+    const [, rootSegment, routeId] = pathname.split('/');
+
+    if (rootSegment === 'projects' && routeId) {
+      if (routeId !== selectedProjectId) {
+        setSelectedProjectId(routeId);
+      }
+      if (selectedBucketId) {
+        setSelectedBucketId(null);
+      }
+      return;
+    }
+
+    if (rootSegment === 'buckets' && routeId) {
+      const routeBucket = buckets.find((bucket) => bucket.id === routeId);
+      if (!routeBucket) {
+        return;
+      }
+      if (routeBucket.projectId !== selectedProjectId) {
+        setSelectedProjectId(routeBucket.projectId);
+      }
+      if (routeBucket.id !== selectedBucketId) {
+        setSelectedBucketId(routeBucket.id);
+      }
+    }
+  }, [
+    buckets,
+    pathname,
+    selectedBucketId,
+    selectedProjectId,
+    setSelectedBucketId,
+    setSelectedProjectId,
+  ]);
+
+  useEffect(() => {
+    const isRouteDrivenSelection =
+      pathname.startsWith('/projects/') || pathname.startsWith('/buckets/');
+
+    if (isRouteDrivenSelection) {
+      return;
+    }
+
     if (projects.length === 0) {
       if (selectedProjectId) setSelectedProjectId(null);
       if (selectedBucketId) setSelectedBucketId(null);
@@ -175,7 +232,14 @@ export function AppSidebar() {
     if (!hasSelectedProject) {
       setSelectedProjectId(projects[0].id);
     }
-  }, [projects, selectedBucketId, selectedProjectId, setSelectedBucketId, setSelectedProjectId]);
+  }, [
+    pathname,
+    projects,
+    selectedBucketId,
+    selectedProjectId,
+    setSelectedBucketId,
+    setSelectedProjectId,
+  ]);
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -189,10 +253,19 @@ export function AppSidebar() {
       return;
     }
 
+    const shouldAutoSelectBucket = pathname === '/' || pathname.startsWith('/buckets/');
+
+    if (!shouldAutoSelectBucket) {
+      if (selectedBucketId && !projectBucketIds.has(selectedBucketId)) {
+        setSelectedBucketId(null);
+      }
+      return;
+    }
+
     if (!selectedBucketId || !projectBucketIds.has(selectedBucketId)) {
       setSelectedBucketId(projectBuckets[0].id);
     }
-  }, [projectBuckets, selectedBucketId, selectedProjectId, setSelectedBucketId]);
+  }, [pathname, projectBuckets, selectedBucketId, selectedProjectId, setSelectedBucketId]);
 
   const handleCreateProject = async (data: Parameters<typeof createProject>[0]) => {
     const result = await createProject(data);
@@ -216,12 +289,12 @@ export function AppSidebar() {
       refetchBuckets();
 
       if (deploy) {
-        router.push(isDeveloperMode ? '/buckets' : '/');
+        router.push(isDeveloperMode ? '/buckets' : `/buckets/${result.id}`);
         return;
       }
 
       if (!isDeveloperMode) {
-        router.push('/');
+        router.push(`/buckets/${result.id}`);
       }
     } else {
       toast.error('Failed to create bucket');
@@ -254,27 +327,37 @@ export function AppSidebar() {
 
   const handleProjectSelect = (projectId: string) => {
     if (projectId === selectedProjectId) {
+      if (pathname !== `/projects/${projectId}`) {
+        router.push(`/projects/${projectId}`);
+      }
       return;
     }
 
-    const nextProjectBuckets = buckets.filter((bucket) => bucket.projectId === projectId);
-    const nextActiveBucket =
-      nextProjectBuckets.find((bucket) => bucket.status === 'active') ??
-      nextProjectBuckets[0] ??
-      null;
-
     setSelectedProjectId(projectId);
-    setSelectedBucketId(nextActiveBucket?.id ?? null);
-
-    if (mode !== 'developer' && pathname !== '/') {
-      router.push('/');
-    }
+    setSelectedBucketId(null);
+    router.push(`/projects/${projectId}`);
   };
 
   const handleBucketSelect = (bucket: Bucket) => {
     setSelectedProjectId(bucket.projectId);
     setSelectedBucketId(bucket.id);
-    router.push(mode === 'developer' ? `/buckets/${bucket.id}` : '/');
+    router.push(`/buckets/${bucket.id}`);
+  };
+
+  const handleProjectUpdate = async (
+    projectId: string,
+    updates: Parameters<typeof updateProject>[1],
+  ) => {
+    const updated = await updateProject(projectId, updates);
+    if (!updated) {
+      toast.error('Failed to update project');
+      return false;
+    }
+
+    toast.success('Project updated');
+    refetchProjects();
+    setEditingProject(null);
+    return true;
   };
 
   const activeEnvironmentCount = environments.filter(
@@ -519,23 +602,41 @@ export function AppSidebar() {
                         const isActive = project.id === selectedProjectId;
 
                         return (
-                          <Tooltip key={project.id} delayDuration={250}>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                onClick={() => handleProjectSelect(project.id)}
-                                className={cn(
-                                  'rounded-2xl p-1.5 transition-colors',
-                                  isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted',
-                                )}
-                              >
-                                {getProjectGlyph(project)}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="right" className="text-xs">
-                              {project.name}
-                            </TooltipContent>
-                          </Tooltip>
+                          <ContextMenu key={project.id}>
+                            <Tooltip delayDuration={250}>
+                              <TooltipTrigger asChild>
+                                <ContextMenuTrigger asChild>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleProjectSelect(project.id)}
+                                    className={cn(
+                                      'rounded-2xl p-1.5 transition-colors',
+                                      isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted',
+                                    )}
+                                  >
+                                    {getProjectGlyph(project)}
+                                  </button>
+                                </ContextMenuTrigger>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="text-xs">
+                                {project.name}
+                              </TooltipContent>
+                            </Tooltip>
+
+                            <ContextMenuContent>
+                              <ContextMenuLabel>{project.name}</ContextMenuLabel>
+                              <ContextMenuSeparator />
+                              <ContextMenuGroup>
+                                <ContextMenuItem onClick={() => handleProjectSelect(project.id)}>
+                                  Open Project
+                                </ContextMenuItem>
+                                <ContextMenuItem onClick={() => setEditingProject(project)}>
+                                  <Pencil />
+                                  Edit Project
+                                </ContextMenuItem>
+                              </ContextMenuGroup>
+                            </ContextMenuContent>
+                          </ContextMenu>
                         );
                       })}
                     </div>
@@ -735,15 +836,30 @@ export function AppSidebar() {
         bucket={deleteTarget}
         fileCount={deleteTarget ? (inventory[deleteTarget.id]?.fileCount ?? 0) : 0}
         onComplete={() => {
+          const deletedBucketProjectId = deleteTarget?.projectId ?? null;
+
           if (deleteTarget?.id === selectedBucketId) {
             setSelectedBucketId(null);
           }
           refetchBuckets();
           setDeleteTarget(null);
-          if (!isDeveloperMode) {
-            router.push('/');
+          if (!isDeveloperMode && deletedBucketProjectId) {
+            setSelectedProjectId(deletedBucketProjectId);
+            router.push(`/projects/${deletedBucketProjectId}`);
           }
         }}
+      />
+
+      <ProjectEditorDialog
+        open={!!editingProject}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingProject(null);
+          }
+        }}
+        project={editingProject}
+        loading={updatingProject}
+        onSubmit={handleProjectUpdate}
       />
     </Sidebar>
   );

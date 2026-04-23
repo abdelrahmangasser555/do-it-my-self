@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Project, ProjectFormData } from '@/lib/types';
+import type { Project, ProjectFormData, ProjectUpdateData } from '@/lib/types';
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -81,10 +81,7 @@ export function useDeleteProject() {
 export function useUpdateProject() {
   const [loading, setLoading] = useState(false);
 
-  const updateProject = async (
-    id: string,
-    updates: Partial<Pick<Project, 'name' | 'environment' | 'maxFileSizeMB'>>,
-  ): Promise<Project | null> => {
+  const updateProject = async (id: string, updates: ProjectUpdateData): Promise<Project | null> => {
     try {
       setLoading(true);
       const res = await fetch('/api/projects', {

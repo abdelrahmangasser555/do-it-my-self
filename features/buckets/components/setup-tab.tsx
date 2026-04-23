@@ -39,7 +39,9 @@ interface SetupTabProps {
 
 export function SetupTab({ bucket, mode: appMode = 'developer' }: SetupTabProps) {
   const maxMB = bucket.config?.maxFileSizeMB ?? 100;
-  const [mode, setMode] = useState<'manual' | 'sdk' | 'ai'>('manual');
+  const [mode, setMode] = useState<'manual' | 'sdk' | 'ai'>(
+    appMode === 'vibecoder' ? 'ai' : 'manual',
+  );
   const [selectedFramework, setSelectedFramework] = useState<Framework | null>(null);
 
   // AI Assistant tab state
@@ -60,6 +62,15 @@ export function SetupTab({ bucket, mode: appMode = 'developer' }: SetupTabProps)
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (appMode === 'developer') {
+      return;
+    }
+
+    setMode(appMode === 'vibecoder' ? 'ai' : 'manual');
+    setSelectedFramework(null);
+  }, [appMode, bucket.id]);
 
   const handleCopyPrompt = useCallback(() => {
     const prompt = generateAIAssistantPrompt(bucket, awsCreds, extraInstructions);
@@ -244,24 +255,18 @@ export function SetupTab({ bucket, mode: appMode = 'developer' }: SetupTabProps)
         )}
       </div>
 
-      {appMode === 'vibecoder' ? (
+      {appMode === 'vibecoder' || appMode === 'easy' ? (
         <div className="space-y-4">
           <Alert>
-            <Sparkles className="size-4" />
+            {appMode === 'vibecoder' ? (
+              <Sparkles className="size-4" />
+            ) : (
+              <Info className="size-4" />
+            )}
             <AlertDescription>
-              Vibecoder Mode only shows the AI integration path. Copy the prompt below and let your
-              AI tool generate the setup for you.
-            </AlertDescription>
-          </Alert>
-          <div className="space-y-6">{aiAssistantContent}</div>
-        </div>
-      ) : appMode === 'easy' ? (
-        <div className="space-y-4">
-          <Alert>
-            <Info className="size-4" />
-            <AlertDescription>
-              Easy Mode keeps setup understandable: use the guided flow if you want step-by-step
-              instructions, or jump to the AI prompt when you want an assistant to build it for you.
+              {appMode === 'vibecoder'
+                ? 'Vibecoder Mode opens on the AI prompt first, but the guided setup is still available whenever you want to inspect the manual flow.'
+                : 'Easy Mode opens on the guided flow first, but you can switch to the AI prompt whenever you want an assistant to draft the integration for you.'}
             </AlertDescription>
           </Alert>
 

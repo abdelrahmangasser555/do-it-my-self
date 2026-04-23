@@ -1,16 +1,21 @@
 // Next.js API route handler for projects - proxies to feature logic
-import { NextRequest, NextResponse } from "next/server";
-import { v4 as uuidv4 } from "uuid";
+import { NextRequest, NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
 import {
   readJsonFile,
   appendToJsonFile,
+  findInJsonFile,
   updateInJsonFile,
   deleteFromJsonFile,
-} from "@/lib/filesystem";
-import { projectSchema } from "@/lib/validations";
-import type { Project } from "@/lib/types";
+} from '@/lib/filesystem';
+import { projectSchema } from '@/lib/validations';
+import type { Project } from '@/lib/types';
+import {
+  persistProjectAvatar,
+  removeProjectAvatar,
+} from '@/features/projects/utils/project-avatar';
 
-const FILE = "projects.json";
+const FILE = 'projects.json';
 
 export async function GET() {
   const projects = await readJsonFile<Project>(FILE);
@@ -31,8 +36,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(project, { status: 201 });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Validation failed" },
-      { status: 400 }
+      { error: error instanceof Error ? error.message : 'Validation failed' },
+      { status: 400 },
     );
   }
 }
@@ -42,33 +47,54 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { id, ...updates } = body;
     if (!id) {
-      return NextResponse.json({ error: "ID is required" }, { status: 400 });
+      return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
+    const project = await findInJsonFile<Project>(FILE, id);
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    const normalizedUpdates = { ...updates } as Record<string, unknown>;
+
+    if (normalizedUpdates.imageDataUrl === null || normalizedUpdates.imageDataUrl === '') {
+      await removeProjectAvatar(project.imageDataUrl);
+      normalizedUpdates.imageDataUrl = null;
+    } else if (
+      typeof normalizedUpdates.imageDataUrl === 'string' &&
+      normalizedUpdates.imageDataUrl.startsWith('data:image/')
+    ) {
+      const nextAvatarPath = await persistProjectAvatar(id, normalizedUpdates.imageDataUrl);
+      await removeProjectAvatar(project.imageDataUrl);
+      normalizedUpdates.imageDataUrl = nextAvatarPath;
+    }
+
+    delete normalizedUpdates.imageFileName;
+
     const updated = await updateInJsonFile<Project>(FILE, id, {
-      ...updates,
+      ...(normalizedUpdates as Partial<Project>),
       updatedAt: new Date().toISOString(),
     });
     if (!updated) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
     return NextResponse.json(updated);
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Update failed" },
-      { status: 400 }
+      { error: error instanceof Error ? error.message : 'Update failed' },
+      { status: 400 },
     );
   }
 }
 
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id");
+  const id = searchParams.get('id');
   if (!id) {
-    return NextResponse.json({ error: "ID is required" }, { status: 400 });
+    return NextResponse.json({ error: 'ID is required' }, { status: 400 });
   }
   const deleted = await deleteFromJsonFile<Project>(FILE, id);
   if (!deleted) {
-    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
   return NextResponse.json({ success: true });
 }

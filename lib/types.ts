@@ -22,7 +22,7 @@ export interface Project {
   environment: 'dev' | 'prod';
   maxFileSizeMB: number;
   allowedMimeTypes: string[];
-  imageDataUrl?: string;
+  imageDataUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,6 +111,14 @@ export interface ProjectFormData {
   environment: 'dev' | 'prod';
   maxFileSizeMB: number;
   allowedMimeTypes: string[];
+}
+
+export interface ProjectUpdateData {
+  name?: string;
+  environment?: 'dev' | 'prod';
+  maxFileSizeMB?: number;
+  imageDataUrl?: string | null;
+  imageFileName?: string | null;
 }
 
 export interface BucketFormData {

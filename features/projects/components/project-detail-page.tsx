@@ -1,30 +1,14 @@
 // Project detail page showing buckets and files for a specific project
 'use client';
 
-import { use, useState, useEffect, useMemo, useCallback } from 'react';
+import { use, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, DollarSign, RefreshCw, Plus, Pencil } from 'lucide-react';
 import { Sparklines, SparklinesLine } from 'react-sparklines';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageTransition } from '@/components/page-transition';
 import { FilesTable } from '@/features/files/components/files-table';
 import {
@@ -48,13 +32,14 @@ import { useAnalytics } from '@/features/infrastructure/hooks/use-analytics';
 import { useDeployBucket } from '@/features/infrastructure/hooks/use-deploy-bucket';
 import { useExpenses } from '@/features/infrastructure/hooks/use-expenses';
 import { useProjects, useUpdateProject } from '@/features/projects/hooks/use-projects';
+import { ProjectEditorDialog } from '@/features/projects/components/project-editor-dialog';
 import { CreateBucketDialog } from '@/features/buckets/components/create-bucket-dialog';
 import { DeleteBucketDialog } from '@/features/buckets/components/delete-bucket-dialog';
 import { ConnectCdnDialog } from '@/features/buckets/components/connect-cdn-dialog';
 import { ConnectProjectDialog } from '@/features/buckets/components/connect-project-dialog';
 import { useEnvironments } from '@/features/environments/hooks/use-environments';
 import { toast } from 'sonner';
-import type { Bucket } from '@/lib/types';
+import type { Bucket, ProjectUpdateData } from '@/lib/types';
 import type { BucketFormValues } from '@/lib/validations';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -108,34 +93,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [connectCdnTarget, setConnectCdnTarget] = useState<Bucket | null>(null);
   const [connectProjectTarget, setConnectProjectTarget] = useState<Bucket | null>(null);
 
-  // ── Edit project state ──
   const [editOpen, setEditOpen] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editEnv, setEditEnv] = useState<'dev' | 'prod'>('dev');
-  const [editMaxSizeMB, setEditMaxSizeMB] = useState(10);
 
-  useEffect(() => {
-    if (project) {
-      setEditName(project.name);
-      setEditEnv(project.environment);
-      setEditMaxSizeMB(project.maxFileSizeMB);
-    }
-  }, [project]);
-
-  const handleEditProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const updated = await updateProject(id, {
-      name: editName.trim(),
-      environment: editEnv,
-      maxFileSizeMB: editMaxSizeMB,
-    });
+  const handleEditProject = async (projectId: string, updates: ProjectUpdateData) => {
+    const updated = await updateProject(projectId, updates);
     if (updated) {
       toast.success('Project updated');
-      setEditOpen(false);
       refetchProjects();
-    } else {
-      toast.error('Failed to update project');
+      return true;
     }
+
+    toast.error('Failed to update project');
+    return false;
   };
 
   // ── Hero stats: derived from inventory ──
@@ -641,61 +610,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           onConfirm={handleConnectProject}
         />
 
-        {/* ── Edit Project Dialog ── */}
-        <Dialog open={editOpen} onOpenChange={setEditOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Edit Project</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleEditProject}>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-name">Name</Label>
-                  <Input
-                    id="edit-name"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    placeholder="Project name"
-                    required
-                    minLength={2}
-                    maxLength={50}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-env">Environment</Label>
-                  <Select value={editEnv} onValueChange={(v) => setEditEnv(v as 'dev' | 'prod')}>
-                    <SelectTrigger id="edit-env">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dev">dev</SelectItem>
-                      <SelectItem value="prod">prod</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-maxsize">Max File Size (MB)</Label>
-                  <Input
-                    id="edit-maxsize"
-                    type="number"
-                    min={1}
-                    max={500}
-                    value={editMaxSizeMB}
-                    onChange={(e) => setEditMaxSizeMB(Number(e.target.value))}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" type="button" onClick={() => setEditOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={updatingProject}>
-                  {updatingProject ? 'Saving…' : 'Save Changes'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <ProjectEditorDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          project={project ?? null}
+          loading={updatingProject}
+          onSubmit={handleEditProject}
+        />
       </div>
     </PageTransition>
   );

@@ -58,31 +58,35 @@ const MODE_STYLES: Record<
     card: string;
     active: string;
     badge: string;
+    dot: string;
   }
 > = {
   easy: {
     icon: User,
-    previewShell: 'from-amber-500/15 via-background to-orange-500/10',
-    accent: 'bg-amber-500/80',
-    card: 'border-amber-500/20 bg-amber-500/5 hover:border-amber-500/35',
-    active: 'border-amber-500/45 ring-1 ring-amber-500/20 shadow-sm shadow-amber-500/10',
-    badge: 'border-amber-500/25 bg-amber-500/10 text-amber-700',
+    previewShell: 'from-amber-500/10 via-background to-orange-500/5',
+    accent: 'bg-amber-500/50',
+    card: 'border-border/60 bg-muted/20 hover:border-border',
+    active: 'border-amber-500/30 bg-amber-500/5 ring-1 ring-amber-500/15 shadow-sm shadow-amber-500/5',
+    badge: 'border-amber-500/20 bg-transparent text-amber-600 dark:text-amber-500',
+    dot: 'bg-amber-500/70',
   },
   developer: {
     icon: Building2,
-    previewShell: 'from-emerald-500/15 via-background to-teal-500/10',
-    accent: 'bg-emerald-500/80',
-    card: 'border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/35',
-    active: 'border-emerald-500/45 ring-1 ring-emerald-500/20 shadow-sm shadow-emerald-500/10',
-    badge: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700',
+    previewShell: 'from-emerald-500/10 via-background to-teal-500/5',
+    accent: 'bg-emerald-500/50',
+    card: 'border-border/60 bg-muted/20 hover:border-border',
+    active: 'border-emerald-500/30 bg-emerald-500/5 ring-1 ring-emerald-500/15 shadow-sm shadow-emerald-500/5',
+    badge: 'border-emerald-500/20 bg-transparent text-emerald-600 dark:text-emerald-500',
+    dot: 'bg-emerald-500/70',
   },
   vibecoder: {
     icon: Bot,
-    previewShell: 'from-sky-500/15 via-background to-cyan-500/10',
-    accent: 'bg-sky-500/80',
-    card: 'border-sky-500/20 bg-sky-500/5 hover:border-sky-500/35',
-    active: 'border-sky-500/45 ring-1 ring-sky-500/20 shadow-sm shadow-sky-500/10',
-    badge: 'border-sky-500/25 bg-sky-500/10 text-sky-700',
+    previewShell: 'from-sky-500/10 via-background to-cyan-500/5',
+    accent: 'bg-sky-500/50',
+    card: 'border-border/60 bg-muted/20 hover:border-border',
+    active: 'border-sky-500/30 bg-sky-500/5 ring-1 ring-sky-500/15 shadow-sm shadow-sky-500/5',
+    badge: 'border-sky-500/20 bg-transparent text-sky-600 dark:text-sky-400',
+    dot: 'bg-sky-500/70',
   },
 };
 
@@ -416,19 +420,24 @@ export default function SettingsPage() {
                           onClick={() => handleModeChange(option.value)}
                           className={cn(
                             'rounded-xl border p-4 text-left transition-all duration-200',
-                            style.card,
-                            isActive ? style.active : 'hover:bg-background/80',
+                            isActive ? style.active : style.card,
+                            !isActive && 'opacity-50 hover:opacity-75',
                           )}
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex items-start gap-3">
-                              <div className="rounded-xl border bg-background/80 p-2.5">
-                                <ModeIcon className="size-4 text-foreground" />
+                              <div className="rounded-lg border border-border/50 p-2.5">
+                                <ModeIcon className="size-4 text-foreground/80" />
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">
                                   <p className="text-sm font-semibold">{option.label}</p>
-                                  <span className={cn('size-2 rounded-full', style.accent)} />
+                                  {isActive && (
+                                    <span className={cn('relative flex size-2')}>
+                                      <span className={cn('absolute inline-flex h-full w-full animate-ping rounded-full opacity-60', style.dot)} />
+                                      <span className={cn('relative inline-flex size-2 rounded-full', style.dot)} />
+                                    </span>
+                                  )}
                                 </div>
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   {option.description}
@@ -441,7 +450,7 @@ export default function SettingsPage() {
                               </Badge>
                             )}
                           </div>
-                          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
+                          <div className="mt-3 flex flex-col gap-2">
                             <p className="text-xs text-muted-foreground">{option.summary}</p>
                             <ModePreview mode={option.value} />
                           </div>

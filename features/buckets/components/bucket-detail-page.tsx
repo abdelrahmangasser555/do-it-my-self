@@ -685,11 +685,11 @@ function BucketDetailView({ id, embedded = false }: { id: string; embedded?: boo
             <TabsTrigger value="setup" className="gap-1.5">
               <Code2 className="size-3.5" /> Setup
             </TabsTrigger>
-            {canShowExpenses && (
-              <TabsTrigger value="expenses" className="gap-1.5">
-                <DollarSign className="size-3.5" /> Expenses
-              </TabsTrigger>
-            )}
+            {/* {canShowExpenses && ( */}
+            <TabsTrigger value="expenses" className="gap-1.5">
+              <DollarSign className="size-3.5" /> Expenses
+            </TabsTrigger>
+            {/* )} */}
           </TabsList>
 
           <TabsContent value="explorer">
@@ -798,27 +798,27 @@ function BucketDetailView({ id, embedded = false }: { id: string; embedded?: boo
             <SetupTab bucket={bucket} mode={mode} />
           </TabsContent>
 
-          {canShowExpenses && (
-            <TabsContent value="expenses">
-              <div className="space-y-4">
-                {expensesLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="size-5 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-sm text-muted-foreground">Loading cost data...</span>
-                  </div>
-                ) : bucketExpenses.length > 0 ? (
-                  <CostBreakdownTable
-                    breakdown={bucketExpenses[0].costBreakdown}
-                    title={`Cost Breakdown — ${bucket.name}`}
-                  />
-                ) : (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    No cost data available for this bucket.
-                  </p>
-                )}
-              </div>
-            </TabsContent>
-          )}
+          {/* {canShowExpenses && ( */}
+          <TabsContent value="expenses">
+            <div className="space-y-4">
+              {expensesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">Loading cost data...</span>
+                </div>
+              ) : bucketExpenses.length > 0 ? (
+                <CostBreakdownTable
+                  breakdown={bucketExpenses[0].costBreakdown}
+                  title={`Cost Breakdown — ${bucket.name}`}
+                />
+              ) : (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No cost data available for this bucket.
+                </p>
+              )}
+            </div>
+          </TabsContent>
+          {/* )} */}
         </Tabs>
 
         {/* Upload dialog */}

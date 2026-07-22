@@ -1,9 +1,9 @@
 {
-  "SCR-scr-to-be-deleted-1775076184713": {
-    "BucketArn": "arn:aws:s3:::scr-to-be-deleted-1775076184713",
-    "BucketName": "scr-to-be-deleted-1775076184713",
-    "DistributionId": "E1Y1GXI8FY57E9",
-    "CloudFrontDomain": "d1t1y9t17mchvf.cloudfront.net",
-    "UploadPolicyArn": "arn:aws:iam::006545530824:policy/SCR-scr-to-be-deleted-1775076184713-UploadPolicy81A9CED6-tMdeDPknLYZI"
+  "SCR-scr-maintenance-bucket-dev-mode-1780288878510": {
+    "BucketArn": "arn:aws:s3:::scr-maintenance-bucket-dev-mode-1780288878510",
+    "BucketName": "scr-maintenance-bucket-dev-mode-1780288878510",
+    "DistributionId": "E2EPUV56GITL09",
+    "CloudFrontDomain": "d3d7xk7dvdxb90.cloudfront.net",
+    "UploadPolicyArn": "arn:aws:iam::006545530824:policy/SCR-scr-maintenance-bucket-dev-mode-1780288878510-UploadPolicy81A9CED6-UQ5LBOgdfk9E"
   }
 }

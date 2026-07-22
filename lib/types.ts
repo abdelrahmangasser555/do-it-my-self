@@ -1,5 +1,7 @@
 // Shared TypeScript types for the entire application
 
+export type AppMode = 'easy' | 'developer' | 'vibecoder';
+
 // ── Environments ─────────────────────────────────────────────────────────────
 
 export interface BootstrappedEnvironment {
@@ -20,6 +22,7 @@ export interface Project {
   environment: 'dev' | 'prod';
   maxFileSizeMB: number;
   allowedMimeTypes: string[];
+  imageDataUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -108,6 +111,14 @@ export interface ProjectFormData {
   environment: 'dev' | 'prod';
   maxFileSizeMB: number;
   allowedMimeTypes: string[];
+}
+
+export interface ProjectUpdateData {
+  name?: string;
+  environment?: 'dev' | 'prod';
+  maxFileSizeMB?: number;
+  imageDataUrl?: string | null;
+  imageFileName?: string | null;
 }
 
 export interface BucketFormData {

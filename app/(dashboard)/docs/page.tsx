@@ -1,5 +1,1 @@
-import { redirect } from "next/navigation";
-
-export default function DocsPage() {
-  redirect("/docs/user-guide");
-}
+export { default } from '@/features/docs/components/docs-page';

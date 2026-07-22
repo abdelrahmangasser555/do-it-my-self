@@ -2,6 +2,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { AppModeProvider } from '@/lib/app-mode-context';
 import { ThemeProvider } from '@/lib/theme-context';
 import { APP_CONFIG } from '@/lib/config';
 import './globals.css';
@@ -33,6 +34,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function(){try{var t=localStorage.getItem("dropout-theme");var d=document.documentElement;d.classList.remove("dark","light");if(t==="light"){d.classList.add("light")}else if(t==="system"){d.classList.add(window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")}else{d.classList.add("dark")}}catch(e){d.classList.add("dark")}})();
+
+              (function(){try{var m=localStorage.getItem("dropout-app-mode");var d=document.documentElement;if(m){d.dataset.appMode=m}}catch(e){}})();
 
               (function(){
                 var matcher=/Cannot read properties of undefined \(reading 'projection'\)|migrateProjection|maplibre-gl/i;
@@ -90,7 +93,9 @@ export default function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider>
-          <TooltipProvider>{children}</TooltipProvider>
+          <AppModeProvider>
+            <TooltipProvider>{children}</TooltipProvider>
+          </AppModeProvider>
         </ThemeProvider>
       </body>
     </html>
